@@ -37,8 +37,8 @@ public class CommunityIdTypeConfigurationProvider implements IdTypeConfiguration
 {
 
     private static final Set<IdType> TYPES_TO_ALLOW_REUSE =
-            Collections.unmodifiableSet( EnumSet.of( IdType.PROPERTY, IdType.STRING_BLOCK,
-                    IdType.ARRAY_BLOCK, IdType.NODE_LABELS ) );
+            Collections.unmodifiableSet( EnumSet.of( IdType.NODE, IdType.RELATIONSHIP, IdType.PROPERTY,
+                        IdType.STRING_BLOCK, IdType.ARRAY_BLOCK, IdType.NODE_LABELS ) );
 
     private final Map<IdType,IdTypeConfiguration> typeConfigurations = new EnumMap<>( IdType.class );
 
