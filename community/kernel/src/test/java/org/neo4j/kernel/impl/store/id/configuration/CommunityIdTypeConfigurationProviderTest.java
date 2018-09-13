@@ -41,7 +41,7 @@ public class CommunityIdTypeConfigurationProviderTest
     @Parameterized.Parameters
     public static List<IdType> data()
     {
-        return Arrays.asList(IdType.PROPERTY, IdType.STRING_BLOCK, IdType.ARRAY_BLOCK, IdType.NODE_LABELS );
+        return Arrays.asList( IdType.NODE, IdType.RELATIONSHIP, IdType.PROPERTY, IdType.STRING_BLOCK, IdType.ARRAY_BLOCK, IdType.NODE_LABELS );
     }
 
     public CommunityIdTypeConfigurationProviderTest( IdType reusableType )
@@ -53,9 +53,9 @@ public class CommunityIdTypeConfigurationProviderTest
     public void nonReusableTypeConfiguration()
     {
         IdTypeConfigurationProvider provider = createIdTypeProvider();
-        IdTypeConfiguration typeConfiguration = provider.getIdTypeConfiguration( IdType.RELATIONSHIP );
-        assertFalse( "Relationship ids are not reusable.", typeConfiguration.allowAggressiveReuse() );
-        assertEquals( "Relationship ids are not reusable.", IdTypeConfiguration.DEFAULT_GRAB_SIZE, typeConfiguration.getGrabSize() );
+        IdTypeConfiguration typeConfiguration = provider.getIdTypeConfiguration( IdType.SCHEMA );
+        assertFalse( "Schema ids are not reusable.", typeConfiguration.allowAggressiveReuse() );
+        assertEquals( "Schema ids are not reusable.", IdTypeConfiguration.DEFAULT_GRAB_SIZE, typeConfiguration.getGrabSize() );
     }
 
     @Test
