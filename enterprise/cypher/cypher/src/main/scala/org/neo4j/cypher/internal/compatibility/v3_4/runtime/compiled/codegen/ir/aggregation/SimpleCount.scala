@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -30,7 +30,7 @@ import org.neo4j.cypher.internal.compatibility.v3_4.runtime.compiled.codegen.{Co
  * Simple count is used when no grouping key is defined such as
  * `MATCH (n) RETURN count(n.prop)`
  */
-case class SimpleCount(variable: Variable, expression: CodeGenExpression, distinct: Boolean)
+case class SimpleCount(opName: String, variable: Variable, expression: CodeGenExpression, distinct: Boolean)
   extends BaseAggregateExpression(expression, distinct) {
 
   def init[E](generator: MethodStructure[E])(implicit context: CodeGenContext) = {

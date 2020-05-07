@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -25,6 +25,7 @@ import org.neo4j.cypher._
 import org.neo4j.cypher.exceptionHandler.{RunSafely, runSafely}
 import org.neo4j.cypher.internal._
 import org.neo4j.cypher.internal.compatibility._
+import org.neo4j.cypher.internal.compatibility.v3_4.notifications.LogicalPlanNotifications
 import org.neo4j.cypher.internal.compatibility.v3_4.runtime._
 import org.neo4j.cypher.internal.compatibility.v3_4.runtime.executionplan.{ExecutionPlan => ExecutionPlan_v3_4}
 import org.neo4j.cypher.internal.compatibility.v3_4.runtime.helpers.simpleExpressionEvaluator

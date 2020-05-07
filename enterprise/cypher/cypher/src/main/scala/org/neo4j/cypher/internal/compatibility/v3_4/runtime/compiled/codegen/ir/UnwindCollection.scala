@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -40,7 +40,7 @@ case class UnwindCollection(opName: String, collection: CodeGenExpression, eleme
   override def getNext[E](nextVar: Variable, iterVar: String, generator: MethodStructure[E])
                          (implicit context: CodeGenContext): Unit = {
     assert(elementCodeGenType == nextVar.codeGenType)
-    val next = generator.iteratorNext(generator.loadVariable(iterVar))
+    val next = generator.iteratorNext(generator.loadVariable(iterVar), nextVar.codeGenType)
     generator.assign(nextVar, next)
   }
 

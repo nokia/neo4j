@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -172,5 +172,22 @@ class UniqueIndexAcceptanceTest extends ExecutionEngineFunSuite with CypherCompa
           plan should useOperators("NodeUniqueIndexSeek(Locking)")
         }, Configs.AllRulePlanners))
     }
+  }
+
+  test("should handle null with locking unique index seeks") {
+    //GIVEN
+    createLabeledNode("Person")
+    UniquenessConstraintCreator.createConstraint(graph, "Person", "name")
+    graph should not(haveConstraints(s"${UniquenessConstraintCreator.other.typeName}:Person(name)"))
+    graph should haveConstraints(s"${UniquenessConstraintCreator.typeName}:Person(name)")
+
+    val query = "MATCH (n:Person) WHERE n.name = null SET n:FOO"
+    //WHEN
+    executeWith(Configs.Interpreted - Configs.Cost2_3, query, planComparisonStrategy = ComparePlansWithAssertion((plan) => {
+      //THEN
+      plan shouldNot useOperators("NodeIndexSeek")
+      plan shouldNot useOperators("NodeByLabelScan")
+      plan should useOperators("NodeUniqueIndexSeek(Locking)")
+    }, Configs.AllRulePlanners + Configs.Cost3_1))
   }
 }

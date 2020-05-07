@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -74,6 +74,10 @@ public class TransactionLogAnalyzer
         {   // no-op by default
         }
 
+        default void endLogFile()
+        {
+        }
+
         /**
          * A complete transaction with {@link LogEntryStart}, one or more {@link LogEntryCommand} and {@link LogEntryCommit}.
          *
@@ -133,6 +137,7 @@ public class TransactionLogAnalyzer
                     LogVersionedStoreChannel next = super.next( channel );
                     if ( next != channel )
                     {
+                        monitor.endLogFile();
                         monitor.logFile( logFiles.getLogFileForVersion( next.getVersion() ), next.getVersion() );
                     }
                     return next;
@@ -175,6 +180,7 @@ public class TransactionLogAnalyzer
                 }
             }
         }
+        monitor.endLogFile();
     }
 
     private static class CombinedMonitor implements Monitor

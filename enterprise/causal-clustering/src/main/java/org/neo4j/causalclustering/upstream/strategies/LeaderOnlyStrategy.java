@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -23,6 +23,7 @@
 package org.neo4j.causalclustering.upstream.strategies;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import org.neo4j.causalclustering.discovery.RoleInfo;
@@ -54,7 +55,7 @@ public class LeaderOnlyStrategy extends UpstreamDatabaseSelectionStrategy
         for ( Map.Entry<MemberId,RoleInfo> entry : memberRoles.entrySet() )
         {
             RoleInfo role = entry.getValue();
-            if ( role == RoleInfo.LEADER )
+            if ( role == RoleInfo.LEADER && !Objects.equals( myself, entry.getKey() ) )
             {
                 return Optional.of( entry.getKey() );
             }

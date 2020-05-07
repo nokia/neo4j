@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -37,7 +37,6 @@ import java.util.stream.Collectors;
 
 import org.neo4j.commandline.admin.security.SetDefaultAdminCommand;
 import org.neo4j.dbms.DatabaseManagementSystemSettings;
-import org.neo4j.graphdb.factory.GraphDatabaseSettings;
 import org.neo4j.helpers.Service;
 import org.neo4j.internal.kernel.api.exceptions.KernelException;
 import org.neo4j.internal.kernel.api.security.SecurityContext;
@@ -213,8 +212,7 @@ public class EnterpriseSecurityModule extends SecurityModule
 
     private static AuthenticationStrategy createAuthenticationStrategy( Config config )
     {
-        int maxFailedAttempts = config.get( GraphDatabaseSettings.auth_max_failed_attempts );
-        return new RateLimitedAuthenticationStrategy( Clocks.systemClock(), maxFailedAttempts );
+        return new RateLimitedAuthenticationStrategy( Clocks.systemClock(), config );
     }
 
     private static CacheManager createCacheManager( Config config )

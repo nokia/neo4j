@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -38,6 +38,7 @@ import org.neo4j.kernel.impl.factory.GraphDatabaseFacadeFactory;
 import org.neo4j.kernel.impl.factory.PlatformModule;
 import org.neo4j.kernel.impl.logging.LogService;
 import org.neo4j.kernel.impl.logging.SimpleLogService;
+import org.neo4j.logging.AssertableLogProvider;
 import org.neo4j.logging.LogProvider;
 
 /**
@@ -45,6 +46,16 @@ import org.neo4j.logging.LogProvider;
  */
 public class TestEnterpriseGraphDatabaseFactory extends TestGraphDatabaseFactory
 {
+    public TestEnterpriseGraphDatabaseFactory()
+    {
+        super();
+    }
+
+    public TestEnterpriseGraphDatabaseFactory( LogProvider logProvider )
+    {
+        super( logProvider );
+    }
+
     @Override
     protected GraphDatabaseBuilder.DatabaseCreator createDatabaseCreator( File storeDir,
                                                                           GraphDatabaseFactoryState state )

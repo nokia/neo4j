@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -31,7 +31,7 @@ class MemoryPerformanceAcceptanceTest extends ExecutionEngineFunSuite with Cyphe
   test("check for contents of collection that contains only a single null") {
     createNode()
 
-    val result = executeWith(Configs.All + Configs.Morsel,
+    val result = executeWith(Configs.All,
       "MATCH (a) WHERE 42 IN [a.prop] RETURN *", params = Map("param" -> null)
     )
 
@@ -68,7 +68,7 @@ class MemoryPerformanceAcceptanceTest extends ExecutionEngineFunSuite with Cyphe
                   |RETURN ID(a), ID(b), type(r)""".stripMargin
 
     // when
-    executeWith(Configs.Interpreted + Configs.Morsel, query)
+    executeWith(Configs.Interpreted, query)
     // then it should not fail or run out of memory
   }
 
@@ -79,4 +79,22 @@ class MemoryPerformanceAcceptanceTest extends ExecutionEngineFunSuite with Cyphe
     result.columnAs[Long]("c").toList should equal(List(expectedResult))
   }
 
+  test("should be able to do ORDER BY with huge LIMIT") {
+    val query = """
+                  |WITH [4, 3, 1, 2] AS lst
+                  |UNWIND lst AS x
+                  |WITH x
+                  |ORDER BY x ASC LIMIT 2147483647
+                  |RETURN x""".stripMargin
+
+    //we cannot use executeWith here since this query will OOM in older releases and break the test
+    for (runtime <- List("compiled", "interpreted", "slotted")) {
+      innerExecuteDeprecated(s"CYPHER runtime=$runtime $query").toList should equal(List(
+        Map("x" -> 1),
+        Map("x" -> 2),
+        Map("x" -> 3),
+        Map("x" -> 4)
+      ))
+    }
+  }
 }

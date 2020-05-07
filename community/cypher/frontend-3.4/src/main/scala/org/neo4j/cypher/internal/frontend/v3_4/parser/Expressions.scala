@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -200,7 +200,8 @@ trait Expressions extends Parser
   }
 
   def PatternComprehension: Rule1[ast.PatternComprehension] = rule("[") {
-    group("[" ~~ optional(Variable ~~ operator("=")) ~~ RelationshipsPattern ~ optional(WS ~ keyword("WHERE") ~~ Expression) ~~ "|" ~~ Expression ~~ "]") ~~>> (ast.PatternComprehension(_, _, _, _))
+    group("[" ~~ optional(Variable ~~ operator("=")) ~~ RelationshipsPattern ~ optional(WS ~ keyword("WHERE") ~~ Expression) ~~ "|" ~~ Expression ~~ "]") ~~>> (
+      (a, b, c, d) => pos => ast.PatternComprehension(a, b, c, d)(pos, Set.empty))
   }
 
   def CaseExpression: Rule1[ast.CaseExpression] = rule("CASE") {

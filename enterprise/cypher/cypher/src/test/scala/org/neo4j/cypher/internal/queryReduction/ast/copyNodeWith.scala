@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -164,9 +164,13 @@ object copyNodeWith {
       case SetPropertyItem(property, expression) =>
         SetPropertyItem(nc.ofSingle(property), nc.ofSingle(expression))(node.position)
 
-      case PatternComprehension(namedPath, pattern, predicate, projection, outerScope) =>
-        PatternComprehension(nc.ofOption(namedPath), nc.ofSingle(pattern), nc.ofOption(predicate), nc.ofSingle(projection),
-          nc.ofSeq(outerScope.toSeq).toSet)(node.position)
+      case pc@PatternComprehension(namedPath, pattern, predicate, projection) =>
+        PatternComprehension(
+          nc.ofOption(namedPath),
+          nc.ofSingle(pattern),
+          nc.ofOption(predicate),
+          nc.ofSingle(projection)
+        )(node.position, nc.ofSeq(pc.outerScope.toSeq).toSet)
 
       case RelationshipsPattern(element) =>
         RelationshipsPattern(nc.ofSingle(element))(node.position)

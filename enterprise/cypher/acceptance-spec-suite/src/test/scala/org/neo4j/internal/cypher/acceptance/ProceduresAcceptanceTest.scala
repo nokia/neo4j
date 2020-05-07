@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -140,6 +140,26 @@ class ProceduresAcceptanceTest extends ExecutionEngineFunSuite with CypherCompar
 
     // Then
     result.toList should equal(List(Map("name" -> "Clint Eastwood")))
+  }
+
+  test("should use correct temporal types") {
+    registerTestProcedures()
+
+    val result =innerExecuteDeprecated(
+      "CALL org.neo4j.time(localtime.statement())")
+
+    result.toList should be(empty) // and not crash
+  }
+
+  test("should call procedure with query parameters overriding default values") {
+    registerTestProcedures()
+
+    graph.execute("UNWIND [1,2,3] AS i CREATE (a:Cat)")
+
+    val result = executeWith(Configs.Procs,
+      "CALL org.neo4j.aNodeWithLabel", params = Map("label" -> "Cat"))
+
+    result.size should equal(1)
   }
 
   private def registerTestProcedures(): Unit = {

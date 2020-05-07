@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -37,6 +37,10 @@ class HexIntegerLiteralTest extends SemanticFunSuite {
 
   test("throws error for too large hexadecimal numbers") {
     assertSemanticError("0xfffffffffffffffff", "integer is too large")
+  }
+
+  test("correctly parse hexadecimal Long.MIN_VALUE") {
+    assert(SignedHexIntegerLiteral("-0x8000000000000000")(DummyPosition(0)).value === Long.MinValue)
   }
 
   private def assertSemanticError(stringValue: String, errorMessage: String) {

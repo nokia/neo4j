@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -31,7 +31,6 @@ case class Fields(entityAccessor: FieldReference,
                   params: FieldReference,
                   closeable: FieldReference,
                   queryContext: FieldReference,
-                  skip: FieldReference,
                   cursors: FieldReference,
                   nodeCursor: FieldReference,
                   relationshipScanCursor: FieldReference,

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2002-2018 "Neo4j,"
+# Copyright (c) 2002-2020 "Neo4j,"
 # Neo4j Sweden AB [http://neo4j.com]
 #
 # This file is part of Neo4j Enterprise Edition. The included source
@@ -20,6 +20,8 @@
 # More information is also available at:
 # https://neo4j.com/licensing/
 #
+
+#encoding: utf-8
 
 Feature: OrderByAcceptance
 
@@ -280,4 +282,31 @@ Feature: OrderByAcceptance
       | b     |
       | (:B)  |
       | (:B)  |
+    And no side effects
+
+  Scenario: ORDER BY on nested map missing property
+    Given an empty graph
+    When executing query:
+      """
+      WITH {key: 'foo'} AS m
+      RETURN m.key
+      ORDER BY m.other.name
+      """
+    Then the result should be, in order:
+      | m.key |
+      | 'foo' |
+    And no side effects
+
+  Scenario: ORDER BY on maps
+    Given an empty graph
+    When executing query:
+      """
+      UNWIND [{k1: {k2: 'A'}}, {k1: {k2: 'B'}}, {k1: {k2: 'C'}}] AS m
+      RETURN m.k1.k2 ORDER BY m.k1.k2
+      """
+    Then the result should be, in order:
+      | m.k1.k2 |
+      | 'A' |
+      | 'B' |
+      | 'C' |
     And no side effects

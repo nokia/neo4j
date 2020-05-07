@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -94,13 +94,11 @@ trait GraphIcing {
     }
 
     def createIndex(label: String, properties: String*) = {
-      graph.execute(s"CREATE INDEX ON :$label(${properties.mkString(",")})")
+      graph.execute(s"CREATE INDEX ON :$label(${properties.map(p => s"`$p`").mkString(",")})")
 
-      val indexDef = inTx {
-        graph.schema().awaitIndexesOnline(10, TimeUnit.SECONDS)
+      inTx {
+        graph.schema().awaitIndexesOnline(10, TimeUnit.MINUTES)
       }
-
-      indexDef
     }
 
     def statement: Statement = txBridge.get()

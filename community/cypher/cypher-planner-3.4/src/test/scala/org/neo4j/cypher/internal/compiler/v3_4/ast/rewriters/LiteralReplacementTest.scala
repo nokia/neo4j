@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -36,10 +36,6 @@ class LiteralReplacementTest extends CypherFunSuite  {
 
   test("should not extract literal dynamic property lookups") {
     assertDoesNotRewrite("MATCH n RETURN n[\"name\"]")
-  }
-
-  test("should not extract string literals in graph urls") {
-    assertDoesNotRewrite("WITH GRAPH foo AT 'blub' MATCH (n) RETURN n")
   }
 
   test("should extract literals in return clause") {

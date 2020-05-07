@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -24,8 +24,8 @@ package org.neo4j.bolt.v1.runtime;
  */
 public class BoltConnectionFatality extends Exception
 {
-    protected BoltConnectionFatality( String message )
+    public BoltConnectionFatality( String message, Throwable cause )
     {
-        super( message );
+        super( message, cause );
     }
 }

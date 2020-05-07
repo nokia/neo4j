@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -39,7 +39,7 @@ import org.neo4j.metrics.output.EventReporter;
 import static com.codahale.metrics.MetricRegistry.name;
 import static java.util.Collections.emptySortedMap;
 
-@Documented( ".Database LogRotation Metrics" )
+@Documented( ".Database log rotation metrics" )
 public class LogRotationMetrics extends LifecycleAdapter
 {
     private static final String LOG_ROTATION_PREFIX = "neo4j.log_rotation";

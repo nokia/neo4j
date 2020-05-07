@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -30,6 +30,7 @@ case class ProcedureSignature(name: QualifiedName,
                               accessMode: ProcedureAccessMode,
                               description: Option[String] = None,
                               warning: Option[String] = None,
+                              eager: Boolean = false,
                               id: Option[Int] = None) {
 
   def outputFields = outputSignature.getOrElse(Seq.empty)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -223,6 +223,7 @@ public class ReadReplica implements ClusterMember<ReadReplicaGraphDatabase>
         return new MemberId( new UUID( ((long) serverId) << 32, 0 ) );
     }
 
+    @Override
     public int serverId()
     {
         return serverId;

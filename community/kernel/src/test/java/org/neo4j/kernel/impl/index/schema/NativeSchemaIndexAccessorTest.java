@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -592,10 +592,9 @@ public abstract class NativeSchemaIndexAccessorTest<KEY extends NativeSchemaKey<
         // given
         IndexEntryUpdate<SchemaIndexDescriptor>[] updates = layoutUtil.someUpdates();
         processAll( updates );
-        try ( IndexReader reader = accessor.newReader() )
+        try ( IndexReader reader = accessor.newReader();
+              IndexSampler sampler = reader.createSampler() )
         {
-            IndexSampler sampler = reader.createSampler();
-
             // when
             IndexSample sample = sampler.sampleIndex();
 

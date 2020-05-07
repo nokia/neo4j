@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -105,7 +105,7 @@ object ScenarioTestHelper {
     val uri = new URI("/blacklists/" + blacklistFile)
     val url = getClass.getResource(uri.getPath)
     if (url == null) throw new FileNotFoundException(s"Blacklist file not found at: $blacklistFile")
-    val lines = Source.fromFile(url.getPath, StandardCharsets.UTF_8.name()).getLines()
+    val lines = Source.fromFile(url.toURI, StandardCharsets.UTF_8.name()).getLines()
     val scenarios = lines.filterNot(line => line.startsWith("//") || line.isEmpty).toList // comments in blacklist are being ignored
     scenarios.foreach(validate)
     scenarios.map(BlacklistEntry(_))
@@ -127,7 +127,6 @@ object ScenarioTestHelper {
       Console.out.flush() // to make sure we see progress
       if (isFailure) Some(scenario.toString) else None
     }
-    println()
-    println(blacklist.mkString("\n"))
+    println(blacklist.distinct.mkString("\n","\n","\n"))
   }
 }

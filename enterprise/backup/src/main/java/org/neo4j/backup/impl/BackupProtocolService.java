@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -107,18 +107,13 @@ public class BackupProtocolService
     private final Monitors monitors;
     private final PageCache pageCache;
 
-    public BackupProtocolService()
-    {
-        this( System.out );
-    }
-
-    public BackupProtocolService( OutputStream logDestination )
+    public BackupProtocolService( OutputStream logDestination, Config tuningConfiguration )
     {
         this( DefaultFileSystemAbstraction::new, FormattedLogProvider.toOutputStream( logDestination ), logDestination, new Monitors(),
-                createPageCache( new DefaultFileSystemAbstraction() ) );
+                createPageCache( new DefaultFileSystemAbstraction(), tuningConfiguration ) );
     }
 
-    BackupProtocolService( Supplier<FileSystemAbstraction> fileSystemSupplier, LogProvider logProvider, OutputStream logDestination, Monitors monitors,
+    public BackupProtocolService( Supplier<FileSystemAbstraction> fileSystemSupplier, LogProvider logProvider, OutputStream logDestination, Monitors monitors,
             @Nullable PageCache pageCache )
     {
         this.fileSystemSupplier = fileSystemSupplier;

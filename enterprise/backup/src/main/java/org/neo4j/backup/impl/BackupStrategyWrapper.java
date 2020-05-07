@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -74,11 +74,9 @@ class BackupStrategyWrapper
         return state;
     }
 
-    private Fallible<BackupStrategyOutcome> performBackupWithoutLifecycle(
-            OnlineBackupContext onlineBackupContext )
+    private Fallible<BackupStrategyOutcome> performBackupWithoutLifecycle( OnlineBackupContext onlineBackupContext )
     {
         Path backupLocation = onlineBackupContext.getResolvedLocationFromName();
-        Path userSpecifiedBackupLocation = onlineBackupContext.getResolvedLocationFromName();
         OptionalHostnamePort userSpecifiedAddress = onlineBackupContext.getRequiredArguments().getAddress();
         log.debug( "User specified address is %s:%s", userSpecifiedAddress.getHostname().toString(), userSpecifiedAddress.getPort().toString() );
         Config config = onlineBackupContext.getConfig();
@@ -87,10 +85,13 @@ class BackupStrategyWrapper
         if ( previousBackupExists )
         {
             log.info( "Previous backup found, trying incremental backup." );
-            Fallible<BackupStageOutcome> state =
-                    backupStrategy.performIncrementalBackup( userSpecifiedBackupLocation, config, userSpecifiedAddress );
+            Fallible<BackupStageOutcome> state = backupStrategy.performIncrementalBackup( backupLocation, config, userSpecifiedAddress );
             boolean fullBackupWontWork = BackupStageOutcome.WRONG_PROTOCOL.equals( state.getState() );
             boolean incrementalWasSuccessful = BackupStageOutcome.SUCCESS.equals( state.getState() );
+            if ( incrementalWasSuccessful )
+            {
+                backupRecoveryService.recoverWithDatabase( backupLocation, pageCache, config );
+            }
 
             if ( fullBackupWontWork || incrementalWasSuccessful )
             {
@@ -136,8 +137,7 @@ class BackupStrategyWrapper
      * @param onlineBackupContext command line arguments, config etc.
      * @return outcome of full backup
      */
-    private Fallible<BackupStageOutcome> fullBackupWithTemporaryFolderResolutions(
-            OnlineBackupContext onlineBackupContext )
+    private Fallible<BackupStageOutcome> fullBackupWithTemporaryFolderResolutions( OnlineBackupContext onlineBackupContext )
     {
         Path userSpecifiedBackupLocation = onlineBackupContext.getResolvedLocationFromName();
         Path temporaryFullBackupLocation = backupCopyService.findAnAvailableLocationForNewFullBackup( userSpecifiedBackupLocation );
@@ -146,12 +146,12 @@ class BackupStrategyWrapper
         Fallible<BackupStageOutcome> state = backupStrategy.performFullBackup( temporaryFullBackupLocation, config, address );
 
         // NOTE temporaryFullBackupLocation can be equal to desired
-        boolean aBackupAlreadyExisted = userSpecifiedBackupLocation.equals( temporaryFullBackupLocation );
+        boolean backupWasMadeToATemporaryLocation = !userSpecifiedBackupLocation.equals( temporaryFullBackupLocation );
 
         if ( BackupStageOutcome.SUCCESS.equals( state.getState() ) )
         {
             backupRecoveryService.recoverWithDatabase( temporaryFullBackupLocation, pageCache, config );
-            if ( !aBackupAlreadyExisted )
+            if ( backupWasMadeToATemporaryLocation )
             {
                 try
                 {

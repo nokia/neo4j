@@ -4,13 +4,13 @@
     <parent>
         <groupId>org.neo4j</groupId>
         <artifactId>parent</artifactId>
-        <version>3.4.0-SNAPSHOT</version>
+        <version>3.4.19-SNAPSHOT</version>
         <relativePath>../..</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
     <artifactId>neo4j-causal-clustering</artifactId>
     <name>Neo4j - Causal Clustering</name>
-    <version>3.4.0-SNAPSHOT</version>
+    <version>3.4.19-SNAPSHOT</version>
 
     <description>This component provides the means to set up a cluster of Neo4j instances that act together
         as a cluster, providing cluster with RAFT consensus for the core machines and eventual
@@ -20,7 +20,7 @@
     <packaging>jar</packaging>
 
     <properties>
-        <license-text.header>../../build/AGPL-3-header.txt</license-text.header>
+        <license-text.header>headers/AGPL-3-header.txt</license-text.header>
         <moduleName>org.neo4j.causalclustering</moduleName>
     </properties>
 
@@ -104,7 +104,7 @@
         <dependency>
             <groupId>com.hazelcast</groupId>
             <artifactId>hazelcast-all</artifactId>
-            <version>3.7.5</version>
+            <version>3.7.8</version>
         </dependency>
 
         <dependency>

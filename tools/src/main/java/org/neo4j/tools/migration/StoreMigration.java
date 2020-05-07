@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -127,7 +127,7 @@ public class StoreMigration
             Dependencies deps = new Dependencies();
             Monitors monitors = new Monitors();
             deps.satisfyDependencies( fs, config, explicitIndexProvider, pageCache, logService, monitors,
-                    RecoveryCleanupWorkCollector.IMMEDIATE );
+                    RecoveryCleanupWorkCollector.immediate() );
 
             KernelContext kernelContext = new SimpleKernelContext( storeDirectory, DatabaseInfo.UNKNOWN, deps );
             KernelExtensions kernelExtensions = life.add( new KernelExtensions(

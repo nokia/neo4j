@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -23,6 +23,7 @@
 package org.neo4j.causalclustering.catchup.storecopy;
 
 import java.io.File;
+import java.net.ConnectException;
 import java.nio.file.Paths;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
@@ -124,28 +125,37 @@ public class StoreCopyClient
             TerminationCondition terminationCondition ) throws StoreCopyFailedException
     {
         TimeoutStrategy.Timeout timeout = backOffStrategy.newTimeout();
-        boolean successful;
-        do
+        while ( true )
         {
             try
             {
                 AdvertisedSocketAddress address = addressProvider.secondary();
                 log.info( format( "Sending request '%s' to '%s'", request, address ) );
                 StoreCopyFinishedResponse response = catchUpClient.makeBlockingRequest( address, request, copyHandler );
-                successful = successfulRequest( response, request );
+                if ( successfulRequest( response, request ) )
+                {
+                    break;
+                }
             }
-            catch ( CatchUpClientException | CatchupAddressResolutionException e )
+            catch ( CatchUpClientException e )
             {
-                log.warn( format( "Request failed exceptionally '%s'.", request ), e );
-                successful = false;
+                Throwable cause = e.getCause();
+                if ( cause instanceof ConnectException )
+                {
+                    log.warn( cause.getMessage() );
+                }
+                else
+                {
+                    log.warn( format( "Request failed exceptionally '%s'.", request ), e );
+                }
             }
-            if ( !successful )
+            catch ( CatchupAddressResolutionException e )
             {
-                terminationCondition.assertContinue();
+                log.warn( "Unable to resolve address for '%s'. %s", request, e.getMessage() );
             }
+            terminationCondition.assertContinue();
             awaitAndIncrementTimeout( timeout );
         }
-        while ( !successful );
     }
 
     private void awaitAndIncrementTimeout( TimeoutStrategy.Timeout timeout ) throws StoreCopyFailedException

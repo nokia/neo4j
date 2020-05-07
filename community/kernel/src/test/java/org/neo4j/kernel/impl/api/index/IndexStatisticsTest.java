@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -549,7 +549,7 @@ public class IndexStatisticsTest
                 int labelId = ktx.tokenWrite().labelGetOrCreateForName( labelName );
                 int propertyKeyId = ktx.tokenWrite().propertyKeyGetOrCreateForName( propertyKeyName );
                 LabelSchemaDescriptor descriptor = forLabel( labelId, propertyKeyId );
-                index = ktx.schemaWrite().indexCreate( descriptor );
+                index = ktx.schemaWrite().indexCreate( descriptor, null );
             }
             tx.success();
             return index;

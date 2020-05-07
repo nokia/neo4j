@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -138,6 +138,8 @@ class TransactionBoundPlanContext(txSupplier: () => KernelTransaction, logger: I
     val description = asOption(signature.description())
     val warning = asOption(signature.warning())
 
+    // TODO: Add a trailing argument `ks.eager()` after upgrading to the next 3.3 release
+    //ProcedureSignature(name, input, output, deprecationInfo, mode, description, warning, ks.eager())
     ProcedureSignature(name, input, output, deprecationInfo, mode, description, warning)
   }
 

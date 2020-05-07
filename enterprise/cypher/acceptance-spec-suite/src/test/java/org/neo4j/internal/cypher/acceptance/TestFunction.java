@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -50,5 +50,16 @@ public class TestFunction
         Result result = db.execute( "MATCH (n) RETURN n LIMIT 1" );
         Object node = result.next().get( "n" );
         return Collections.singletonList( node );
+    }
+
+    @UserFunction( "test.sum" )
+    public double sum( @Name( "numbers" ) List<Number> list )
+    {
+        double sum = 0;
+        for ( Number number : list )
+        {
+            sum += number.doubleValue();
+        }
+        return sum;
     }
 }

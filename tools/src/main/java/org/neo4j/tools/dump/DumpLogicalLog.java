@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -34,6 +34,7 @@ import java.util.regex.Pattern;
 import org.neo4j.helpers.Args;
 import org.neo4j.io.fs.DefaultFileSystemAbstraction;
 import org.neo4j.io.fs.FileSystemAbstraction;
+import org.neo4j.kernel.impl.transaction.command.Command;
 import org.neo4j.kernel.impl.transaction.command.Command.NodeCommand;
 import org.neo4j.kernel.impl.transaction.command.Command.PropertyCommand;
 import org.neo4j.kernel.impl.transaction.command.Command.RelationshipCommand;
@@ -44,11 +45,12 @@ import org.neo4j.kernel.impl.transaction.log.entry.CheckPoint;
 import org.neo4j.kernel.impl.transaction.log.entry.InvalidLogEntryHandler;
 import org.neo4j.kernel.impl.transaction.log.entry.LogEntry;
 import org.neo4j.kernel.impl.transaction.log.entry.LogEntryCommand;
+import org.neo4j.kernel.impl.transaction.log.entry.LogEntryCommit;
 import org.neo4j.kernel.impl.transaction.log.entry.LogHeader;
 import org.neo4j.kernel.impl.transaction.log.entry.LogHeaderReader;
 import org.neo4j.storageengine.api.StorageCommand;
+import org.neo4j.tools.dump.InconsistentRecords.Type;
 import org.neo4j.tools.dump.TransactionLogAnalyzer.Monitor;
-import org.neo4j.tools.dump.inconsistency.ReportInconsistencies;
 
 import static java.util.TimeZone.getTimeZone;
 import static org.neo4j.helpers.Format.DEFAULT_TIME_ZONE;
@@ -76,16 +78,38 @@ public class DumpLogicalLog
     {
         TransactionLogAnalyzer.analyze( fileSystem, new File( filenameOrDirectory ), invalidLogEntryHandler, new Monitor()
         {
+            private File file;
+            private LogEntryCommit firstTx;
+            private LogEntryCommit lastTx;
+
             @Override
             public void logFile( File file, long logVersion ) throws IOException
             {
+                this.file = file;
                 LogHeader logHeader = LogHeaderReader.readLogHeader( fileSystem, file );
                 out.println( "=== " + file.getAbsolutePath() + "[" + logHeader + "] ===" );
             }
 
             @Override
+            public void endLogFile()
+            {
+                if ( lastTx != null )
+                {
+                    out.println( "=== END " + file.getAbsolutePath() + ", firstTx=" + firstTx + ", lastTx=" + lastTx + " ===" );
+                    firstTx = null;
+                    lastTx = null;
+                }
+            }
+
+            @Override
             public void transaction( LogEntry[] transactionEntries )
             {
+                lastTx = (LogEntryCommit) transactionEntries[transactionEntries.length - 1];
+                if ( firstTx == null )
+                {
+                    firstTx = lastTx;
+                }
+
                 if ( filter == null || filter.test( transactionEntries ) )
                 {
                     for ( LogEntry entry : transactionEntries )
@@ -134,12 +158,12 @@ public class DumpLogicalLog
     public static class ConsistencyCheckOutputCriteria implements Predicate<LogEntry[]>, Function<LogEntry,String>
     {
         private final TimeZone timeZone;
-        private final ReportInconsistencies inconsistencies;
+        private final InconsistentRecords inconsistencies;
 
         public ConsistencyCheckOutputCriteria( String ccFile, TimeZone timeZone ) throws IOException
         {
             this.timeZone = timeZone;
-            inconsistencies = new ReportInconsistencies();
+            inconsistencies = new InconsistentRecords();
             new InconsistencyReportReader( inconsistencies ).read( new File( ccFile ) );
         }
 
@@ -160,37 +184,41 @@ public class DumpLogicalLog
         {
             if ( logEntry instanceof LogEntryCommand )
             {
-                if ( matches( ((LogEntryCommand)logEntry).getCommand() ) )
-                {
-                    return true;
-                }
+                return matches( ((LogEntryCommand) logEntry).getCommand() );
             }
             return false;
         }
 
         private boolean matches( StorageCommand command )
         {
+            Type type = mapCommandToType( command );
+            // For the time being we can assume BaseCommand here
+            return type != null && inconsistencies.containsId( type, ((Command.BaseCommand) command).getKey() );
+        }
+
+        private Type mapCommandToType( StorageCommand command )
+        {
             if ( command instanceof NodeCommand )
             {
-                return inconsistencies.containsNodeId( ((NodeCommand) command).getKey() );
+                return Type.NODE;
             }
             if ( command instanceof RelationshipCommand )
             {
-                return inconsistencies.containsRelationshipId( ((RelationshipCommand) command).getKey() );
+                return Type.RELATIONSHIP;
             }
             if ( command instanceof PropertyCommand )
             {
-                return inconsistencies.containsPropertyId( ((PropertyCommand) command).getKey() );
+                return Type.PROPERTY;
             }
             if ( command instanceof RelationshipGroupCommand )
             {
-                return inconsistencies.containsRelationshipGroupId( ((RelationshipGroupCommand) command).getKey() );
+                return Type.RELATIONSHIP_GROUP;
             }
             if ( command instanceof SchemaRuleCommand )
             {
-                return inconsistencies.containsSchemaIndexId( ((SchemaRuleCommand) command).getKey() );
+                return Type.SCHEMA_INDEX;
             }
-            return false;
+            return null; // means ignore this command
         }
 
         @Override

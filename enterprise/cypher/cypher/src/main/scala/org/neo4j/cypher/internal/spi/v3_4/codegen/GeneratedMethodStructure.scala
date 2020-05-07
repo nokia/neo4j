@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -350,8 +350,7 @@ class GeneratedMethodStructure(val fields: Fields, val generator: CodeBlock, aux
   }
 
   override def visitorAccept() = tryCatch(generator) { onSuccess => {
-    using(onSuccess.ifStatement(not(Expression.get(onSuccess.self(), fields.skip)))) { inner =>
-      using(inner.ifStatement(not(invoke(onSuccess.load("visitor"),
+    using(onSuccess.ifStatement(not(invoke(onSuccess.load("visitor"),
                                          visit, onSuccess.load("row"))))) { body =>
         // NOTE: we are in this if-block if the visitor decided to terminate early (by returning false)
         //close all outstanding events
@@ -363,8 +362,6 @@ class GeneratedMethodStructure(val fields: Fields, val generator: CodeBlock, aux
         body.returns()
       }
     }
-    onSuccess.put(onSuccess.self(), fields.skip, constant(false))
-  }
   }(exception = param[Throwable]("e")) { onError =>
     for (event <- events) {
       onError.expression(
@@ -785,8 +782,8 @@ class GeneratedMethodStructure(val fields: Fields, val generator: CodeBlock, aux
   override def iteratorFrom(iterable: Expression) =
     invoke(method[CompiledConversionUtils, JIterator[_]]("iteratorFrom", typeRef[Object]), iterable)
 
-  override def iteratorNext(iterator: Expression) =
-    invoke(iterator, method[JIterator[_], Object]("next"))
+  override def iteratorNext(iterator: Expression, codeGenType: CodeGenType) =
+    Expression.cast(lowerType(codeGenType), invoke(iterator, method[JIterator[_], Object]("next")))
 
   override def iteratorHasNext(iterator: Expression) =
     invoke(iterator, method[JIterator[_], Boolean]("hasNext"))

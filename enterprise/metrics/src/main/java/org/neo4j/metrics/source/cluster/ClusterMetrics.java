@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -39,7 +39,7 @@ import static com.codahale.metrics.MetricRegistry.name;
 import static org.neo4j.kernel.ha.cluster.modeswitch.HighAvailabilityModeSwitcher.MASTER;
 import static org.neo4j.kernel.ha.cluster.modeswitch.HighAvailabilityModeSwitcher.UNKNOWN;
 
-@Documented( ".Cluster Metrics" )
+@Documented( ".Cluster metrics" )
 public class ClusterMetrics extends LifecycleAdapter
 {
     private static final String NAME_PREFIX = "neo4j.cluster";

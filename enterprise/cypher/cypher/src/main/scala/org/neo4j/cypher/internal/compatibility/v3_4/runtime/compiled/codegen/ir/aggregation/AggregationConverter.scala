@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -41,7 +41,7 @@ object AggregationConverter {
     e match {
       case func: ast.FunctionInvocation => func.function match {
         case astFunctions.Count if groupingVariables.isEmpty =>
-          SimpleCount(variable, createExpression(func.args(0)), func.distinct)
+          SimpleCount(opName, variable, createExpression(func.args(0)), func.distinct)
         case astFunctions.Count  =>
           new DynamicCount(opName, variable, createExpression(func.args(0)), groupingVariables, func.distinct)
 

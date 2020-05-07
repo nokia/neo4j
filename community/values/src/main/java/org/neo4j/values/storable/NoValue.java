@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -19,6 +19,7 @@
  */
 package org.neo4j.values.storable;
 
+import org.neo4j.hashing.HashFunction;
 import org.neo4j.values.AnyValue;
 import org.neo4j.values.ValueMapper;
 
@@ -56,6 +57,12 @@ final class NoValue extends Value
     }
 
     @Override
+    public long updateHash( HashFunction hashFunction, long hash )
+    {
+        return hashFunction.update( hash, hashCode() );
+    }
+
+    @Override
     public int computeHash()
     {
         return System.identityHashCode( this );
@@ -87,6 +94,12 @@ final class NoValue extends Value
 
     @Override
     public String prettyPrint()
+    {
+        return getTypeName();
+    }
+
+    @Override
+    public String getTypeName()
     {
         return "NO_VALUE";
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -36,7 +36,7 @@ import static java.util.Collections.emptyMap;
 
 public class CoreTopology implements Topology<CoreServerInfo>
 {
-    static CoreTopology EMPTY = new CoreTopology( null, false, emptyMap() );
+    static final CoreTopology EMPTY = new CoreTopology( null, false, emptyMap() );
 
     private final ClusterId clusterId;
     private final boolean canBeBootstrapped;

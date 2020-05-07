@@ -4,12 +4,12 @@
   <parent>
     <groupId>org.neo4j</groupId>
     <artifactId>parent</artifactId>
-    <version>3.4.0-SNAPSHOT</version>
+    <version>3.4.19-SNAPSHOT</version>
     <relativePath>../..</relativePath>
   </parent>
 
   <artifactId>neo4j-enterprise</artifactId>
-  <version>3.4.0-SNAPSHOT</version>
+  <version>3.4.19-SNAPSHOT</version>
 
   <name>Neo4j - Enterprise</name>
   <packaging>jar</packaging>
@@ -18,7 +18,7 @@
   </description>
 
   <properties>
-    <license-text.header>../../build/AGPL-3-header.txt</license-text.header>
+    <license-text.header>headers/AGPL-3-header.txt</license-text.header>
     <moduleName>org.neo4j.enterprise</moduleName>
   </properties>
 
@@ -180,6 +180,13 @@
     <dependency>
       <groupId>org.neo4j</groupId>
       <artifactId>neo4j-common</artifactId>
+      <version>${project.version}</version>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.neo4j</groupId>
+      <artifactId>neo4j-lucene-index</artifactId>
       <version>${project.version}</version>
       <type>test-jar</type>
       <scope>test</scope>

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -52,6 +52,8 @@ case class OptionalExpandIntoSlottedPipe(source: Pipe,
   private final val CACHE_SIZE = 100000
   private val getFromNodeFunction = makeGetPrimitiveNodeFromSlotFunctionFor(fromSlot)
   private val getToNodeFunction = makeGetPrimitiveNodeFromSlotFunctionFor(toSlot)
+
+  predicate.registerOwningPipe(this)
 
   //===========================================================================
   // Runtime code

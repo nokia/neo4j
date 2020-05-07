@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -63,19 +63,6 @@ class DateFunction extends TemporalFunction<DateValue>
     protected DateValue select( AnyValue from, Supplier<ZoneId> defaultZone )
     {
         return DateValue.select( from, defaultZone );
-    }
-
-    @Override
-    protected DateValue positionalCreate( AnyValue[] input )
-    {
-        if ( input.length != 3 )
-        {
-            throw new IllegalArgumentException( "expected 3 arguments" );
-        }
-        return DateValue.date(
-                anInt( "year", input[0] ),
-                anInt( "month", input[1] ),
-                anInt( "day", input[2] ) );
     }
 
     @Override

@@ -5,14 +5,14 @@
   <parent>
     <groupId>org.neo4j</groupId>
     <artifactId>cypher-enterprise-parent</artifactId>
-    <version>3.4.0-SNAPSHOT</version>
+    <version>3.4.19-SNAPSHOT</version>
     <relativePath>../</relativePath>
   </parent>
 
   <modelVersion>4.0.0</modelVersion>
   <artifactId>neo4j-enterprise-cypher</artifactId>
   <packaging>jar</packaging>
-  <version>3.4.0-SNAPSHOT</version>
+  <version>3.4.19-SNAPSHOT</version>
   <name>Neo4j Enterprise Cypher</name>
   <description>Neo4j query language</description>
   <url>http://components.neo4j.org/${project.artifactId}/${project.version}</url>
@@ -24,7 +24,7 @@
   </scm>
 
   <properties>
-    <license-text.header>../../../build/AGPL-3-header.txt</license-text.header>
+    <license-text.header>headers/AGPL-3-header.txt</license-text.header>
     <moduleName>org.neo4j.cypher.enterprise</moduleName>
   </properties>
 
@@ -143,7 +143,7 @@
     <dependency>
       <groupId>org.neo4j</groupId>
       <artifactId>neo4j-kernel-api</artifactId>
-      <version>3.4.0-SNAPSHOT</version>
+      <version>3.4.19-SNAPSHOT</version>
       <type>test-jar</type>
       <scope>test</scope>
     </dependency>
@@ -272,6 +272,10 @@
         <exclusion>
           <groupId>com.google.guava</groupId>
           <artifactId>guava</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.google.code.findbugs</groupId>
+          <artifactId>jsr305</artifactId>
         </exclusion>
       </exclusions>
     </dependency>

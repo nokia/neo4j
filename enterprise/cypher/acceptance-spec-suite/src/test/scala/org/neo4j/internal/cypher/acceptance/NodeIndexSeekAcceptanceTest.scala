@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -360,6 +360,58 @@ class NodeIndexSeekAcceptanceTest extends ExecutionEngineFunSuite with CypherCom
 
     // Then
     result.toList should equal(List(Map("n" -> node1)))
+  }
+
+  test("should not return any rows for OR predicates with different labels gh#12017") {
+    // Given
+    graph.createIndex("Label1", "prop1")
+    graph.createIndex("Label2", "prop2")
+    graph.execute("CREATE(:Label1 {prop1: 'val'})" )
+
+    // When
+    val result = executeWith(Configs.Interpreted, "MATCH (n:Label1:Label2) WHERE n.prop1 = 'val' OR n.prop2 = 'val' RETURN n",
+      planComparisonStrategy = ComparePlansWithAssertion(_ should useOperatorTimes("NodeIndexSeek", 2),
+        expectPlansToFail = Configs.OldAndRule))
+
+    // Then
+    result.toList should be (empty)
+  }
+
+  test("should be able to solve OR predicates with same label") {
+    // Given
+    graph.createIndex("Label1", "prop1")
+    graph.createIndex("Label1", "prop2")
+    val node1 = createLabeledNode(Map("prop1" -> "val"), "Label1")
+    val node2 = createLabeledNode(Map("prop2" -> "anotherVal"), "Label1")
+
+    // When
+    val result = executeWith(Configs.Interpreted, "MATCH (n:Label1) WHERE n.prop1 = 'val' OR n.prop2 = 'val' RETURN n",
+      planComparisonStrategy = ComparePlansWithAssertion(_ should useOperatorTimes("NodeIndexSeek", 2),
+        expectPlansToFail = Configs.OldAndRule))
+
+    // Then
+    result.toList should equal(List(Map("n" -> node1)))
+  }
+
+  test("should not return any rows for OR predicates with four indexes") {
+    // Given
+    graph.createIndex("Label1", "prop1")
+    graph.createIndex("Label1", "prop2")
+    graph.createIndex("Label2", "prop1")
+    graph.createIndex("Label2", "prop2")
+
+    for( i <- 1 to 10 ) {
+      graph.execute("CREATE(:Label1 {prop1: 'val', prop2: 'val'})" )
+      graph.execute("CREATE(:Label2 {prop1: 'val', prop2: 'val'})" )
+    }
+
+    // When
+    val result = executeWith(Configs.Interpreted, "MATCH (n:Label1:Label2) WHERE n.prop1 = 'val' OR n.prop2 = 'val' RETURN n",
+      planComparisonStrategy = ComparePlansWithAssertion(_ should useOperatorTimes("NodeIndexSeek", 4),
+        expectPlansToFail = Configs.OldAndRule))
+
+    // Then
+    result.toList should be (empty)
   }
 
   private def setUpDatabaseForTests() {

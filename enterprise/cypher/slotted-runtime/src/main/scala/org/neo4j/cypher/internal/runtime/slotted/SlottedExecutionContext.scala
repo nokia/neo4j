@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -36,6 +36,7 @@ import scala.collection.mutable
 
 object SlottedExecutionContext {
   def empty = new SlottedExecutionContext(SlotConfiguration.empty)
+  val DEBUG = false
 }
 
 /**
@@ -102,7 +103,7 @@ case class SlottedExecutionContext(slots: SlotConfiguration) extends ExecutionCo
 
   override def getRefAt(offset: Int): AnyValue = {
     val value = refs(offset)
-    if (value == null)
+    if (SlottedExecutionContext.DEBUG && value == null)
       throw new InternalException(s"Reference value not initialised at offset $offset in $this")
     value
   }
@@ -226,7 +227,7 @@ case class SlottedExecutionContext(slots: SlotConfiguration) extends ExecutionCo
           )
           thisSlotSetter.apply(this, other.getLongAt(offset))
 
-        case (key, otherSlot @ RefSlot(offset, _, _)) if slottedOther.isRefInitialized(offset) =>
+        case (key, otherSlot @ RefSlot(offset, _, _)) if slottedOther.isRefInitialized(offset)  =>
           val thisSlotSetter = slots.maybeSetter(key).getOrElse(
             throw new InternalException(s"Tried to merge slot $otherSlot from $other but it is missing from $this." +
               "Looks like something needs to be fixed in slot allocation.")
@@ -241,6 +242,10 @@ case class SlottedExecutionContext(slots: SlotConfiguration) extends ExecutionCo
 
           val otherValue = slottedOther.getRefAtWithoutCheckingInitialized(offset)
           thisSlotSetter.apply(this, otherValue)
+
+        case _ =>
+        // a slot which is not initialized(=null). This means it is allocated, but will only be used later in the pipeline.
+        // Therefore, this is a no-op.
       }
       this
 

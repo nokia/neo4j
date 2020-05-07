@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -70,7 +70,7 @@ public class TransactionRepresentationCommitProcess implements TransactionCommit
         }
     }
 
-    private void applyToStore( TransactionToApply batch, CommitEvent commitEvent, TransactionApplicationMode mode )
+    protected void applyToStore( TransactionToApply batch, CommitEvent commitEvent, TransactionApplicationMode mode )
             throws TransactionFailureException
     {
         try ( StoreApplyEvent storeApplyEvent = commitEvent.beginStoreApply() )

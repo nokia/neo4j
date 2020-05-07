@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -48,8 +48,11 @@ class SpatialIndexResultsAcceptanceTest extends IndexingTestSupport {
     assertRangeScanFor("<=", point, node)
     assertLabelRangeScanFor("<=", point, node)
 
-    assertRangeScanFor("<", Values.pointValue(CoordinateReferenceSystem.Cartesian, 1, 0), node)
-    assertLabelRangeScanFor("<", Values.pointValue(CoordinateReferenceSystem.Cartesian, 1, 0), node)
+    assertRangeScanFor("<", Values.pointValue(CoordinateReferenceSystem.Cartesian, 1, 1), node)
+    assertLabelRangeScanFor("<", Values.pointValue(CoordinateReferenceSystem.Cartesian, 1, 1), node)
+
+    assertRangeScanFor("<=", Values.pointValue(CoordinateReferenceSystem.Cartesian, 1, 0), node)
+    assertLabelRangeScanFor("<=", Values.pointValue(CoordinateReferenceSystem.Cartesian, 1, 0), node)
   }
 
   test("indexed point should be readable from node property") {
@@ -492,7 +495,10 @@ class SpatialIndexResultsAcceptanceTest extends IndexingTestSupport {
     assertRangeScanFor(">=", originPoint, origin, upRightTop)
     assertRangeScanFor("<", originPoint, downLeftBottom)
     assertRangeScanFor("<=", originPoint, origin, downLeftBottom)
-    assertRangeScanFor(">", minPoint, "<", maxPoint, origin, downLeftTop, downRightBottom, downrightTop, upLeftBottom, upLeftTop, upRightBottom)
+    assertRangeScanFor(">=", minPoint, "<=", maxPoint, origin, upRightTop, downLeftBottom, downLeftTop, downRightBottom, downrightTop, upLeftBottom, upLeftTop, upRightBottom)
+    assertRangeScanFor(">", minPoint, "<=", maxPoint, origin, upRightTop)
+    assertRangeScanFor(">=", minPoint, "<", maxPoint, origin, downLeftBottom)
+    assertRangeScanFor(">", minPoint, "<", maxPoint, origin)
   }
 
   test("indexed points 3D WGS84 space - range queries") {
@@ -519,6 +525,113 @@ class SpatialIndexResultsAcceptanceTest extends IndexingTestSupport {
     assertRangeScanFor(">=", midPoint, n0, n1)
     assertRangeScanFor("<", midPoint, n8)
     assertRangeScanFor("<=", midPoint, n0, n8)
-    assertRangeScanFor(">", minPoint, "<", maxPoint, n0, n2, n3, n4, n5, n6, n7)
+    assertRangeScanFor(">=", minPoint, "<=", maxPoint, n0, n1, n2, n3, n4, n5, n6, n7, n8)
+    assertRangeScanFor(">", minPoint, "<=", maxPoint, n0, n1)
+    assertRangeScanFor(">=", minPoint, "<", maxPoint, n0, n8)
+    assertRangeScanFor(">", minPoint, "<", maxPoint, n0)
+  }
+
+  test("Range query should return points greater on both axes or less on both axes") {
+    // Given nodes at the search point, above and below it, and on the axes intersecting it
+    createIndex()
+    val nodeAbove15 = createIndexedNode(Values.pointValue(CoordinateReferenceSystem.Cartesian, 1.2345, 5.4321))
+    val nodeBelow15 = createIndexedNode(Values.pointValue(CoordinateReferenceSystem.Cartesian, 0.2345, 4.4321))
+    val nodeAt15 = createIndexedNode(Values.pointValue(CoordinateReferenceSystem.Cartesian, 1, 5))
+    val nodeAt25 = createIndexedNode(Values.pointValue(CoordinateReferenceSystem.Cartesian, 2, 5))
+    val nodeAt16 = createIndexedNode(Values.pointValue(CoordinateReferenceSystem.Cartesian, 1, 6))
+    val nodeAt05 = createIndexedNode(Values.pointValue(CoordinateReferenceSystem.Cartesian, 0, 5))
+    val nodeAt14 = createIndexedNode(Values.pointValue(CoordinateReferenceSystem.Cartesian, 1, 4))
+    createIndexedNode(Values.pointValue(CoordinateReferenceSystem.Cartesian, 0.2345, 5.4321))
+    createIndexedNode(Values.pointValue(CoordinateReferenceSystem.Cartesian, 1.2345, 4.4321))
+
+    Map(
+      ">=" -> Set(nodeAbove15, nodeAt15, nodeAt16, nodeAt25),
+      "<=" -> Set(nodeBelow15, nodeAt15, nodeAt05, nodeAt14),
+      ">" -> Set(nodeAbove15),
+      "<" -> Set(nodeBelow15)
+    ).toList.foreach {
+      case (op, expected) =>
+        // When
+        val resultsWithIndex = innerExecuteDeprecated(s"MATCH (n:Label) WHERE n.prop $op point({x: 1, y: 5}) RETURN n").toList.map(_ ("n"))
+        val resultsWithoutIndex = innerExecuteDeprecated(s"MATCH (n) WHERE n.prop $op point({x: 1, y: 5}) RETURN n").toList.map(_ ("n"))
+
+        // Then
+        val expectAxes = op contains "="
+        withClue(s"Should ${if(expectAxes) "" else "NOT "}find nodes that are on the axes defined by the search point when using operator '$op' and index") {
+          resultsWithIndex.toSet should be(expected)
+        }
+
+        // And should get same results without an index
+        withClue(s"Should ${if(expectAxes) "" else "NOT "}find nodes that are on the axes defined by the search point when using operator '$op' and no index") {
+          resultsWithoutIndex.toSet should be(expected)
+        }
+    }
+    // When running a spatial range query for points greater than or equal to the search point
+    val includingBorder = innerExecuteDeprecated("MATCH (n:Label) WHERE n.prop >= point({x: 1, y: 5}) RETURN n")
+
+    // Then expect to also find nodes on the intersecting axes
+    withClue("Should find nodes that are on the axes defined by the search point") {
+      includingBorder.toList.map(_ ("n")).toSet should be(Set(nodeAbove15, nodeAt15, nodeAt16, nodeAt25))
+    }
+
+    // When running a spatial range query for points only greater than the search point
+    val excludingBorder = innerExecuteDeprecated("MATCH (n:Label) WHERE n.prop > point({x: 1, y: 5}) RETURN n")
+
+    // Then expect to find nodes above the search point and not on the intersecting axes
+    withClue("Should NOT find nodes that are on the axes defined by the search point") {
+      excludingBorder.toList.map(_ ("n")).toSet should be(Set(nodeAbove15))
+    }
+  }
+
+  test("Bounding box query on regular grid should not return points on the edges") {
+    // Given
+    createIndex()
+    val grid = Range(-10, 10).map { x =>
+      Range(-10, 10).map { y =>
+        createIndexedNode(Values.pointValue(CoordinateReferenceSystem.Cartesian, x, y))
+      }
+    }
+    val nodeToFind = createIndexedNode(Values.pointValue(CoordinateReferenceSystem.Cartesian, 1.2345, 5.4321))
+    createIndexedNode(Values.pointValue(CoordinateReferenceSystem.Cartesian, 5.4321, 1.2345))
+    val vertices = Seq(grid(11)(15), grid(11)(16), grid(12)(16), grid(12)(15))
+
+    // When running a bounding box query we expect to include all or none of the border points
+    val includingBorder = innerExecuteDeprecated("MATCH (n:Label) WHERE point({x: 1, y: 5}) <= n.prop <= point({x: 2, y: 6}) RETURN n")
+    withClue("Should find nodes that are on the axes defined by the search point") {
+      includingBorder.toList.size should be(5)
+    }
+    val excludingBorder = innerExecuteDeprecated("MATCH (n:Label) WHERE point({x: 1, y: 5}) < n.prop < point({x: 2, y: 6}) RETURN n")
+    withClue("Should find nodes that are on NOT the axes defined by the search point") {
+      excludingBorder.toList.size should be(1)
+    }
+
+    // And when using the range scan assertions we should find the same results
+    val minPoint = Values.pointValue(CoordinateReferenceSystem.Cartesian, 1, 5)
+    val maxPoint = Values.pointValue(CoordinateReferenceSystem.Cartesian, 2, 6)
+    assertRangeScanFor(">=", minPoint, "<=", maxPoint, vertices :+ nodeToFind: _*)
+    assertRangeScanFor(">", minPoint, "<", maxPoint, nodeToFind)
+  }
+
+  test("should not return points on edges even when using transaction state") {
+    val atPoint = Values.pointValue(CoordinateReferenceSystem.WGS84, 1, 5)
+    val onAxisX = Values.pointValue(CoordinateReferenceSystem.WGS84, 1, 4)
+    val onAxisY = Values.pointValue(CoordinateReferenceSystem.WGS84, 0, 5)
+    val inRange = Values.pointValue(CoordinateReferenceSystem.WGS84, 0, 4)
+    val query = "MATCH (n:Label) WHERE n.prop < {prop} RETURN n, n.prop AS prop ORDER BY id(n)"
+    createIndex()
+    createIndexedNode(atPoint)
+
+    def runTest(name: String): Unit = {
+      val results = innerExecuteDeprecated(query, scala.Predef.Map("prop" -> atPoint))
+      withClue(s"Should not find on-axis points when searching for < $atPoint ($name)") {
+        results.toList.map(_ ("prop")).toSet should be(Set(inRange))
+      }
+    }
+
+    graph.inTx {
+      Seq(onAxisX, onAxisY, inRange).foreach(createIndexedNode(_))
+      runTest("nodes in same transaction")
+    }
+    runTest("no transaction state")
   }
 }

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2002-2018 "Neo4j,"
+# Copyright (c) 2002-2020 "Neo4j,"
 # Neo4j Sweden AB [http://neo4j.com]
 #
 # This file is part of Neo4j Enterprise Edition. The included source
@@ -20,6 +20,8 @@
 # More information is also available at:
 # https://neo4j.com/licensing/
 #
+
+#encoding: utf-8
 
 Feature: OptionalMatchAcceptance
 
@@ -66,4 +68,41 @@ Feature: OptionalMatchAcceptance
     Then the result should be:
       | n    |
       | null |
+    And no side effects
+
+  Scenario: optional match with distinct
+    Given an empty graph
+    And having executed:
+      """
+      CREATE (:A)-[:Y]->(:B)-[:X]->(:B)
+      """
+    When executing query:
+      """
+      OPTIONAL MATCH (:A)-[:Y]->(:B)-[:X]->(b:B) RETURN DISTINCT labels(b)
+      """
+    Then the result should be:
+      | labels(b) |
+      | ['B']     |
+    And no side effects
+
+  Scenario: optional match with OR where clause
+    Given an empty graph
+    And having executed:
+    # Setup: (a)<->(b)->(c)
+    """
+    CREATE (b {prop: 'b'})-[:REL]->({prop: 'c'})
+    CREATE (b)-[:REL]->({prop: 'a'})-[:REL]->(b)
+    """
+    When executing query:
+    """
+    MATCH (n1)-->(n2)
+    OPTIONAL MATCH (n2)-->(n3)
+    WHERE n3 IS NULL OR n3 <> n1
+    RETURN n1.prop, n2.prop, n3.prop
+    """
+    Then the result should be:
+      | n1.prop | n2.prop | n3.prop |
+      | 'a'     | 'b'     | 'c'     |
+      | 'b'     | 'c'     | null    |
+      | 'b'     | 'a'     | null    |
     And no side effects

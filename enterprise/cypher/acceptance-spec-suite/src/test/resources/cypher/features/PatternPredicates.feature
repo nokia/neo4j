@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2002-2018 "Neo4j,"
+# Copyright (c) 2002-2020 "Neo4j,"
 # Neo4j Sweden AB [http://neo4j.com]
 #
 # This file is part of Neo4j Enterprise Edition. The included source
@@ -20,6 +20,8 @@
 # More information is also available at:
 # https://neo4j.com/licensing/
 #
+
+#encoding: utf-8
 
 Feature: PatternPredicates
 
@@ -526,3 +528,48 @@ Feature: PatternPredicates
       | <(:A)-[:X]->(:B)>            | (:B) |
       | <(:A)-[:X]->(:C)-[:X]->(:D)> | (:D) |
     And no side effects
+
+  Scenario: Undirected NOOP path predicate 1
+    And having executed:
+      """
+      CREATE (a1:A)
+      CREATE (a2:A)
+      CREATE (a3:A)
+
+      CREATE (b1:B)
+      CREATE (b2:B)
+
+      CREATE (a1)-[:R]->(b1)
+      CREATE (a2)-[:R]->(a1)
+      """
+    When executing query:
+      """
+      MATCH (a:A)-[r]-(b:B) WHERE (b)-[r]-(a) RETURN a
+      """
+    Then the result should be:
+      | a               |
+      | (:A)            |
+    And no side effects
+
+  Scenario: Undirected NOOP path predicate 2
+    And having executed:
+      """
+      CREATE (a1:A)
+      CREATE (a2:A)
+      CREATE (a3:A)
+
+      CREATE (b1:B)
+      CREATE (b2:B)
+
+      CREATE (a1)-[:R]->(b1)
+      CREATE (a2)-[:R]->(a1)
+      """
+    When executing query:
+      """
+      MATCH (a:A)-[r]-(b:B) WHERE (a)-[r]-(b) RETURN a
+      """
+    Then the result should be:
+      | a               |
+      | (:A)            |
+    And no side effects
+

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -47,6 +47,7 @@ import org.neo4j.kernel.api.proc.Context;
 import org.neo4j.kernel.configuration.Config;
 import org.neo4j.logging.Log;
 import org.neo4j.logging.LogProvider;
+import org.neo4j.procedure.Mode;
 
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Stream.concat;
@@ -69,6 +70,7 @@ public class LegacyGetServersProcedure implements CallableProcedure
             ProcedureSignature.procedureSignature( GET_SERVERS_V1.fullyQualifiedProcedureName() )
                     .out( TTL.parameterName(), Neo4jTypes.NTInteger )
                     .out( SERVERS.parameterName(), Neo4jTypes.NTList( Neo4jTypes.NTMap ) )
+                    .mode( Mode.DBMS )
                     .description( DESCRIPTION )
                     .build();
 

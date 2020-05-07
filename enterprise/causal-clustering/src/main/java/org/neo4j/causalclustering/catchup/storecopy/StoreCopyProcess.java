@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -56,10 +56,10 @@ public class StoreCopyProcess
     {
         try ( TemporaryStoreDirectory tempStore = new TemporaryStoreDirectory( fs, pageCache, localDatabase.storeDir() ) )
         {
-            remoteStore.copy( addressProvider, expectedStoreId, tempStore.storeDir() );
+            remoteStore.copy( addressProvider, expectedStoreId, tempStore.storeDir(), false );
             copiedStoreRecovery.recoverCopiedStore( tempStore.storeDir() );
             localDatabase.replaceWith( tempStore.storeDir() );
         }
-        log.info( "Replaced store with one downloaded from %s", addressProvider );
+        log.info( "Replaced store successfully" );
     }
 }

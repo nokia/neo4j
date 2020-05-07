@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -27,23 +27,31 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 
-import org.neo4j.tools.dump.inconsistency.Inconsistencies;
+import org.neo4j.tools.dump.InconsistentRecords.Type;
 
 /**
  * Reads CC inconsistency reports. Example of entry:
- *
+ * <p>
  * <pre>
  * ERROR: The referenced relationship record is not in use.
  *     Node[3496089,used=true,rel=14833798,prop=13305361,labels=Inline(0x1000000006:[6]),light,secondaryUnitId=-1]
  *     Inconsistent with: Relationship[14833798,used=false,source=0,target=0,type=0,sPrev=0,sNext=0,tPrev=0,tNext=0,
  *     prop=0,secondaryUnitId=-1,!sFirst,!tFirst]
  * </pre>
+ * <p>
+ * Another example entry:
+ * <p>
+ * <pre>
+ * ERROR: The first outgoing relationship is not the first in its chain.
+ *     RelationshipGroup[12144403,type=9,out=2988709379,in=-1,loop=-1,prev=-1,next=40467195,used=true,owner=635306933,secondaryUnitId=-1]
+ * </pre>
  */
 public class InconsistencyReportReader
 {
-    private final Inconsistencies inconsistencies;
+    private static final String INCONSISTENT_WITH = "Inconsistent with: ";
+    private final InconsistentRecords inconsistencies;
 
-    public InconsistencyReportReader( Inconsistencies inconsistencies )
+    public InconsistencyReportReader( InconsistentRecords inconsistencies )
     {
         this.inconsistencies = inconsistencies;
     }
@@ -58,109 +66,90 @@ public class InconsistencyReportReader
 
     public void read( BufferedReader bufferedReader ) throws IOException
     {
-        int state = 0; // 0:inconsistency description, 1:entity, 2:inconsistent with
-        String line;
-        while ( (line = bufferedReader.readLine()) != null )
+        String line = bufferedReader.readLine();
+        Type inconsistentRecordType;
+        Type inconsistentWithRecordType;
+        long inconsistentRecordId;
+        long inconsistentWithRecordId;
+
+        while ( line != null )
         {
-            line = line.trim();
-            if ( state == 0 )
+            if ( line.contains( "ERROR" ) || line.contains( "WARNING" ) )
             {
-                if ( !line.contains( "ERROR" ) && !line.contains( " WARNING " ) )
+                // The current line is the inconsistency description line.
+                // Get the inconsistent entity line:
+                line = bufferedReader.readLine();
+                if ( line == null )
+                {
+                    return; // Unexpected end of report.
+                }
+                line = line.trim();
+                inconsistentRecordType = toRecordType( entityType( line ) );
+                if ( inconsistentRecordType == null )
                 {
                     continue;
                 }
-            }
-            else if ( state == 1 )
-            {
-                tryPropagate( line );
-            }
-            else if ( state == 2 )
-            {
-                if ( line.startsWith( "Inconsistent with: " ) )
+
+                inconsistentRecordId = inconsistentRecordType.extractId( line );
+                inconsistencies.reportInconsistency( inconsistentRecordType, inconsistentRecordId );
+
+                // Then get the Inconsistent With line:
+                line = bufferedReader.readLine();
+                if ( line == null || !line.contains( INCONSISTENT_WITH ) )
                 {
-                    line = line.substring( "Inconsistent with: ".length() );
+                    // There's no Inconsistent With line, so we report what we have.
+                    inconsistencies.reportInconsistency( inconsistentRecordType, inconsistentRecordId );
+                    // Leave the current line for the next iteration of the loop.
                 }
-
-                tryPropagate( line );
+                else
+                {
+                    line = line.substring( INCONSISTENT_WITH.length() ).trim();
+                    inconsistentWithRecordType = toRecordType( entityType( line ) );
+                    if ( inconsistentWithRecordType != null )
+                    {
+                        inconsistentWithRecordId = inconsistentWithRecordType.extractId( line );
+                        inconsistencies.reportInconsistency( inconsistentWithRecordType, inconsistentWithRecordId );
+                    }
+                    line = bufferedReader.readLine(); // Prepare a line for the next iteration of the loop.
+                }
             }
-            state = (state + 1) % 3;
+            else
+            {
+                // The current line doesn't fit with anything we were expecting to see, so we skip it and try the
+                // next line.
+                line = bufferedReader.readLine();
+            }
         }
     }
 
-    private void tryPropagate( String line )
+    private Type toRecordType( String entityType )
     {
-        String entityType = entityType( line );
-        long id = id( line );
-        if ( entityType != null && id != -1 )
+        if ( entityType == null )
         {
-            propagate( entityType, id );
+            // Skip unrecognizable lines.
+            return null;
         }
-    }
 
-    private void propagate( String entityType, long id )
-    {
         switch ( entityType )
         {
         case "Relationship":
-            inconsistencies.relationship( id );
-            break;
+            return Type.RELATIONSHIP;
         case "Node":
-            inconsistencies.node( id );
-            break;
+            return Type.NODE;
         case "Property":
-            inconsistencies.property( id );
-            break;
+            return Type.PROPERTY;
         case "RelationshipGroup":
-            inconsistencies.relationshipGroup( id );
-            break;
+            return Type.RELATIONSHIP_GROUP;
         case "IndexRule":
-            inconsistencies.schemaIndex( id );
-            break;
+            return Type.SCHEMA_INDEX;
         case "IndexEntry":
-            inconsistencies.node( id );
-            break;
+            return Type.NODE;
+        case "NodeLabelRange":
+            return Type.NODE_LABEL_RANGE;
         default:
             // it's OK, we just haven't implemented support for this yet
+            return null;
         }
-    }
-
-    private long id( String line )
-    {
-        int bracket = line.indexOf( '[' );
-        if ( bracket > -1 )
-        {
-            int separator = min( getSeparatorIndex( ',', line, bracket ),
-                    getSeparatorIndex( ';', line, bracket ),
-                    getSeparatorIndex( ']', line, bracket ) );
-            int equally = line.indexOf( '=', bracket );
-            int startPosition = (isNotPlainId( bracket, separator, equally ) ? equally : bracket) + 1;
-            if ( separator > -1 )
-            {
-                return Long.parseLong( line.substring( startPosition, separator ) );
-            }
-        }
-        return -1;
-    }
-
-    private static int min( int... values )
-    {
-        int min = Integer.MAX_VALUE;
-        for ( int value : values )
-        {
-            min = Math.min( min, value );
-        }
-        return min;
-    }
-
-    private int getSeparatorIndex( char character, String line, int bracket )
-    {
-        int index = line.indexOf( character, bracket );
-        return index >= 0 ? index : Integer.MAX_VALUE;
-    }
-
-    private boolean isNotPlainId( int bracket, int comma, int equally )
-    {
-        return (equally > bracket) && (equally < comma);
     }
 
     private String entityType( String line )

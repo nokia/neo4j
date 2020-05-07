@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -177,7 +177,7 @@ public class NonUniqueIndexTest
             OperationalMode operationalMode )
     {
         String defaultSchemaProvider = config.get( GraphDatabaseSettings.default_schema_provider );
-        RecoveryCleanupWorkCollector recoveryCleanupWorkCollector = RecoveryCleanupWorkCollector.IMMEDIATE;
+        RecoveryCleanupWorkCollector recoveryCleanupWorkCollector = RecoveryCleanupWorkCollector.immediate();
         if ( LUCENE10.providerName().equals( defaultSchemaProvider ) )
         {
             return LuceneIndexProviderFactory

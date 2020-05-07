@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -494,7 +494,7 @@ class CloseTransactionTest extends CypherFunSuite with GraphIcing {
     val emptySignature: util.List[FieldSignature] = List.empty[FieldSignature].asJava
     val signature: ProcedureSignature = new ProcedureSignature(
       procedureName, paramSignature, resultSignature, Mode.READ, null, Array.empty,
-      null, null, false)
+      null, null, false, false)
 
     def paramSignature: util.List[FieldSignature] = List.empty[FieldSignature].asJava
 

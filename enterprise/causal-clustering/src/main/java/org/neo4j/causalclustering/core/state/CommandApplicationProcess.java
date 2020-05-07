@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -27,9 +27,9 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import org.neo4j.causalclustering.SessionTracker;
-import org.neo4j.causalclustering.core.consensus.log.cache.InFlightCache;
 import org.neo4j.causalclustering.core.consensus.log.RaftLog;
 import org.neo4j.causalclustering.core.consensus.log.RaftLogEntry;
+import org.neo4j.causalclustering.core.consensus.log.cache.InFlightCache;
 import org.neo4j.causalclustering.core.consensus.log.monitoring.RaftLogCommitIndexMonitor;
 import org.neo4j.causalclustering.core.replication.DistributedOperation;
 import org.neo4j.causalclustering.core.replication.ProgressTracker;
@@ -241,7 +241,10 @@ public class CommandApplicationProcess
             {
                 if ( !sessionTracker.validateOperation( operation.globalSession(), operation.operationId() ) )
                 {
-                    sessionTracker.validateOperation( operation.globalSession(), operation.operationId() );
+                    if ( log.isDebugEnabled() )
+                    {
+                        log.debug( "Skipped an invalid distributed operation: " + operation + ". Session tracker state: " + sessionTracker.snapshot() );
+                    }
                     commandIndex++;
                     continue;
                 }

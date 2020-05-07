@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -31,7 +31,7 @@ import org.neo4j.kernel.lifecycle.LifecycleAdapter;
 
 import static com.codahale.metrics.MetricRegistry.name;
 
-@Documented( ".Database PageCache Metrics" )
+@Documented( ".Database page cache metrics" )
 public class PageCacheMetrics extends LifecycleAdapter
 {
     private static final String PAGE_CACHE_PREFIX = "neo4j.page_cache";

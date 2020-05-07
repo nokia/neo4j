@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -34,7 +34,7 @@ import org.neo4j.kernel.impl.transaction.log.NoSuchTransactionException;
 import org.neo4j.kernel.impl.transaction.log.ReadOnlyTransactionIdStore;
 import org.neo4j.kernel.impl.transaction.log.ReadOnlyTransactionStore;
 import org.neo4j.kernel.impl.transaction.log.TransactionCursor;
-import org.neo4j.kernel.impl.transaction.log.files.TransactionLogFiles;
+import org.neo4j.kernel.impl.transaction.log.files.LogFilesBuilder;
 import org.neo4j.kernel.lifecycle.Lifespan;
 import org.neo4j.kernel.monitoring.Monitors;
 
@@ -98,13 +98,8 @@ public class CommitStateHelper
         }
     }
 
-    public boolean hasTxLogs( File storeDir )
+    public boolean hasTxLogs( File storeDir ) throws IOException
     {
-        File[] files = fs.listFiles( storeDir, TransactionLogFiles.DEFAULT_FILENAME_FILTER );
-        if ( files == null )
-        {
-            throw new RuntimeException( "Files was null. Incorrect directory or I/O error?" );
-        }
-        return files.length > 0;
+        return LogFilesBuilder.activeFilesBuilder( storeDir, fs, pageCache ).withConfig( config ).build().logFiles().length > 0;
     }
 }

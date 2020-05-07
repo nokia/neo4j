@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -27,6 +27,13 @@ import org.neo4j.cypher.{CypherExecutionException, ExecutionEngineFunSuite, Quer
 
 class SpatialUniqueConstraintValidationAcceptanceTest
   extends ExecutionEngineFunSuite with QueryStatisticsTestSupport with ListSupport {
+
+  test("should be able to create uniqueness constraint after nodes") {
+    execute("CREATE ( :Label { location: point({x:1, y:2}) } )")
+    execute("CREATE ( :Label { location: point({x:1, y:3}) } )")
+
+    execute("CREATE CONSTRAINT ON (node:Label) ASSERT node.location IS UNIQUE")
+  }
 
   test("should enforce uniqueness constraint on create node with label and property") {
     // GIVEN

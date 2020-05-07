@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,8 +30,6 @@ object Ands {
     val size = exprs.size
     if(size == 0)
       True()(InputPosition.NONE)
-    else if (size == 1)
-      exprs.head
     else
       Ands(exprs)(exprs.head.position)
   }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -32,7 +32,7 @@ import org.neo4j.kernel.monitoring.Monitors;
 
 import static com.codahale.metrics.MetricRegistry.name;
 
-@Documented( ".Cypher Metrics" )
+@Documented( ".Cypher metrics" )
 public class CypherMetrics extends LifecycleAdapter
 {
     private static final String NAME_PREFIX = "neo4j.cypher";

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -32,17 +32,22 @@ import org.neo4j.cypher.internal.ir.v3_4.VarPatternLength
 import org.neo4j.cypher.internal.planner.v3_4.spi.PlanContext
 import org.neo4j.cypher.internal.runtime.interpreted.ExecutionContext
 import org.neo4j.cypher.internal.runtime.interpreted.commands.convert.ExpressionConverters
-import org.neo4j.cypher.internal.runtime.interpreted.commands.expressions.{AggregationExpression, Expression}
-import org.neo4j.cypher.internal.runtime.interpreted.commands.predicates.{Predicate, True}
+import org.neo4j.cypher.internal.runtime.interpreted.commands.expressions.AggregationExpression
+import org.neo4j.cypher.internal.runtime.interpreted.commands.expressions.Expression
+import org.neo4j.cypher.internal.runtime.interpreted.commands.predicates.Predicate
+import org.neo4j.cypher.internal.runtime.interpreted.commands.predicates.True
 import org.neo4j.cypher.internal.runtime.interpreted.commands.{expressions => commandExpressions}
-import org.neo4j.cypher.internal.runtime.interpreted.pipes.{ColumnOrder => _, _}
+import org.neo4j.cypher.internal.runtime.interpreted.pipes.{ColumnOrder => _}
+import org.neo4j.cypher.internal.runtime.interpreted.pipes._
+import org.neo4j.cypher.internal.runtime.slotted.SlottedPipeBuilder.generateSlotAccessorFunctions
 import org.neo4j.cypher.internal.runtime.slotted.helpers.SlottedPipeBuilderUtils
 import org.neo4j.cypher.internal.runtime.slotted.pipes._
 import org.neo4j.cypher.internal.runtime.slotted.{expressions => slottedExpressions}
 import org.neo4j.cypher.internal.util.v3_4.AssertionUtils._
 import org.neo4j.cypher.internal.util.v3_4.InternalException
 import org.neo4j.cypher.internal.util.v3_4.symbols._
-import org.neo4j.cypher.internal.v3_4.expressions.{Equals, SignedDecimalIntegerLiteral}
+import org.neo4j.cypher.internal.v3_4.expressions.Equals
+import org.neo4j.cypher.internal.v3_4.expressions.SignedDecimalIntegerLiteral
 import org.neo4j.cypher.internal.v3_4.logical.plans
 import org.neo4j.cypher.internal.v3_4.logical.plans._
 import org.neo4j.cypher.internal.v3_4.{expressions => frontEndAst}
@@ -95,26 +100,6 @@ class SlottedPipeBuilder(fallback: PipeBuilder,
     }
     pipe.setExecutionContextFactory(SlottedExecutionContextFactory(slots))
     pipe
-  }
-
-  private def generateSlotAccessorFunctions(slots: SlotConfiguration) = {
-    slots.foreachSlot {
-      case (key, slot) =>
-        val getter = SlottedPipeBuilderUtils.makeGetValueFromSlotFunctionFor(slot)
-        val setter = SlottedPipeBuilderUtils.makeSetValueInSlotFunctionFor(slot)
-        val primitiveNodeSetter =
-          if (slot.typ.isAssignableFrom(CTNode))
-            Some(SlottedPipeBuilderUtils.makeSetPrimitiveNodeInSlotFunctionFor(slot))
-          else
-            None
-        val primitiveRelationshipSetter =
-          if (slot.typ.isAssignableFrom(CTRelationship))
-            Some(SlottedPipeBuilderUtils.makeSetPrimitiveRelationshipInSlotFunctionFor(slot))
-          else
-            None
-
-       slots.updateAccessorFunctions(key, getter, setter, primitiveNodeSetter, primitiveRelationshipSetter)
-    }
   }
 
   override def build(plan: LogicalPlan, source: Pipe): Pipe = {
@@ -252,16 +237,19 @@ class SlottedPipeBuilder(fallback: PipeBuilder,
         MergeCreateRelationshipSlottedPipe(source, idName, fromSlot, LazyType(typ)(context.semanticTable),
           toSlot, slots, props.map(convertExpressions))(id = id)
 
+      case Top(_, sortItems, _) if sortItems.isEmpty => source
+
       case Top(_, sortItems, SignedDecimalIntegerLiteral("1")) =>
-        Top1SlottedPipe(source, sortItems.map(translateColumnOrder(slots, _)).toList)(id = id)
+        Top1Pipe(source, ExecutionContextOrdering.asComparator(sortItems.map(translateColumnOrder(slots, _))))(id = id)
 
       case Top(_, sortItems, limit) =>
-        TopNSlottedPipe(source, sortItems.map(translateColumnOrder(slots, _)).toList, convertExpressions(limit))(id = id)
+        TopNPipe(source, convertExpressions(limit),
+                 ExecutionContextOrdering.asComparator(sortItems.map(translateColumnOrder(slots, _))))(id = id)
 
       case Limit(_, count, IncludeTies) =>
         (source, count) match {
           case (SortSlottedPipe(inner, sortDescription, _), SignedDecimalIntegerLiteral("1")) =>
-            Top1WithTiesSlottedPipe(inner, sortDescription.toList)(id = id)
+            Top1WithTiesPipe(inner, ExecutionContextOrdering.asComparator(sortDescription))(id = id)
 
           case _ => throw new InternalException("Including ties is only supported for very specific plans")
         }
@@ -384,9 +372,10 @@ class SlottedPipeBuilder(fallback: PipeBuilder,
 
       case joinPlan: NodeHashJoin =>
         val argumentSize = physicalPlan.argumentSizes(plan.id)
-        val leftNodes: Array[Int] = joinPlan.nodes.map(k => slots.getLongOffsetFor(k)).toArray
+        val nodes = joinPlan.nodes.toArray // Make sure that leftNodes and rightNodes have the same order
+        val leftNodes: Array[Int] = nodes.map(k => slots.getLongOffsetFor(k))
         val rhsSlots = slotConfigs(joinPlan.right.id)
-        val rightNodes: Array[Int] = joinPlan.nodes.map(k => rhsSlots.getLongOffsetFor(k)).toArray
+        val rightNodes: Array[Int] = nodes.map(k => rhsSlots.getLongOffsetFor(k))
         val copyLongsFromRHS = collection.mutable.ArrayBuffer.newBuilder[(Int,Int)]
         val copyRefsFromRHS = collection.mutable.ArrayBuffer.newBuilder[(Int,Int)]
 
@@ -462,7 +451,7 @@ class SlottedPipeBuilder(fallback: PipeBuilder,
 
   // Verifies the assumption that all shared slots are arguments with slot offsets within the first argument size number of slots
   // and the number of shared slots are identical to the argument size.
-  private def verifyOnlyArgumentsAreSharedSlots(plan: LogicalPlan, physicalPlan: PhysicalPlan) = {
+  private def verifyOnlyArgumentsAreSharedSlots(plan: LogicalPlan, physicalPlan: PhysicalPlan): Unit = {
     val argumentSize = physicalPlan.argumentSizes(plan.id)
     val lhsPlan = plan.lhs.get
     val rhsPlan = plan.rhs.get
@@ -489,7 +478,7 @@ class SlottedPipeBuilder(fallback: PipeBuilder,
     }
   }
 
-  private def verifyArgumentsAreTheSameOnBothSides(plan: LogicalPlan, physicalPlan: PhysicalPlan) = {
+  private def verifyArgumentsAreTheSameOnBothSides(plan: LogicalPlan, physicalPlan: PhysicalPlan): Unit = {
     val argumentSize = physicalPlan.argumentSizes(plan.id)
     val lhsPlan = plan.lhs.get
     val rhsPlan = plan.rhs.get
@@ -525,6 +514,26 @@ class SlottedPipeBuilder(fallback: PipeBuilder,
 }
 
 object SlottedPipeBuilder {
+
+  private[slotted] def generateSlotAccessorFunctions(slots: SlotConfiguration): Unit = {
+    slots.foreachSlot {
+      case (key, slot) =>
+        val getter = SlottedPipeBuilderUtils.makeGetValueFromSlotFunctionFor(slot)
+        val setter = SlottedPipeBuilderUtils.makeSetValueInSlotFunctionFor(slot)
+        val primitiveNodeSetter =
+          if (slot.typ.isAssignableFrom(CTNode))
+            Some(SlottedPipeBuilderUtils.makeSetPrimitiveNodeInSlotFunctionFor(slot))
+          else
+            None
+        val primitiveRelationshipSetter =
+          if (slot.typ.isAssignableFrom(CTRelationship))
+            Some(SlottedPipeBuilderUtils.makeSetPrimitiveRelationshipInSlotFunctionFor(slot))
+          else
+            None
+
+        slots.updateAccessorFunctions(key, getter, setter, primitiveNodeSetter, primitiveRelationshipSetter)
+    }
+  }
 
   case class Factory(physicalPlan: PhysicalPlan)
     extends PipeBuilderFactory {

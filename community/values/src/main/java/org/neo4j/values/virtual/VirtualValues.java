@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -162,6 +162,11 @@ public final class VirtualValues
     public static MapValue map( Map<String,AnyValue> map )
     {
         return new MapValue( map );
+    }
+
+    public static ErrorValue error( Exception e )
+    {
+        return new ErrorValue( e );
     }
 
     @SafeVarargs

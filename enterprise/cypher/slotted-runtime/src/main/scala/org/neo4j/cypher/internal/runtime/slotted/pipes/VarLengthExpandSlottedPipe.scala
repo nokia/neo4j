@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -66,6 +66,9 @@ case class VarLengthExpandSlottedPipe(source: Pipe,
     if (shouldExpandAll) null // We only need this getter in the ExpanInto case
     else makeGetPrimitiveNodeFromSlotFunctionFor(toSlot)
   private val toOffset = toSlot.offset
+
+  nodePredicate.registerOwningPipe(this)
+  edgePredicate.registerOwningPipe(this)
 
   //===========================================================================
   // Runtime code

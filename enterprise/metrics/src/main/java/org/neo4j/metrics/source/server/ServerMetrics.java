@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -33,7 +33,7 @@ import org.neo4j.logging.Log;
 
 import static com.codahale.metrics.MetricRegistry.name;
 
-@Documented( ".Server Metrics" )
+@Documented( ".Server metrics" )
 public class ServerMetrics extends LifecycleAdapter
 {
     private static final String NAME_PREFIX = "neo4j.server";
@@ -52,17 +52,27 @@ public class ServerMetrics extends LifecycleAdapter
         this.registry = registry;
         this.serverThreadView = new ServerThreadView()
         {
+            private volatile boolean warnedAboutIdle;
+            private volatile boolean warnedAboutAll;
             @Override
             public int idleThreads()
             {
-                userLog.warn( "Server thread metrics not available (missing " + THREAD_JETTY_IDLE + ")" );
+                if ( !warnedAboutIdle )
+                {
+                    userLog.warn( "Server thread metrics not available (missing " + THREAD_JETTY_IDLE + ")" );
+                    warnedAboutIdle = true;
+                }
                 return -1;
             }
 
             @Override
             public int allThreads()
             {
-                userLog.warn( "Server thread metrics not available (missing " + THREAD_JETTY_ALL + ")" );
+                if ( !warnedAboutAll )
+                {
+                    userLog.warn( "Server thread metrics not available (missing " + THREAD_JETTY_ALL + ")" );
+                    warnedAboutAll = true;
+                }
                 return -1;
             }
         };

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -317,7 +317,7 @@ public class BackupStrategyWrapperTest
     }
 
     @Test
-    public void performingIncrementalBackupDoesNotInvokeRecovery()
+    public void performingIncrementalBackupInvokesRecovery()
     {
         // given backup exists
         when( backupCopyService.backupExists( any() ) ).thenReturn( true );
@@ -331,7 +331,7 @@ public class BackupStrategyWrapperTest
         subject.doBackup( onlineBackupContext );
 
         // then
-        verify( backupRecoveryService, never() ).recoverWithDatabase( any(), any(), any() );
+        verify( backupRecoveryService ).recoverWithDatabase( any(), any(), any() );
     }
 
     @Test

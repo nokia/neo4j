@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2002-2018 "Neo4j,"
+# Copyright (c) 2002-2020 "Neo4j,"
 # Neo4j Sweden AB [http://neo4j.com]
 #
 # This file is part of Neo4j Enterprise Edition. The included source
@@ -20,6 +20,8 @@
 # More information is also available at:
 # https://neo4j.com/licensing/
 #
+
+#encoding: utf-8
 
 Feature: AggregationAcceptance
 
@@ -231,4 +233,14 @@ Feature: AggregationAcceptance
       | 'prop1' | 'prop2' | 'prop3' | 'prop4' | 'prop5' | '7' | 'prop7' | 'prop8' | 'prop9' |
       | 'prop1' | 'prop2' | 'prop3' | 'prop4' | 'prop5' | '8' | 'prop7' | 'prop8' | 'prop9' |
       | 'prop1' | 'prop2' | 'prop3' | 'prop4' | 'prop5' | '9' | 'prop7' | 'prop8' | 'prop9' |
+    And no side effects
+
+  Scenario: percentileDisc on empty data should return null
+    When executing query:
+      """
+       MATCH (n:FAKE) RETURN percentileDisc(n.x, 0.9) AS result
+      """
+    Then the result should be:
+      | result |
+      | null   |
     And no side effects

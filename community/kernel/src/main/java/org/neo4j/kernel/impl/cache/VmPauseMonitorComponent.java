@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -51,7 +51,7 @@ public class VmPauseMonitorComponent implements Lifecycle
         vmPauseMonitor = new VmPauseMonitor(
                 config.get( GraphDatabaseSettings.vm_pause_monitor_measurement_duration ),
                 config.get( GraphDatabaseSettings.vm_pause_monitor_stall_alert_threshold ),
-                log, jobScheduler, vmPauseInfo -> log.debug( "Detected VM stop-the-world pause: {}", vmPauseInfo )
+                log, jobScheduler, vmPauseInfo -> log.warn( "Detected VM stop-the-world pause: %s", vmPauseInfo )
         );
         vmPauseMonitor.start();
     }

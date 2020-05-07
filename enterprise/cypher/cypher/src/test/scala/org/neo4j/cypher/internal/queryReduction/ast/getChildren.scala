@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -171,8 +171,8 @@ object getChildren {
       case SetPropertyItem(property, expression) =>
         Seq(property, expression)
 
-      case PatternComprehension(namedPath, pattern, predicate, projection, outerScope) =>
-        ofOption(namedPath) ++ Seq(pattern) ++ ofOption(predicate) ++ Seq(projection) ++ outerScope.toSeq
+      case PatternComprehension(namedPath, pattern, predicate, projection) =>
+        ofOption(namedPath) ++ Seq(pattern) ++ ofOption(predicate) ++ Seq(projection)
 
       case RelationshipsPattern(element) =>
         Seq(element)

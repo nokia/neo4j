@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -22,13 +22,11 @@
  */
 package org.neo4j.backup.impl;
 
-import org.neo4j.causalclustering.core.CausalClusteringSettings;
 import org.neo4j.helpers.AdvertisedSocketAddress;
 import org.neo4j.helpers.HostnamePort;
-import org.neo4j.helpers.ListenSocketAddress;
-import org.neo4j.kernel.impl.util.OptionalHostnamePort;
 import org.neo4j.kernel.configuration.Config;
 import org.neo4j.kernel.impl.enterprise.configuration.OnlineBackupSettings;
+import org.neo4j.kernel.impl.util.OptionalHostnamePort;
 
 class AddressResolver
 {
@@ -53,11 +51,11 @@ class AddressResolver
 
     private AdvertisedSocketAddress readDefaultConfigAddressCC( Config config )
     {
-        return advertisedFromListenAddress( config.get( CausalClusteringSettings.transaction_listen_address ) );
+        return asAdvertised( config.get( OnlineBackupSettings.online_backup_server ) );
     }
 
-    private AdvertisedSocketAddress advertisedFromListenAddress( ListenSocketAddress listenSocketAddress )
+    private AdvertisedSocketAddress asAdvertised( HostnamePort listenSocketAddress )
     {
-        return new AdvertisedSocketAddress( listenSocketAddress.getHostname(), listenSocketAddress.getPort() );
+        return new AdvertisedSocketAddress( listenSocketAddress.getHost(), listenSocketAddress.getPort() );
     }
 }

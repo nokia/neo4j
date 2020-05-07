@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -87,7 +87,7 @@ abstract class FlatFileStressBase
                 userRepository,
                 roleRepository,
                 new BasicPasswordPolicy(),
-                new RateLimitedAuthenticationStrategy( Clock.systemUTC(), 3 ),
+                new RateLimitedAuthenticationStrategy( Clock.systemUTC(), Config.defaults() ),
                 jobScheduler,
                 CommunitySecurityModule.getInitialUserRepository( config, logProvider, getFileSystem() ),
                 EnterpriseSecurityModule.getDefaultAdminRepository( config, logProvider, getFileSystem() )

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,6 +34,9 @@ trait BaseState {
 
   def accumulatedConditions: Set[Condition]
 
+  /**
+    * @return { @code true} if the query is a PERIODIC COMMIT query and not an EXPLAIN query
+    */
   def isPeriodicCommit: Boolean = statement() match {
     case Query(Some(_), _) => true
     case _ => false

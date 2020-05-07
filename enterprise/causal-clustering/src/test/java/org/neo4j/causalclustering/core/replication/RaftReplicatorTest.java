@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -30,12 +30,12 @@ import org.junit.rules.ExpectedException;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.neo4j.causalclustering.core.consensus.LeaderLocator;
 import org.neo4j.causalclustering.core.consensus.NoLeaderFoundException;
 import org.neo4j.causalclustering.core.consensus.RaftMessages;
 import org.neo4j.causalclustering.core.consensus.ReplicatedInteger;
+import org.neo4j.causalclustering.core.replication.monitoring.ReplicationMonitor;
 import org.neo4j.causalclustering.core.replication.session.GlobalSession;
 import org.neo4j.causalclustering.core.replication.session.LocalSessionPool;
 import org.neo4j.causalclustering.core.state.Result;
@@ -44,8 +44,8 @@ import org.neo4j.causalclustering.helper.TimeoutStrategy;
 import org.neo4j.causalclustering.identity.MemberId;
 import org.neo4j.causalclustering.messaging.Message;
 import org.neo4j.causalclustering.messaging.Outbound;
-import org.neo4j.graphdb.DatabaseShutdownException;
 import org.neo4j.kernel.AvailabilityGuard;
+import org.neo4j.kernel.monitoring.Monitors;
 import org.neo4j.logging.NullLog;
 import org.neo4j.logging.NullLogProvider;
 import org.neo4j.time.Clocks;
@@ -56,7 +56,13 @@ import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.neo4j.test.assertion.Assert.assertEventually;
 
@@ -66,28 +72,29 @@ public class RaftReplicatorTest
     public ExpectedException expectedException = ExpectedException.none();
 
     private static final int DEFAULT_TIMEOUT_MS = 15_000;
+    private static final long REPLICATION_LIMIT = 1000;
 
     private LeaderLocator leaderLocator = mock( LeaderLocator.class );
     private MemberId myself = new MemberId( UUID.randomUUID() );
     private MemberId leader = new MemberId( UUID.randomUUID() );
+    private MemberId anotherLeader = new MemberId( UUID.randomUUID() );
     private GlobalSession session = new GlobalSession( UUID.randomUUID(), myself );
     private LocalSessionPool sessionPool = new LocalSessionPool( session );
     private TimeoutStrategy noWaitTimeoutStrategy = new ConstantTimeTimeoutStrategy( 0, MILLISECONDS );
     private AvailabilityGuard availabilityGuard = new AvailabilityGuard( Clocks.systemClock(), NullLog.getInstance() );
-    private long replicationLimit = 1000;
 
     @Test
     public void shouldSendReplicatedContentToLeader() throws Exception
     {
         // given
+        Monitors monitors = new Monitors();
+        ReplicationMonitor replicationMonitor = mock( ReplicationMonitor.class );
+        monitors.addMonitorListener( replicationMonitor );
         when( leaderLocator.getLeader() ).thenReturn( leader );
         CapturingProgressTracker capturedProgress = new CapturingProgressTracker();
         CapturingOutbound<RaftMessages.RaftMessage> outbound = new CapturingOutbound<>();
 
-        RaftReplicator replicator =
-                new RaftReplicator( leaderLocator, myself, outbound, sessionPool,
-                        capturedProgress, noWaitTimeoutStrategy, noWaitTimeoutStrategy,
-                        availabilityGuard, NullLogProvider.getInstance(), replicationLimit );
+        RaftReplicator replicator = getReplicator( outbound, capturedProgress, monitors );
 
         ReplicatedInteger content = ReplicatedInteger.valueOf( 5 );
         Thread replicatingThread = replicatingThread( replicator, content, false );
@@ -103,19 +110,25 @@ public class RaftReplicatorTest
         // then
         replicatingThread.join( DEFAULT_TIMEOUT_MS );
         assertEquals( leader, outbound.lastTo );
+
+        verify( replicationMonitor, times( 1 ) ).startReplication();
+        verify( replicationMonitor, atLeast( 1 ) ).replicationAttempt();
+        verify( replicationMonitor, times( 1 ) ).successfulReplication();
+        verify( replicationMonitor, never() ).failedReplication( any() );
     }
 
     @Test
     public void shouldResendAfterTimeout() throws Exception
     {
         // given
+        Monitors monitors = new Monitors();
+        ReplicationMonitor replicationMonitor = mock( ReplicationMonitor.class );
+        monitors.addMonitorListener( replicationMonitor );
         when( leaderLocator.getLeader() ).thenReturn( leader );
         CapturingProgressTracker capturedProgress = new CapturingProgressTracker();
         CapturingOutbound<RaftMessages.RaftMessage> outbound = new CapturingOutbound<>();
 
-        RaftReplicator replicator = new RaftReplicator( leaderLocator, myself, outbound,
-                sessionPool, capturedProgress, noWaitTimeoutStrategy, noWaitTimeoutStrategy,
-                availabilityGuard, NullLogProvider.getInstance(), replicationLimit );
+        RaftReplicator replicator = getReplicator( outbound, capturedProgress, monitors );
 
         ReplicatedInteger content = ReplicatedInteger.valueOf( 5 );
         Thread replicatingThread = replicatingThread( replicator, content, false );
@@ -128,37 +141,11 @@ public class RaftReplicatorTest
         // cleanup
         capturedProgress.last.setReplicated();
         replicatingThread.join( DEFAULT_TIMEOUT_MS );
-    }
 
-    @Test
-    public void shouldRetryGettingLeader() throws Exception
-    {
-        // given
-        AtomicInteger leaderRetries = new AtomicInteger( 0 );
-
-        when( leaderLocator.getLeader() )
-                .thenThrow( new NoLeaderFoundException( ) )
-                .thenReturn( leader );
-        CapturingProgressTracker capturedProgress = new CapturingProgressTracker();
-        CapturingOutbound<RaftMessages.RaftMessage> outbound = new CapturingOutbound<>();
-
-        RaftReplicator replicator =
-                new RaftReplicator( leaderLocator, myself, outbound, sessionPool,
-                        capturedProgress, noWaitTimeoutStrategy, new SpyRetryStrategy( leaderRetries ),
-                        availabilityGuard, NullLogProvider.getInstance(), replicationLimit );
-
-        ReplicatedInteger content = ReplicatedInteger.valueOf( 5 );
-        Thread replicatingThread = replicatingThread( replicator, content, false );
-
-        // when
-        replicatingThread.start();
-        // then
-        assertEventually( "send count", () -> outbound.count, greaterThan( 2 ), DEFAULT_TIMEOUT_MS, MILLISECONDS );
-        assertEquals( 1, leaderRetries.get() );
-
-        // cleanup
-        capturedProgress.last.setReplicated();
-        replicatingThread.join( DEFAULT_TIMEOUT_MS );
+        verify( replicationMonitor, times( 1 ) ).startReplication();
+        verify( replicationMonitor, atLeast( 2 ) ).replicationAttempt();
+        verify( replicationMonitor, times( 1 ) ).successfulReplication();
+        verify( replicationMonitor, never() ).failedReplication( any() );
     }
 
     @Test
@@ -169,10 +156,7 @@ public class RaftReplicatorTest
         CapturingProgressTracker capturedProgress = new CapturingProgressTracker();
         CapturingOutbound<RaftMessages.RaftMessage> outbound = new CapturingOutbound<>();
 
-        RaftReplicator replicator = new RaftReplicator( leaderLocator, myself, outbound,
-                sessionPool, capturedProgress, noWaitTimeoutStrategy, noWaitTimeoutStrategy,
-                availabilityGuard, NullLogProvider.getInstance(), replicationLimit );
-
+        RaftReplicator replicator = getReplicator( outbound, capturedProgress, new Monitors() );
         ReplicatedInteger content = ReplicatedInteger.valueOf( 5 );
         Thread replicatingThread = replicatingThread( replicator, content, true );
 
@@ -196,14 +180,15 @@ public class RaftReplicatorTest
     @Test
     public void stopReplicationOnShutdown() throws NoLeaderFoundException, InterruptedException
     {
+        // given
+        Monitors monitors = new Monitors();
+        ReplicationMonitor replicationMonitor = mock( ReplicationMonitor.class );
+        monitors.addMonitorListener( replicationMonitor );
         when( leaderLocator.getLeader() ).thenReturn( leader );
         CapturingProgressTracker capturedProgress = new CapturingProgressTracker();
-        CapturingOutbound outbound = new CapturingOutbound();
+        CapturingOutbound<RaftMessages.RaftMessage> outbound = new CapturingOutbound<>();
 
-        RaftReplicator replicator =
-                new RaftReplicator( leaderLocator, myself, outbound, sessionPool, capturedProgress, noWaitTimeoutStrategy, noWaitTimeoutStrategy,
-                        availabilityGuard, NullLogProvider.getInstance(), replicationLimit );
-
+        RaftReplicator replicator = getReplicator( outbound, capturedProgress, monitors );
         ReplicatedInteger content = ReplicatedInteger.valueOf( 5 );
         ReplicatingThread replicatingThread = replicatingThread( replicator, content, true );
 
@@ -212,7 +197,86 @@ public class RaftReplicatorTest
 
         availabilityGuard.shutdown();
         replicatingThread.join();
-        assertThat( replicatingThread.getReplicationException(), Matchers.instanceOf( DatabaseShutdownException.class ) );
+        assertThat( replicatingThread.getReplicationException().getCause(), Matchers.instanceOf( AvailabilityGuard.UnavailableException.class ) );
+
+        verify( replicationMonitor, times( 1 ) ).startReplication();
+        verify( replicationMonitor, atLeast( 1 ) ).replicationAttempt();
+        verify( replicationMonitor, never() ).successfulReplication();
+        verify( replicationMonitor, times( 1 ) ).failedReplication( any() );
+    }
+
+    @Test
+    public void stopReplicationWhenUnavailable() throws NoLeaderFoundException, InterruptedException
+    {
+        when( leaderLocator.getLeader() ).thenReturn( leader );
+        CapturingProgressTracker capturedProgress = new CapturingProgressTracker();
+        CapturingOutbound<RaftMessages.RaftMessage> outbound = new CapturingOutbound<>();
+
+        RaftReplicator replicator = getReplicator( outbound, capturedProgress, new Monitors() );
+
+        ReplicatedInteger content = ReplicatedInteger.valueOf( 5 );
+        ReplicatingThread replicatingThread = replicatingThread( replicator, content, true );
+
+        // when
+        replicatingThread.start();
+
+        availabilityGuard.require( () -> "Database not unavailable" );
+        replicatingThread.join();
+        assertThat( replicatingThread.getReplicationException().getCause(), Matchers.instanceOf( AvailabilityGuard.UnavailableException.class ) );
+    }
+
+    @Test
+    public void shouldFailIfNoLeaderIsAvailable() throws NoLeaderFoundException
+    {
+        // given
+        when( leaderLocator.getLeader() ).thenThrow( NoLeaderFoundException.class );
+
+        CapturingProgressTracker capturedProgress = new CapturingProgressTracker();
+        CapturingOutbound<RaftMessages.RaftMessage> outbound = new CapturingOutbound<>();
+
+        RaftReplicator replicator = getReplicator( outbound, capturedProgress, new Monitors() );
+
+        // when
+        try
+        {
+            ReplicatedInteger content = ReplicatedInteger.valueOf( 5 );
+            replicator.replicate( content, true );
+            fail( "should have thrown" );
+        }
+        catch ( ReplicationFailureException ignored )
+        {
+            // expected
+        }
+    }
+
+    @Test
+    public void shouldFailIfLeaderSwitches() throws NoLeaderFoundException
+    {
+        // given
+        when( leaderLocator.getLeader() ).thenReturn( leader ).thenReturn( anotherLeader );
+
+        CapturingProgressTracker capturedProgress = new CapturingProgressTracker();
+        CapturingOutbound<RaftMessages.RaftMessage> outbound = new CapturingOutbound<>();
+
+        RaftReplicator replicator = getReplicator( outbound, capturedProgress, new Monitors() );
+
+        // when
+        try
+        {
+            ReplicatedInteger content = ReplicatedInteger.valueOf( 5 );
+            replicator.replicate( content, true );
+            fail( "should have thrown" );
+        }
+        catch ( ReplicationFailureException e )
+        {
+            assertEquals( "Replication aborted since a leader switch was detected", e.getMessage() );
+        }
+    }
+
+    private RaftReplicator getReplicator( CapturingOutbound<RaftMessages.RaftMessage> outbound, CapturingProgressTracker capturedProgress, Monitors monitors )
+    {
+        return new RaftReplicator( leaderLocator, myself, outbound, sessionPool, capturedProgress, noWaitTimeoutStrategy, noWaitTimeoutStrategy,
+                10, availabilityGuard, NullLogProvider.getInstance(), REPLICATION_LIMIT, monitors );
     }
 
     private ReplicatingThread replicatingThread( RaftReplicator replicator, ReplicatedInteger content, boolean trackResult )
@@ -260,7 +324,7 @@ public class RaftReplicatorTest
             }
         }
 
-        public Exception getReplicationException()
+        Exception getReplicationException()
         {
             return replicationException;
         }
@@ -320,34 +384,5 @@ public class RaftReplicatorTest
             this.count++;
         }
 
-    }
-
-    private static class SpyRetryStrategy implements TimeoutStrategy
-    {
-        private final AtomicInteger increments;
-
-        SpyRetryStrategy( AtomicInteger increments )
-        {
-            this.increments = increments;
-        }
-
-        @Override
-        public TimeoutStrategy.Timeout newTimeout()
-        {
-            return new TimeoutStrategy.Timeout()
-            {
-                @Override
-                public long getMillis()
-                {
-                    return 0;
-                }
-
-                @Override
-                public void increment()
-                {
-                    increments.incrementAndGet();
-                }
-            };
-        }
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -117,6 +117,17 @@ public class PrimitiveLongListTest
 
         assertEquals( 0, longList.size() );
         assertTrue( longList.isEmpty() );
+    }
+
+    @Test
+    public void addAfterClear()
+    {
+        PrimitiveLongList longList = new PrimitiveLongList();
+        longList.clear();
+
+        longList.add( 1 );
+        assertEquals( 1, longList.get( 0 ) );
+        assertEquals( 1, longList.size() );
     }
 
     @Test

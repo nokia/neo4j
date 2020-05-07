@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2002-2018 "Neo4j,"
+# Copyright (c) 2002-2020 "Neo4j,"
 # Neo4j Sweden AB [http://neo4j.com]
 #
 # This file is part of Neo4j Enterprise Edition. The included source
@@ -20,6 +20,8 @@
 # More information is also available at:
 # https://neo4j.com/licensing/
 #
+
+#encoding: utf-8
 
 Feature: ReturnAcceptance
 
@@ -142,4 +144,60 @@ Feature: ReturnAcceptance
     Then the result should be:
       | result      |
       | {a: null, b: {c: null, d: {e: null}, f: [null, {g: null, h: [null], i: {j: null}}]}} |
+
+  Scenario: Accessing a non-existing property with string should work
+    Given an empty graph
+    And having executed:
+      """
+      CREATE ()
+      """
+    When executing query:
+      """
+      WITH 'prop' AS prop
+      MATCH (n) RETURN n[prop] AS result
+      """
+    Then the result should be:
+      | result |
+      | null   |
+    And no side effects
+
+  Scenario: Accessing a non-existing property with literal should work
+    Given an empty graph
+    And having executed:
+      """
+      CREATE ()
+      """
+    When executing query:
+      """
+      MATCH (n) RETURN n['prop'] AS result
+      """
+    Then the result should be:
+      | result |
+      | null   |
+    And no side effects
+
+  Scenario: RETURN true AND list
+    Given an empty graph
+    And parameters are:
+      | list | [] |
+    When executing query:
+      """
+      RETURN true AND $list AS result
+      """
+    Then the result should be:
+      | result |
+      | false  |
+    And no side effects
+
+  Scenario: RETURN false OR list
+    Given an empty graph
+    And parameters are:
+      | list | [] |
+    When executing query:
+      """
+      RETURN true AND $list AS result
+      """
+    Then the result should be:
+      | result |
+      | false   |
     And no side effects

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -31,6 +31,7 @@ import java.util.Map;
 
 import org.neo4j.bolt.security.auth.AuthenticationException;
 import org.neo4j.bolt.security.auth.BasicAuthentication;
+import org.neo4j.kernel.configuration.Config;
 import org.neo4j.server.security.auth.InMemoryUserRepository;
 import org.neo4j.server.security.auth.RateLimitedAuthenticationStrategy;
 import org.neo4j.server.security.enterprise.auth.MultiRealmAuthManagerRule;
@@ -43,7 +44,7 @@ public class BoltInitChangePasswordTest
 {
     @Rule
     public MultiRealmAuthManagerRule authManagerRule = new MultiRealmAuthManagerRule( new InMemoryUserRepository(),
-            new RateLimitedAuthenticationStrategy( Clock.systemUTC(), 3 ) );
+            new RateLimitedAuthenticationStrategy( Clock.systemUTC(), Config.defaults() ) );
     private BasicAuthentication authentication;
 
     @Before

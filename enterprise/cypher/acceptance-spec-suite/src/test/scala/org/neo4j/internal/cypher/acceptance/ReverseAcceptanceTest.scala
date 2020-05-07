@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -30,7 +30,7 @@ class ReverseAcceptanceTest extends ExecutionEngineFunSuite with QueryStatistics
 
   test("reverse function should work on strings") {
     // When
-    val result = executeWith(Configs.Interpreted + Configs.Morsel, "RETURN reverse('raksO')").columnAs("reverse('raksO')").next().toString
+    val result = executeWith(Configs.Interpreted, "RETURN reverse('raksO')").columnAs("reverse('raksO')").next().toString
 
     // Then
     result should equal("Oskar")

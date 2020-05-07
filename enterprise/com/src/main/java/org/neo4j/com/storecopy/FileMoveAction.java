@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -34,11 +34,17 @@ import org.neo4j.io.pagecache.PageCache;
 
 public interface FileMoveAction
 {
+    /**
+     * Execute a file move, moving the prepared file to the given {@code toDir}.
+     * @param toDir The target directory of the move operation
+     * @param copyOptions
+     * @throws IOException
+     */
     void move( File toDir, CopyOption... copyOptions ) throws IOException;
 
     File file();
 
-    static FileMoveAction copyViaPageCache( File file, PageCache pageCache )
+    static FileMoveAction moveViaPageCache( File file, PageCache pageCache )
     {
         return new FileMoveAction()
         {
@@ -61,6 +67,14 @@ public interface FileMoveAction
         };
     }
 
+    /**
+     * Create a FileMoveAction through the file system for moving the {@code file} which is contained in {@code basePath}.
+     *   When executing the move action the {@param file} will be moved to the argument supplied to the {@link #move(File, CopyOption...)} call
+     *   as the argument
+     * @param file The file to move
+     * @param basePath The directory containing the file
+     * @return A FileMoveAction for the given file.
+     */
     static FileMoveAction copyViaFileSystem( File file, File basePath )
     {
         Path base = basePath.toPath();
@@ -72,7 +86,10 @@ public interface FileMoveAction
                 Path originalPath = file.toPath();
                 Path relativePath = base.relativize( originalPath );
                 Path resolvedPath = toDir.toPath().resolve( relativePath );
-                Files.createDirectories( resolvedPath.getParent() );
+                if ( !Files.isSymbolicLink( resolvedPath.getParent() ) )
+                {
+                    Files.createDirectories( resolvedPath.getParent() );
+                }
                 Files.copy( originalPath, resolvedPath, copyOptions );
             }
 
@@ -80,6 +97,28 @@ public interface FileMoveAction
             public File file()
             {
                 return file;
+            }
+        };
+    }
+
+    static FileMoveAction moveViaFileSystem( File sourceFile, File sourceDirectory )
+    {
+        return new FileMoveAction()
+        {
+            @Override
+            public void move( File toDir, CopyOption... copyOptions ) throws IOException
+            {
+                copyViaFileSystem( sourceFile, sourceDirectory ).move( toDir, copyOptions );
+                if ( !sourceFile.delete() )
+                {
+                    throw new IOException( "Unable to delete source file after copying " + sourceFile );
+                }
+            }
+
+            @Override
+            public File file()
+            {
+                return sourceFile;
             }
         };
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -68,6 +68,11 @@ public class TransactionChecksumLookup
         if ( upgradeTransaction.transactionId() == txId )
         {
             return upgradeTransaction.checksum();
+        }
+
+        if ( !logicalTransactionStore.existsOnDisk( txId ) )
+        {
+            throw new NoSuchTransactionException( txId );
         }
 
         // It wasn't, so go look for it in the transaction store.

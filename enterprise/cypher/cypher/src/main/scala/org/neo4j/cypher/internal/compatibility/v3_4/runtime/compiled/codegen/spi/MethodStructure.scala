@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -86,7 +86,7 @@ trait MethodStructure[E] {
   def declareIterator(name: String): Unit
   def declareIterator(name: String, codeGenType: CodeGenType): Unit
   def iteratorFrom(iterable: E): E
-  def iteratorNext(iterator: E): E
+  def iteratorNext(iterator: E, codeGenType: CodeGenType): E
   def iteratorHasNext(iterator: E): E
 
   def toSet(value: E): E

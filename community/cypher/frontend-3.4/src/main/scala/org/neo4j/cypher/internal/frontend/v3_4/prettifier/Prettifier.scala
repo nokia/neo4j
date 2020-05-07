@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,6 +30,7 @@ case class Prettifier(mkStringOf: ExpressionStringifier) {
     case m: Match => asString(m)
     case w: With => asString(w)
     case c: Create => asString(c)
+    case u: Unwind => asString(u)
     case _ => clause.asCanonicalStringVal // TODO
   }
 
@@ -88,6 +89,8 @@ case class Prettifier(mkStringOf: ExpressionStringifier) {
     val wh = w.where.map(w => NL + "  WHERE " + mkStringOf(w.expression)).getOrElse("")
     s"WITH$d $i$o$s$l$wh"
   }
+
+  private def asString(u:Unwind) = s"UNWIND ${mkStringOf(u.expression)} AS ${mkStringOf(u.variable)}"
 
   private def asString(c: Create): String = {
     val p = c.pattern.patternParts.map(p => asString(p)).mkString(", ")

@@ -3,7 +3,7 @@
   <parent>
     <groupId>org.neo4j</groupId>
     <artifactId>parent</artifactId>
-    <version>3.4.0-SNAPSHOT</version>
+    <version>3.4.19-SNAPSHOT</version>
 
     <relativePath>..</relativePath>
   </parent>
@@ -11,7 +11,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.neo4j.build</groupId>
   <artifactId>packaging-build</artifactId>
-  <version>3.4.0-SNAPSHOT</version>
+  <version>3.4.19-SNAPSHOT</version>
 
   <name>Neo4j Packaging Build</name>
   <packaging>pom</packaging>
@@ -19,7 +19,7 @@
   <url>http://components.neo4j.org/${project.artifactId}/${project.version}</url>
 
   <properties>
-    <license-text.header>../build/AGPL-3-header.txt</license-text.header>
+    <license-text.header>headers/AGPL-3-header.txt</license-text.header>
   </properties>
 
   <scm>

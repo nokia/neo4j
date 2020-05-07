@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -45,7 +45,8 @@ public class OnlineBackupSettings implements LoadableConfig
     public static final Setting<Boolean> online_backup_enabled = setting( "dbms.backup.enabled", BOOLEAN, TRUE );
 
     @Description( "Listening server for online backups. The protocol running varies depending on deployment. In a Causal Clustering environment this is the " +
-            "same protocol that runs on causal_clustering.transaction_listen_address." )
+            "same protocol that runs on causal_clustering.transaction_listen_address. The port range is only respected in a HA or single instance deployment." +
+            " In Causal Clustering a single port should be used" )
     public static final Setting<HostnamePort> online_backup_server = setting( "dbms.backup.address", HOSTNAME_PORT, "127.0.0.1:6362-6372" );
 
     @Description( "Name of the SSL policy to be used by backup, as defined under the dbms.ssl.policy.* settings." +

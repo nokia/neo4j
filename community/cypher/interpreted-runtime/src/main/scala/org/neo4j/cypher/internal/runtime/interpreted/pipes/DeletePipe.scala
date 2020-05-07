@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -32,6 +32,8 @@ import scala.collection.JavaConverters._
 case class DeletePipe(src: Pipe, expression: Expression, forced: Boolean)
                      (val id: Id = Id.INVALID_ID)
   extends PipeWithSource(src) with GraphElementPropertyFunctions {
+
+  expression.registerOwningPipe(this)
 
 
   override protected def internalCreateResults(input: Iterator[ExecutionContext],

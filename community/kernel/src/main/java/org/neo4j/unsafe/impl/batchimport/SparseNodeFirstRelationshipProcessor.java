@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -50,6 +50,11 @@ public class SparseNodeFirstRelationshipProcessor implements RecordProcessor<Nod
 
     @Override
     public void done()
+    {   // Nothing to do here
+    }
+
+    @Override
+    public void close()
     {   // Nothing to do here
     }
 }

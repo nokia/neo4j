@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -32,10 +32,11 @@ import org.neo4j.causalclustering.identity.ClusterId;
 import org.neo4j.causalclustering.identity.MemberId;
 import org.neo4j.helpers.AdvertisedSocketAddress;
 import org.neo4j.kernel.configuration.Config;
+import org.neo4j.kernel.lifecycle.Lifecycle;
 import org.neo4j.logging.Log;
 import org.neo4j.logging.LogProvider;
 
-class SharedDiscoveryCoreClient extends AbstractTopologyService implements CoreTopologyService, Comparable<SharedDiscoveryCoreClient>
+class SharedDiscoveryCoreClient implements CoreTopologyService, Lifecycle
 {
     private final SharedDiscoveryService sharedDiscoveryService;
     private final MemberId myself;
@@ -59,12 +60,6 @@ class SharedDiscoveryCoreClient extends AbstractTopologyService implements CoreT
         this.log = logProvider.getLog( getClass() );
         this.refusesToBeLeader = config.get( CausalClusteringSettings.refuse_to_be_leader );
         this.localDBName = config.get( CausalClusteringSettings.database );
-    }
-
-    @Override
-    public int compareTo( SharedDiscoveryCoreClient o )
-    {
-        return Optional.ofNullable( o ).map( c -> c.myself.getUuid().compareTo( this.myself.getUuid() ) ).orElse( -1 );
     }
 
     @Override
@@ -103,6 +98,12 @@ class SharedDiscoveryCoreClient extends AbstractTopologyService implements CoreT
     }
 
     @Override
+    public void init()
+    {
+        // nothing to do
+    }
+
+    @Override
     public void start() throws InterruptedException
     {
         coreTopology = sharedDiscoveryService.getCoreTopology( this );
@@ -123,9 +124,21 @@ class SharedDiscoveryCoreClient extends AbstractTopologyService implements CoreT
     }
 
     @Override
+    public void shutdown()
+    {
+        // nothing to do
+    }
+
+    @Override
     public ReadReplicaTopology allReadReplicas()
     {
         return readReplicaTopology;
+    }
+
+    @Override
+    public ReadReplicaTopology localReadReplicas()
+    {
+        return allReadReplicas().filterTopologyByDb( localDBName );
     }
 
     @Override
@@ -144,6 +157,12 @@ class SharedDiscoveryCoreClient extends AbstractTopologyService implements CoreT
         // for the database local to the host upon which this method is called.
         // TODO: evaluate returning clusterId = null for global Topologies returned by allCoreServers()
         return this.coreTopology;
+    }
+
+    @Override
+    public CoreTopology localCoreServers()
+    {
+        return allCoreServers().filterTopologyByDb( localDBName );
     }
 
     @Override

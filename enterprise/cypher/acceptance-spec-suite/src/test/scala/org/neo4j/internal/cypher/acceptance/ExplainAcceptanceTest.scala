@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -29,7 +29,7 @@ class ExplainAcceptanceTest extends ExecutionEngineFunSuite with CypherCompariso
 
   test("normal query is marked as such") {
     createNode()
-    val result = executeWith(Configs.All + Configs.Morsel, "match (n) return n")
+    val result = executeWith(Configs.All, "match (n) return n")
 
     result.planDescriptionRequested should equal(false)
     result shouldNot be(empty)
@@ -37,7 +37,7 @@ class ExplainAcceptanceTest extends ExecutionEngineFunSuite with CypherCompariso
 
   test("explain query is marked as such") {
     createNode()
-    val result = executeWith(Configs.All + Configs.Morsel, "explain match (n) return n")
+    val result = executeWith(Configs.All, "explain match (n) return n")
 
     result.planDescriptionRequested should equal(true)
     result should be(empty)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -120,7 +120,6 @@ public class CatchupProtocolClientInstaller implements ProtocolInstaller<Orienta
                 .add( "hnd_res_file_chunk", new FileChunkHandler( protocol, handler ) )
                 .add( "hnd_res_store_id", new GetStoreIdResponseHandler( protocol, handler ) )
                 .add( "hnd_res_store_listing", new StoreListingResponseHandler( protocol, handler ))
-                .onClose( handler::onClose )
                 .install();
     }
 

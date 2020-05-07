@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -74,5 +74,11 @@ public class LocalTimeArray extends TemporalArray<LocalTime, LocalTimeValue>
     int unsafeCompareTo( Value otherValue )
     {
         return compareToNonPrimitiveArray( (LocalTimeArray) otherValue );
+    }
+
+    @Override
+    public String getTypeName()
+    {
+        return "LocalTimeArray";
     }
 }

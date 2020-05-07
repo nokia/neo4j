@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -200,5 +200,19 @@ class ForeachAcceptanceTest extends ExecutionEngineFunSuite with CypherCompariso
     val config = TestConfiguration(Versions.Default, Planners.Default, Runtimes(Runtimes.Interpreted, Runtimes.Slotted, Runtimes.ProcedureOrSchema)) +
       TestConfiguration(Versions(Versions.V3_1, Versions.V3_3), Planners.Cost, Runtimes.Default)
     failWithError(config, query, List("Expected to find a node at"))
+  }
+
+  test("should FOREACH over nodes in path") {
+
+    val a = createNode()
+    val b = createNode()
+    relate(a, b)
+
+    val query =
+      """MATCH p = ()-->()
+        |FOREACH (n IN nodes(p) | SET n.marked = true)""".stripMargin
+
+    val result = executeWith(Configs.Interpreted - Configs.Cost2_3, query)
+    assertStats(result, propertiesWritten = 2)
   }
 }

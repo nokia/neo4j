@@ -5,18 +5,18 @@
   <parent>
     <groupId>org.neo4j</groupId>
     <artifactId>parent</artifactId>
-    <version>3.4.0-SNAPSHOT</version>
+    <version>3.4.19-SNAPSHOT</version>
     <relativePath>../..</relativePath>
   </parent>
   <modelVersion>4.0.0</modelVersion>
   <artifactId>neo4j-command-line</artifactId>
   <name>Neo4j - Command Line</name>
-  <version>3.4.0-SNAPSHOT</version>
+  <version>3.4.19-SNAPSHOT</version>
   <packaging>jar</packaging>
 
   <properties>
-    <license-text.header>../../build/GPL-3-header.txt</license-text.header>
-    <licensing.prepend.text>notice-gpl-prefix.txt</licensing.prepend.text>
+    <license-text.header>headers/GPL-3-header.txt</license-text.header>
+    <licensing.prepend.text>licensing/notice-gpl-prefix.txt</licensing.prepend.text>
     <moduleName>org.neo4j.commandline</moduleName>
   </properties>
 

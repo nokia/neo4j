@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -212,7 +212,9 @@ public interface Configuration
         @Override
         public int denseNodeThreshold()
         {
-            return config.get( dense_node_threshold );
+            return config.getRaw().containsKey( dense_node_threshold.name() )
+                   ? config.get( dense_node_threshold )
+                   : defaults.denseNodeThreshold();
         }
 
         @Override

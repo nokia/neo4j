@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -207,12 +207,11 @@ object domainsOf {
         ofSingle(property, classOf[Property]) ++
         ofSingle(expression, classOf[Expression])
 
-      case PatternComprehension(namedPath, pattern, predicate, projection, outerScope) =>
+      case PatternComprehension(namedPath, pattern, predicate, projection) =>
         ofOption(namedPath, classOf[LogicalVariable]) ++
           ofSingle(pattern, classOf[RelationshipsPattern]) ++
           ofOption(predicate, classOf[Expression]) ++
-          ofSingle(projection, classOf[Expression]) ++
-          ofSeq(outerScope.toSeq, classOf[LogicalVariable])
+          ofSingle(projection, classOf[Expression])
 
       case RelationshipsPattern(element) =>
         ofSingle(element, classOf[RelationshipChain])

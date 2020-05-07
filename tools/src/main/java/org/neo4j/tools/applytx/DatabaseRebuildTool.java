@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -197,6 +197,7 @@ public class DatabaseRebuildTool
 
         ConsoleInput consoleInput = life.add( new ConsoleInput( in, out, prompt ) );
         consoleInput.add( "apply", new ApplyTransactionsCommand( fromPath, dbAccess ) );
+        consoleInput.add( "reapply", new ReapplyTransactionsCommand( dbAccess ) );
         consoleInput.add( DumpRecordsCommand.NAME, new DumpRecordsCommand( storeAccess ) );
         consoleInput.add( "cc", new ArgsCommand()
         {

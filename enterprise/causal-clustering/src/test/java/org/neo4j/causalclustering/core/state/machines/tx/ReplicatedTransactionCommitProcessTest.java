@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -22,6 +22,7 @@
  */
 package org.neo4j.causalclustering.core.state.machines.tx;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.concurrent.CompletableFuture;
@@ -39,10 +40,16 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@SuppressWarnings( "unchecked" )
 public class ReplicatedTransactionCommitProcessTest
 {
     private Replicator replicator = mock( Replicator.class );
+    private TransactionRepresentation tx = mock( TransactionRepresentation.class );
+
+    @Before
+    public void tx()
+    {
+        when( tx.additionalHeader() ).thenReturn( new byte[]{} );
+    }
 
     @Test
     public void shouldReplicateTransaction() throws Exception
@@ -55,16 +62,9 @@ public class ReplicatedTransactionCommitProcessTest
         ReplicatedTransactionCommitProcess commitProcess = new ReplicatedTransactionCommitProcess( replicator );
 
         // when
-        long txId = commitProcess.commit( tx(), CommitEvent.NULL, TransactionApplicationMode.EXTERNAL );
+        long txId = commitProcess.commit( new TransactionToApply( tx ), CommitEvent.NULL, TransactionApplicationMode.EXTERNAL );
 
         // then
         assertEquals( 5, txId );
-    }
-
-    private TransactionToApply tx()
-    {
-        TransactionRepresentation tx = mock( TransactionRepresentation.class );
-        when( tx.additionalHeader() ).thenReturn( new byte[]{} );
-        return new TransactionToApply( tx );
     }
 }

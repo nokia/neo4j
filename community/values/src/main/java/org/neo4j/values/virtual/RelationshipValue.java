@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -67,6 +67,12 @@ public abstract class RelationshipValue extends VirtualRelationshipValue
     public long otherNodeId( long node )
     {
         return node == startNode().id() ? endNode().id() : startNode().id();
+    }
+
+    @Override
+    public String getTypeName()
+    {
+        return "Relationship";
     }
 
     static class DirectRelationshipValue extends RelationshipValue

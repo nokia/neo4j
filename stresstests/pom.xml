@@ -4,19 +4,19 @@
   <parent>
     <groupId>org.neo4j</groupId>
     <artifactId>parent</artifactId>
-    <version>3.4.0-SNAPSHOT</version>
+    <version>3.4.19-SNAPSHOT</version>
     <relativePath>..</relativePath>
   </parent>
 
   <artifactId>neo4j-stresstests</artifactId>
-  <version>3.4.0-SNAPSHOT</version>
+  <version>3.4.19-SNAPSHOT</version>
 
   <name>Neo4j - Stress Tests</name>
   <packaging>jar</packaging>
   <description>A package for stress tests.</description>
 
   <properties>
-    <license-text.header>../build/AGPL-3-header.txt</license-text.header>
+    <license-text.header>headers/AGPL-3-header.txt</license-text.header>
     <moduleName>org.neo4j.stresstests</moduleName>
   </properties>
 

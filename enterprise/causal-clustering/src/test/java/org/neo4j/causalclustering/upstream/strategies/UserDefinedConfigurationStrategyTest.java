@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -37,7 +37,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.neo4j.causalclustering.core.CausalClusteringSettings;
-import org.neo4j.causalclustering.discovery.AbstractTopologyService;
 import org.neo4j.causalclustering.discovery.ClientConnectorAddresses;
 import org.neo4j.causalclustering.discovery.CoreTopology;
 import org.neo4j.causalclustering.discovery.ReadReplicaInfo;
@@ -203,7 +202,7 @@ public class UserDefinedConfigurationStrategyTest
 
     static TopologyService fakeTopologyService( CoreTopology coreTopology, ReadReplicaTopology readReplicaTopology )
     {
-        return new AbstractTopologyService()
+        return new TopologyService()
         {
             private Map<MemberId,AdvertisedSocketAddress> catchupAddresses = extractCatchupAddressesMap( coreTopology, readReplicaTopology );
 
@@ -214,9 +213,21 @@ public class UserDefinedConfigurationStrategyTest
             }
 
             @Override
+            public CoreTopology localCoreServers()
+            {
+                return coreTopology; // N.B: not supporting local db!
+            }
+
+            @Override
             public ReadReplicaTopology allReadReplicas()
             {
                 return readReplicaTopology;
+            }
+
+            @Override
+            public ReadReplicaTopology localReadReplicas()
+            {
+                return readReplicaTopology; // N.B: not supporting local db!
             }
 
             @Override

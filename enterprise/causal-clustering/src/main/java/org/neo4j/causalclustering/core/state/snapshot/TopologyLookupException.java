@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -36,10 +36,5 @@ public class TopologyLookupException extends Exception
     public TopologyLookupException( MemberId memberId )
     {
         super( format( "Cannot find the target member %s socket address", memberId ) );
-    }
-
-    public TopologyLookupException( String message )
-    {
-        super( message );
     }
 }

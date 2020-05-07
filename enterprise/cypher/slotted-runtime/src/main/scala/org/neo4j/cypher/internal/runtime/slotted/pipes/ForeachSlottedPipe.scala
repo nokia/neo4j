@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -39,6 +39,8 @@ case class ForeachSlottedPipe(lhs: Pipe, rhs: Pipe, innerVariableSlot: Slot, exp
   // Compile-time initializations
   //===========================================================================
   private val setVariableFun = makeSetValueInSlotFunctionFor(innerVariableSlot)
+
+  expression.registerOwningPipe(this)
 
   //===========================================================================
   // Runtime code

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -44,7 +44,7 @@ import org.neo4j.cypher.internal.planner.v3_4.spi.PlanningAttributes.{Cardinalit
 import org.neo4j.cypher.internal.planner.v3_4.spi.{IDPPlannerName, PlanContext, PlannerNameFor}
 import org.neo4j.cypher.internal.queryReduction.DDmin.Oracle
 import org.neo4j.cypher.internal.runtime.interpreted.TransactionBoundQueryContext.IndexSearchMonitor
-import org.neo4j.cypher.internal.runtime.interpreted.{TransactionBoundPlanContext, TransactionBoundQueryContext, TransactionalContextWrapper, ValueConversion}
+import org.neo4j.cypher.internal.runtime.interpreted._
 import org.neo4j.cypher.internal.runtime.vectorized.dispatcher.SingleThreadedExecutor
 import org.neo4j.cypher.internal.runtime.{InternalExecutionResult, NormalMode}
 import org.neo4j.cypher.internal.spi.v3_4.codegen.GeneratedQueryStructure
@@ -63,8 +63,6 @@ import org.neo4j.values.virtual.VirtualValues.EMPTY_MAP
 import scala.util.Try
 
 object CypherReductionSupport {
-  private val rewriterSequencer = RewriterStepSequencer.newValidating _
-  private val astRewriter = new ASTRewriter(rewriterSequencer, literalExtraction = Never, getDegreeRewriting = true)
   private val stepSequencer = RewriterStepSequencer.newPlain _
   private val metricsFactory = CachedMetricsFactory(SimpleMetricsFactory)
   private val config = CypherCompilerConfiguration(
@@ -76,10 +74,12 @@ object CypherReductionSupport {
     errorIfShortestPathFallbackUsedAtRuntime = false,
     errorIfShortestPathHasCommonNodesAtRuntime = false,
     legacyCsvQuoteEscaping = false,
+    csvBufferSize = CSVResources.DEFAULT_BUFFER_SIZE,
     nonIndexedLabelWarningThreshold = 0,
-    planWithMinimumCardinalityEstimates = true)
+    planWithMinimumCardinalityEstimates = true,
+    lenientCreateRelationship = true)
   private val kernelMonitors = new Monitors
-  private val compiler = CypherCompiler(astRewriter, WrappedMonitors(kernelMonitors), stepSequencer, metricsFactory, config, defaultUpdateStrategy,
+  private val compiler = CypherCompiler(WrappedMonitors(kernelMonitors), stepSequencer, metricsFactory, config, defaultUpdateStrategy,
     CompilerEngineDelegator.CLOCK, CommunityRuntimeContextCreator)
 
   private val monitor = kernelMonitors.newMonitor(classOf[IDPQueryGraphSolverMonitor])

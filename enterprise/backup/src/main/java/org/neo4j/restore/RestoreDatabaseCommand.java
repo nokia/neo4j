@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -90,12 +90,25 @@ public class RestoreDatabaseCommand
             fs.deleteRecursively( transactionLogsDirectory );
         }
         LogFiles backupLogFiles = LogFilesBuilder.logFilesBasedOnlyBuilder( fromPath, fs ).build();
-        File[] files = fromPath.listFiles();
+        restoreDatabaseFiles( backupLogFiles, fromPath.listFiles() );
+    }
+
+    private void restoreDatabaseFiles( LogFiles backupLogFiles, File[] files ) throws IOException
+    {
         if ( files != null )
         {
             for ( File file : files )
             {
-                fs.copyToDirectory( file, backupLogFiles.isLogFile( file ) ? transactionLogsDirectory : databaseDir );
+                if ( file.isDirectory() )
+                {
+                    File destination = new File( databaseDir, file.getName() );
+                    fs.mkdirs( destination );
+                    fs.copyRecursively( file, destination );
+                }
+                else
+                {
+                    fs.copyToDirectory( file, backupLogFiles.isLogFile( file ) ? transactionLogsDirectory : databaseDir );
+                }
             }
         }
     }

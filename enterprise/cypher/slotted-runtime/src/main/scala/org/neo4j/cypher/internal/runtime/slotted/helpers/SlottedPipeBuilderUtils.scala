@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -34,6 +34,9 @@ import org.neo4j.values.virtual.{VirtualNodeValue, VirtualRelationshipValue, Vir
 object SlottedPipeBuilderUtils {
   // TODO: Check if having try/catch blocks inside some of these generated functions prevents inlining or other JIT optimizations
   //       If so we may want to consider moving the handling and responsibility out to the pipes that use them
+
+  val UNDEFINED_NODE: Long = -1L
+  val UNDEFINED_REL: Long = -1L
 
   /**
     * Use this to make a specialized getter function for a slot,
@@ -108,7 +111,7 @@ object SlottedPipeBuilderUtils {
           val value = context.getRefAt(offset)
           try {
             if (value == Values.NO_VALUE)
-              -1L
+              UNDEFINED_NODE
             else
               value.asInstanceOf[VirtualNodeValue].id()
           } catch {
@@ -121,7 +124,7 @@ object SlottedPipeBuilderUtils {
           val value = context.getRefAt(offset)
           try {
             if (value == Values.NO_VALUE)
-              -1L
+              UNDEFINED_REL
             else
               value.asInstanceOf[VirtualRelationshipValue].id()
           } catch {

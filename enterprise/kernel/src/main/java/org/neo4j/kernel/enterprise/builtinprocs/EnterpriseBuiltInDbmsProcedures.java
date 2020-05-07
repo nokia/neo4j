@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -93,15 +93,16 @@ public class EnterpriseBuiltInDbmsProcedures
     public void setTXMetaData( @Name( value = "data" ) Map<String,Object> data )
     {
         securityContext.assertCredentialsNotExpired();
-        int totalCharSize = data.entrySet().stream()
-                .mapToInt( e -> e.getKey().length() + e.getValue().toString().length() )
-                .sum();
+        int totalCharSize = data.entrySet()
+                        .stream()
+                        .mapToInt( e -> e.getKey().length() + ((e.getValue() != null) ? e.getValue().toString().length() : 0) )
+                        .sum();
 
         if ( totalCharSize >= HARD_CHAR_LIMIT )
         {
             throw new IllegalArgumentException(
-                    format( "Invalid transaction meta-data, expected the total number of chars for " +
-                            "keys and values to be less than %d, got %d", HARD_CHAR_LIMIT, totalCharSize ) );
+                    format( "Invalid transaction meta-data, expected the total number of chars for " + "keys and values to be less than %d, got %d",
+                            HARD_CHAR_LIMIT, totalCharSize ) );
         }
 
         try ( Statement statement = getCurrentTx().acquireStatement() )

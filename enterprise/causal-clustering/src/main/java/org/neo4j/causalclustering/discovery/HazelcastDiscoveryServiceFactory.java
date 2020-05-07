@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -51,7 +51,7 @@ public class HazelcastDiscoveryServiceFactory implements DiscoveryServiceFactory
     {
         configureHazelcast( config, logProvider );
         return new HazelcastClient( new HazelcastClientConnector( config, logProvider, hostnameResolver ), jobScheduler,
-                logProvider, config, myself, topologyServiceRetryStrategy );
+                logProvider, config, myself );
     }
 
     public static void configureHazelcast( Config config, LogProvider logProvider )

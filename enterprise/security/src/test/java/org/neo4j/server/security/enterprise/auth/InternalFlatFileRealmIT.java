@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -81,7 +81,7 @@ public class InternalFlatFileRealmIT
         final UserRepository defaultAdminRepository = EnterpriseSecurityModule.getDefaultAdminRepository( Config
                 .defaults(), logProvider, fs );
         final PasswordPolicy passwordPolicy = new BasicPasswordPolicy();
-        AuthenticationStrategy authenticationStrategy = new RateLimitedAuthenticationStrategy( Clocks.systemClock(), 3 );
+        AuthenticationStrategy authenticationStrategy = new RateLimitedAuthenticationStrategy( Clocks.systemClock(), Config.defaults() );
 
         realm = new InternalFlatFileRealm( userRepository, roleRepository, passwordPolicy, authenticationStrategy,
                         true, true, jobScheduler, initialUserRepository, defaultAdminRepository );

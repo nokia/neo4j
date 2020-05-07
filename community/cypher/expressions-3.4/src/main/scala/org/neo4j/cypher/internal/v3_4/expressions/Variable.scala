@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,8 +25,6 @@ case class Variable(name: String)(val position: InputPosition) extends LogicalVa
   override def renameId(newName: String) = copy(name = newName)(position)
 
   override def bumpId = copy()(position.bumped())
-
-  override def asCanonicalStringVal: String = name
 }
 
 object Variable {

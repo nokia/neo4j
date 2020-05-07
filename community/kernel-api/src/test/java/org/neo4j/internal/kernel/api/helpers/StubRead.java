@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -38,6 +38,12 @@ public class StubRead implements Read
     @Override
     public void nodeIndexSeek( IndexReference index, NodeValueIndexCursor cursor, IndexOrder indexOrder,
             IndexQuery... query )
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void nodeIndexDistinctValues( IndexReference index, NodeValueIndexCursor cursor )
     {
         throw new UnsupportedOperationException();
     }

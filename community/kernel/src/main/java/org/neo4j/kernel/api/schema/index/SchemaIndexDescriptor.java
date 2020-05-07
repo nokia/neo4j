@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -29,7 +29,6 @@ import org.neo4j.internal.kernel.api.schema.SchemaDescriptor;
 import org.neo4j.internal.kernel.api.schema.SchemaDescriptorSupplier;
 import org.neo4j.internal.kernel.api.schema.SchemaUtil;
 
-import static java.lang.String.format;
 import static org.neo4j.kernel.api.schema.index.SchemaIndexDescriptor.Filter.GENERAL;
 import static org.neo4j.kernel.api.schema.index.SchemaIndexDescriptor.Filter.UNIQUE;
 
@@ -110,7 +109,7 @@ public class SchemaIndexDescriptor implements SchemaDescriptorSupplier
      */
     public String userDescription( TokenNameLookup tokenNameLookup )
     {
-        return format( "Index( %s, %s )", type.name(), schema.userDescription( tokenNameLookup ) );
+        return SchemaUtil.withType( type.name(), schema.userDescription( tokenNameLookup ) );
     }
 
     /**

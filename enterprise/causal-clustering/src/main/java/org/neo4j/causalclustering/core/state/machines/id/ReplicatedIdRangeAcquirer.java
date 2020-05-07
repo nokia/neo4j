@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -23,7 +23,6 @@
 package org.neo4j.causalclustering.core.state.machines.id;
 
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 
 import org.neo4j.causalclustering.core.replication.Replicator;
 import org.neo4j.causalclustering.identity.MemberId;
@@ -85,9 +84,9 @@ public class ReplicatedIdRangeAcquirer
         {
             return (Boolean) replicator.replicate( idAllocationRequest, true ).get();
         }
-        catch ( InterruptedException | ExecutionException e )
+        catch ( Exception e )
         {
-            log.error( format( "Failed to acquire id range for idType %s", idType ), e );
+            log.warn( format( "Failed to acquire id range for idType %s", idType ), e );
             throw new IdGenerationException( e );
         }
     }

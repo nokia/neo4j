@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
+import org.neo4j.causalclustering.core.replication.ReplicationFailureException;
 import org.neo4j.causalclustering.core.replication.Replicator;
 import org.neo4j.internal.kernel.api.exceptions.schema.ConstraintValidationException;
 import org.neo4j.internal.kernel.api.exceptions.TransactionFailureException;
@@ -101,7 +102,7 @@ abstract class ReplicatedTokenHolder<TOKEN extends Token> implements TokenHolder
             Future<Object> future = replicator.replicate( tokenRequest, true );
             return (int) future.get();
         }
-        catch ( InterruptedException e )
+        catch ( ReplicationFailureException | InterruptedException e )
         {
             throw new org.neo4j.graphdb.TransactionFailureException( "Could not create token", e );
         }

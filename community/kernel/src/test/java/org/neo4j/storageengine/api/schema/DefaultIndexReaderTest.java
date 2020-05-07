@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -27,7 +27,7 @@ import org.junit.rules.ExpectedException;
 import org.neo4j.collection.primitive.PrimitiveLongResourceIterator;
 import org.neo4j.internal.kernel.api.IndexOrder;
 import org.neo4j.internal.kernel.api.IndexQuery;
-import org.neo4j.kernel.api.exceptions.index.IndexNotApplicableKernelException;
+import org.neo4j.kernel.api.index.PropertyAccessor;
 import org.neo4j.values.storable.Value;
 
 public class DefaultIndexReaderTest
@@ -75,6 +75,11 @@ public class DefaultIndexReaderTest
             public boolean hasFullValuePrecision( IndexQuery... predicates )
             {
                 return false;
+            }
+
+            @Override
+            public void distinctValues( IndexProgressor.NodeValueClient client, PropertyAccessor propertyAccessor )
+            {
             }
 
             @Override

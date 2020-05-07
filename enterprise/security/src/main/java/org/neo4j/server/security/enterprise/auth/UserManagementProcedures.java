@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -123,7 +123,7 @@ public class UserManagementProcedures extends AuthProceduresBase
         userManager.activateUser( username, requirePasswordChange );
     }
 
-    @Description( "List all local users." )
+    @Description( "List all native users." )
     @Procedure( name = "dbms.security.listUsers", mode = DBMS )
     public Stream<UserResult> listUsers()
     {

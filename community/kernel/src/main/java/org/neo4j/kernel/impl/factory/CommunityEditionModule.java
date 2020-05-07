@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -92,7 +92,7 @@ public class CommunityEditionModule extends EditionModule
         life.add( platformModule.dataSourceManager );
 
         watcherService = createFileSystemWatcherService( fileSystem, storeDir, logging,
-                platformModule.jobScheduler, fileWatcherFileNameFilter() );
+                platformModule.jobScheduler, config, fileWatcherFileNameFilter() );
         dependencies.satisfyDependencies( watcherService );
         life.add( watcherService );
 

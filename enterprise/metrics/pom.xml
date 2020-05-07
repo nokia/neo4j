@@ -6,18 +6,18 @@
   <parent>
     <groupId>org.neo4j</groupId>
     <artifactId>parent</artifactId>
-    <version>3.4.0-SNAPSHOT</version>
+    <version>3.4.19-SNAPSHOT</version>
     <relativePath>../..</relativePath>
   </parent>
 
   <artifactId>neo4j-metrics</artifactId>
-  <version>3.4.0-SNAPSHOT</version>
+  <version>3.4.19-SNAPSHOT</version>
 
   <name>Neo4j - Metrics Kernel Extension</name>
   <packaging>jar</packaging>
 
   <properties>
-    <license-text.header>../../build/AGPL-3-header.txt</license-text.header>
+    <license-text.header>headers/AGPL-3-header.txt</license-text.header>
     <prometheus.client.version>0.1.0</prometheus.client.version>
     <moduleName>org.neo4j.metrics</moduleName>
   </properties>

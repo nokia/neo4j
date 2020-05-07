@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -29,12 +29,28 @@ import org.neo4j.cypher.internal.compatibility.v3_4.runtime.compiled.codegen.{Co
 
 
 trait AggregateExpression {
+
   def init[E](generator: MethodStructure[E])(implicit context: CodeGenContext): Unit
 
   def update[E](generator: MethodStructure[E])(implicit context: CodeGenContext): Unit
 
-  def continuation(instruction: Instruction): Instruction = instruction
+  def opName: String
+
+  def continuation(instruction: Instruction): Instruction = new Instruction {
+
+    override protected def children: Seq[Instruction] = Seq(instruction)
+
+    override protected def operatorId: Set[String] = Set(opName)
+
+    override def body[E](generator: MethodStructure[E])(implicit context: CodeGenContext): Unit = {
+      generator.trace(opName) { inner =>
+          inner.incrementRows()
+          instruction.body(inner)
+      }
+    }
+  }
 }
+
 /**
   * Base class for aggregate expressions
   * @param expression the expression to aggregate

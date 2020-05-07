@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,7 +31,7 @@ class PatternComprehensionTest extends SemanticFunSuite {
   val stringLiteral = StringLiteral("APA")(pos)
 
   test("pattern comprehension on a property returns the expected type") {
-    val expression = PatternComprehension(None, pattern, None, property)(pos)
+    val expression = PatternComprehension(None, pattern, None, property)(pos, Set.empty)
 
     val result = SemanticExpressionCheck.simple(expression)(SemanticState.clean)
 
@@ -40,7 +40,7 @@ class PatternComprehensionTest extends SemanticFunSuite {
   }
 
   test("pattern comprehension with literal string projection has correct type") {
-    val expression = PatternComprehension(None, pattern, None, stringLiteral)(pos)
+    val expression = PatternComprehension(None, pattern, None, stringLiteral)(pos, Set.empty)
 
     val result = SemanticExpressionCheck.simple(expression)(SemanticState.clean)
 
@@ -49,7 +49,7 @@ class PatternComprehensionTest extends SemanticFunSuite {
   }
 
   test("inner projection using missing identifier reports error") {
-    val expression = PatternComprehension(None, pattern, None, failingProperty)(pos)
+    val expression = PatternComprehension(None, pattern, None, failingProperty)(pos, Set.empty)
 
     val result = SemanticExpressionCheck.simple(expression)(SemanticState.clean)
 
@@ -57,7 +57,7 @@ class PatternComprehensionTest extends SemanticFunSuite {
   }
 
   test("inner filter using missing identifier reports error") {
-    val expression = PatternComprehension(None, pattern, Some(failingProperty), stringLiteral)(pos)
+    val expression = PatternComprehension(None, pattern, Some(failingProperty), stringLiteral)(pos, Set.empty)
 
     val result = SemanticExpressionCheck.simple(expression)(SemanticState.clean)
 
@@ -65,7 +65,7 @@ class PatternComprehensionTest extends SemanticFunSuite {
   }
 
   test("pattern can't reuse identifier with different type") {
-    val expression = PatternComprehension(None, pattern, None, stringLiteral)(pos)
+    val expression = PatternComprehension(None, pattern, None, stringLiteral)(pos, Set.empty)
 
     val semanticState = SemanticState.clean.declareVariable(variable("n"), CTBoolean).right.get
     val result = SemanticExpressionCheck.simple(expression)(semanticState)

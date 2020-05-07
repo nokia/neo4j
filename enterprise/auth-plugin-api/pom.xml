@@ -3,19 +3,19 @@
   <parent>
     <groupId>org.neo4j</groupId>
     <artifactId>parent</artifactId>
-    <version>3.4.0-SNAPSHOT</version>
+    <version>3.4.19-SNAPSHOT</version>
     <relativePath>../..</relativePath>
   </parent>
 
   <artifactId>neo4j-auth-plugin-api</artifactId>
-  <version>3.4.0-SNAPSHOT</version>
+  <version>3.4.19-SNAPSHOT</version>
 
   <name>Neo4j - Enterprise Graph Database Auth Plugin API</name>
   <description>Enterprise auth plugin API for adding custom auth providers to the Neo4j database</description>
   <packaging>jar</packaging>
 
   <properties>
-    <license-text.header>../../build/AGPL-3-header.txt</license-text.header>
+    <license-text.header>headers/AGPL-3-header.txt</license-text.header>
     <moduleName>org.neo4j.server.security.enterprise.auth.plugin</moduleName>
   </properties>
 

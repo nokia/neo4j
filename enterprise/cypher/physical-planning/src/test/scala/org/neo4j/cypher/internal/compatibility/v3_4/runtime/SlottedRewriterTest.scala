@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -26,7 +26,6 @@ import org.mockito.Mockito._
 import org.neo4j.cypher.internal.compatibility.v3_4.runtime.PhysicalPlanningAttributes.SlotConfigurations
 import org.neo4j.cypher.internal.compatibility.v3_4.runtime.ast._
 import org.neo4j.cypher.internal.frontend.v3_4.ast._
-import org.neo4j.cypher.internal.ir.v3_4.PlannerQuery
 import org.neo4j.cypher.internal.planner.v3_4.spi.TokenContext
 import org.neo4j.cypher.internal.util.v3_4.attribution.{Id, SequentialIdGen}
 import org.neo4j.cypher.internal.util.v3_4.NonEmptyList
@@ -43,6 +42,128 @@ class SlottedRewriterTest extends CypherFunSuite with AstConstructionTestSupport
   private val bProp = propFor("b", "prop")
   private val nProp = propFor("n", "prop")
   private val rProp = propFor("r", "prop")
+
+  test("checking property existence using IS NULL on a nullable node") {
+    // OPTIONAL MATCH (n) WHERE n.prop IS NULL
+    // given
+    val node = "n"
+    val argument = Argument(Set(node))
+    val predicate = IsNull(prop("n", "prop"))(pos)
+    val selection = Selection(Seq(predicate), argument)
+    val slots = SlotConfiguration.empty.
+      newLong("n", nullable = true, CTNode)
+    val lookup = new SlotConfigurations
+    lookup.set(argument.id, slots)
+    lookup.set(selection.id, slots)
+    val tokenContext = mock[TokenContext]
+    when(tokenContext.getOptPropertyKeyId("prop")).thenReturn(None)
+    val rewriter = new SlottedRewriter(tokenContext)
+    // when
+    val result = rewriter(selection, lookup)
+    result should equal(
+      Selection(
+        Seq(
+          Or(
+            IsPrimitiveNull(0),
+            Not(
+              NodePropertyExistsLate(0, "prop", "n.prop")(nProp)
+            )(pos)
+          )(pos)
+        ),
+        argument
+      )
+    )
+    lookup(result.id) should equal(slots)
+  }
+
+  test("checking property existence using IS NULL on a node") {
+    // MATCH (n) WHERE n.prop IS NULL
+    // given
+    val node = "n"
+    val argument = Argument(Set(node))
+    val predicate = IsNull(prop("n", "prop"))(pos)
+    val selection = Selection(Seq(predicate), argument)
+    val slots = SlotConfiguration.empty.
+      newLong("n", nullable = false, CTNode)
+    val lookup = new SlotConfigurations
+    lookup.set(argument.id, slots)
+    lookup.set(selection.id, slots)
+    val tokenContext = mock[TokenContext]
+    when(tokenContext.getOptPropertyKeyId("prop")).thenReturn(None)
+    val rewriter = new SlottedRewriter(tokenContext)
+    // when
+    val result = rewriter(selection, lookup)
+    result should equal(
+      Selection(
+        Seq(
+          Not(
+            NodePropertyExistsLate(0, "prop", "n.prop")(nProp)
+          )(pos)),
+        argument
+      )
+    )
+    lookup(result.id) should equal(slots)
+  }
+
+  test("checking property existence using IS NOT NULL on a nullable node") {
+    // OPTIONAL MATCH (n) WHERE n.prop IS NOT NULL
+    // given
+    val node = "n"
+    val argument = Argument(Set(node))
+    val predicate = IsNotNull(prop("n", "prop"))(pos)
+    val selection = Selection(Seq(predicate), argument)
+    val slots = SlotConfiguration.empty.
+      newLong("n", nullable = true, CTNode)
+    val lookup = new SlotConfigurations
+    lookup.set(argument.id, slots)
+    lookup.set(selection.id, slots)
+    val tokenContext = mock[TokenContext]
+    when(tokenContext.getOptPropertyKeyId("prop")).thenReturn(None)
+    val rewriter = new SlottedRewriter(tokenContext)
+    // when
+    val result = rewriter(selection, lookup)
+    result should equal(
+      Selection(
+        Seq(
+          And(
+            Not(
+              IsPrimitiveNull(0)
+            )(pos),
+            NodePropertyExistsLate(0, "prop", "n.prop")(nProp)
+          )(pos)
+        ),
+        argument
+      )
+    )
+    lookup(result.id) should equal(slots)
+  }
+
+  test("checking property existence using IS NOT NULL on a node") {
+    // MATCH (n) WHERE n.prop IS NOT NULL
+    // given
+    val node = "n"
+    val argument = Argument(Set(node))
+    val predicate = IsNotNull(prop("n", "prop"))(pos)
+    val selection = Selection(Seq(predicate), argument)
+    val slots = SlotConfiguration.empty.
+      newLong("n", nullable = false, CTNode)
+    val lookup = new SlotConfigurations
+    lookup.set(argument.id, slots)
+    lookup.set(selection.id, slots)
+    val tokenContext = mock[TokenContext]
+    when(tokenContext.getOptPropertyKeyId("prop")).thenReturn(None)
+    val rewriter = new SlottedRewriter(tokenContext)
+    // when
+    val result = rewriter(selection, lookup)
+    result should equal(
+      Selection(
+        Seq(
+          NodePropertyExistsLate(0, "prop", "n.prop")(nProp)),
+        argument
+      )
+    )
+    lookup(result.id) should equal(slots)
+  }
 
   test("selection with property comparison MATCH (n) WHERE n.prop > 42 RETURN n") {
     val allNodes = AllNodesScan("x", Set.empty)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -26,10 +26,11 @@ import java.io.{File, PrintWriter}
 import java.net.{URL, URLConnection, URLStreamHandler, URLStreamHandlerFactory}
 import java.nio.file.Files
 import java.util.Collections.emptyMap
+import java.util.concurrent.TimeUnit
 
 import org.neo4j.cypher._
 import org.neo4j.cypher.internal.frontend.v3_4.helpers.StringHelper.RichString
-import org.neo4j.cypher.internal.runtime.CreateTempFileTestSupport
+import org.neo4j.cypher.internal.runtime.{CreateTempFileTestSupport, InternalExecutionResult}
 import org.neo4j.cypher.internal.v3_4.logical.plans.NodeIndexSeek
 import org.neo4j.graphdb.QueryExecutionException
 import org.neo4j.graphdb.config.Configuration
@@ -43,7 +44,7 @@ import scala.collection.JavaConverters._
 
 class LoadCsvAcceptanceTest
   extends ExecutionEngineFunSuite with BeforeAndAfterAll
-  with QueryStatisticsTestSupport with CreateTempFileTestSupport with CypherComparisonSupport{
+  with QueryStatisticsTestSupport with CreateTempFileTestSupport with CypherComparisonSupport with RunWithConfigTestSupport {
 
   val expectedToFail = Configs.AbsolutelyAll - Configs.Compiled - Configs.Cost2_3
 
@@ -88,6 +89,49 @@ class LoadCsvAcceptanceTest
       assertStats(result, propertiesWritten = 6)
       result.executionPlanDescription() should includeAtLeastOne(classOf[NodeIndexSeek], withVariable = "user")
     }
+  }
+
+  test("should be able to use multiple index hints with load csv") {
+    val startNodes = (0 to 9 map (i => createLabeledNode(Map("loginId" -> i.toString), "Login"))).toArray
+    val endNodes = (0 to 9 map (i => createLabeledNode(Map("platformId" -> i.toString), "Permission"))).toArray
+
+    for( a <- 0 to 9 ) {
+      for( b <- 0 to 9) {
+        relate( startNodes(a), endNodes(b), "prop" -> (10 * a + b))
+      }
+    }
+
+    val urls = csvUrls({
+      writer =>
+        writer.println("USER_ID,PLATFORM")
+        writer.println("1,5")
+        writer.println("2,4")
+        writer.println("3,4")
+    })
+
+    innerExecuteDeprecated("CREATE INDEX ON :Permission(platformId)")
+    innerExecuteDeprecated("CREATE INDEX ON :Login(loginId)")
+
+    graph.inTx {
+      graph.schema().awaitIndexesOnline(10, TimeUnit.MINUTES)
+    }
+
+    val query =
+      s"""
+         |    LOAD CSV WITH HEADERS FROM '${urls.head}' AS line
+         |    WITH line
+         |    MATCH (l:Login {loginId: line.USER_ID}), (p:Permission {platformId: line.PLATFORM})
+         |    USING INDEX l:Login(loginId)
+         |    USING INDEX p:Permission(platformId)
+         |    MATCH (l)-[r: REL]->(p)
+         |    RETURN r.prop
+      """.stripMargin
+
+    val result = executeWith(Configs.Interpreted - Configs.Cost3_3 - Configs.Cost3_1 - Configs.Version2_3, query,
+      planComparisonStrategy = ComparePlansWithAssertion(_  should useOperatorTimes("NodeIndexSeek", 2),
+        expectPlansToFail = Configs.AllRulePlanners))
+
+    result.toSet should be(Set(Map("r.prop" -> 15), Map("r.prop" -> 24), Map("r.prop" -> 34)))
   }
 
   test("import should not be eager") {
@@ -374,6 +418,27 @@ class LoadCsvAcceptanceTest
     }
   }
 
+  test("should handle returning null keys") {
+    val urls = csvUrls({
+      writer =>
+        writer.println("DEPARTMENT ID;DEPARTMENT NAME;")
+        writer.println("010-1010;MFG Supplies;")
+        writer.println("010-1011;Corporate Procurement;")
+        writer.println("010-1015;MFG - Engineering HQ;")
+    })
+
+    for (url <- urls) {
+      //Using innerExecuteDeprecated because different versions has different ordering for keys
+      val result =  innerExecuteDeprecated(s"LOAD CSV WITH HEADERS FROM '$url' AS line FIELDTERMINATOR ';' RETURN keys(line)").toList
+
+      assert(result === List(
+        Map("keys(line)" -> List("DEPARTMENT NAME", null, "DEPARTMENT ID")),
+        Map("keys(line)" -> List("DEPARTMENT NAME", null, "DEPARTMENT ID")),
+        Map("keys(line)" -> List("DEPARTMENT NAME", null, "DEPARTMENT ID"))
+      ))
+    }
+  }
+
   test("should fail gracefully when loading missing file") {
       failWithError(expectedToFail, "LOAD CSV FROM 'file:///./these_are_not_the_droids_you_are_looking_for.csv' AS line CREATE (a {name:line[0]})",
         List("Couldn't load the external resource at: file:/./these_are_not_the_droids_you_are_looking_for.csv"))
@@ -595,6 +660,42 @@ class LoadCsvAcceptanceTest
       )
 
       result.toList should equal(List(Map("count(*)" -> 0)))
+    }
+  }
+
+  test("should give nice error message when overflowing the buffer") {
+    runWithConfig(GraphDatabaseSettings.csv_buffer_size -> (1 * 1024 * 1024).toString) { db =>
+      val longName  = "f"* 6000000
+      val urls = csvUrls({
+        writer =>
+          writer.println("\"prop\"")
+          writer.println(longName)
+      })
+      for (url <- urls) {
+        //TODO this message should mention `dbms.import.csv.buffer_size` in 3.5
+        val error = intercept[QueryExecutionException](db.execute(
+          s"""LOAD CSV WITH HEADERS FROM '$url' AS row
+             |RETURN row.prop""".stripMargin).next().get("row.prop"))
+        error.getMessage should startWith(
+          """Tried to read a field larger than buffer size 1048576.""".stripMargin)
+      }
+    }
+  }
+
+  test("should be able to configure db to handle huge fields") {
+    runWithConfig(GraphDatabaseSettings.csv_buffer_size -> (4 * 1024 * 1024).toString) { db =>
+      val longName  = "f"* 6000000
+      val urls = csvUrls({
+        writer =>
+          writer.println("\"prop\"")
+          writer.println(longName)
+      })
+      for (url <- urls) {
+        val result = db.execute(
+          s"""LOAD CSV WITH HEADERS FROM '$url' AS row
+             |RETURN row.prop""".stripMargin)
+        result.next().get("row.prop") should equal(longName)
+      }
     }
   }
 

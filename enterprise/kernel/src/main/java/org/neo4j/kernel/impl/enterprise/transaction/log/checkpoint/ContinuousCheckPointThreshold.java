@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -26,6 +26,8 @@ import org.neo4j.kernel.impl.transaction.log.checkpoint.AbstractCheckPointThresh
 
 class ContinuousCheckPointThreshold extends AbstractCheckPointThreshold
 {
+    private volatile long nextTransactionIdTarget;
+
     ContinuousCheckPointThreshold()
     {
         super( "continuous threshold" );
@@ -34,22 +36,24 @@ class ContinuousCheckPointThreshold extends AbstractCheckPointThreshold
     @Override
     protected boolean thresholdReached( long lastCommittedTransactionId )
     {
-        return true;
+        return lastCommittedTransactionId >= nextTransactionIdTarget;
     }
 
     @Override
     public void initialize( long transactionId )
     {
+        checkPointHappened( transactionId );
     }
 
     @Override
     public void checkPointHappened( long transactionId )
     {
+        nextTransactionIdTarget = transactionId + 1;
     }
 
     @Override
     public long checkFrequencyMillis()
     {
-        return 0;
+        return 100;
     }
 }

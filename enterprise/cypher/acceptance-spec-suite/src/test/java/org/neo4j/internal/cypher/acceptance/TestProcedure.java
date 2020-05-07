@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -22,6 +22,8 @@
  */
 package org.neo4j.internal.cypher.acceptance;
 
+import java.time.Duration;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -63,9 +65,17 @@ public class TestProcedure
     @Context
     public GraphDatabaseService db;
 
+    @Procedure( "org.neo4j.time" )
+    @Description( "org.neo4j.time" )
+    public void time( @Name( value = "time" ) LocalTime statementTime )
+    {
+        LocalTime realTime = LocalTime.now();
+        Duration duration = Duration.between( statementTime, realTime );
+    }
+
     @Procedure( "org.neo4j.aNodeWithLabel" )
     @Description( "org.neo4j.aNodeWithLabel" )
-    public Stream<NodeResult> aNodeWithLabel( @Name( "label" ) String label )
+    public Stream<NodeResult> aNodeWithLabel( @Name( value = "label", defaultValue = "Dog" ) String label )
     {
         Result result = db.execute( "MATCH (n:" + label + ") RETURN n LIMIT 1" );
         return result.stream().map( row -> new NodeResult( (Node)row.get( "n" ) ) );

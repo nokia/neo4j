@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -40,7 +40,8 @@ import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.PropertyContainer;
 import org.neo4j.graphdb.Result;
 import org.neo4j.graphdb.Transaction;
-import org.neo4j.graphdb.factory.GraphDatabaseBuilder;
+import org.neo4j.graphdb.factory.GraphDatabaseSettings;
+import org.neo4j.kernel.configuration.Settings;
 import org.neo4j.kernel.impl.factory.GraphDatabaseFacade;
 import org.neo4j.kernel.impl.locking.ResourceTypes;
 import org.neo4j.test.rule.DatabaseRule;
@@ -79,13 +80,11 @@ import static org.neo4j.test.rule.concurrent.ThreadingRule.waitingWhileIn;
 public class ListQueriesProcedureTest
 {
     private final DatabaseRule db = new ImpermanentEnterpriseDatabaseRule()
-    {
-        @Override
-        protected void configure( GraphDatabaseBuilder builder )
-        {
-            builder.setConfig( cypher_hints_error, "true" );
-        }
-    }.startLazily();
+            .withSetting( cypher_hints_error, Settings.TRUE )
+            .withSetting( GraphDatabaseSettings.track_query_allocation, Settings.TRUE )
+            .withSetting( track_query_cpu_time, Settings.TRUE )
+            .startLazily();
+
     private final ThreadingRule threads = new ThreadingRule();
 
     @Rule

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -205,9 +205,9 @@ public class SchemaCache
             this.constraints = new HashSet<>( schemaCacheState.constraints );
 
             this.indexDescriptors = new HashMap<>( schemaCacheState.indexDescriptors );
-            this.indexDescriptorsByLabel = PrimitiveIntCollections.copy( schemaCacheState.indexDescriptorsByLabel );
+            this.indexDescriptorsByLabel = PrimitiveIntCollections.copyTransform( schemaCacheState.indexDescriptorsByLabel, HashSet::new );
             this.dependantState = new HashMap<>();
-            this.indexByProperty = PrimitiveIntCollections.copy( schemaCacheState.indexByProperty );
+            this.indexByProperty = PrimitiveIntCollections.copyTransform( schemaCacheState.indexByProperty, ArrayList::new );
         }
 
         private void load( Iterable<SchemaRule> schemaRuleIterator )

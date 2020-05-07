@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -57,15 +57,6 @@ public class ReadReplicaTopology implements Topology<ReadReplicaInfo>
     public String toString()
     {
         return String.format( "{readReplicas=%s}", readReplicaMembers );
-    }
-
-    public Optional<MemberId> randomReadReplicaMemberId()
-    {
-        if ( readReplicaMembers.isEmpty() )
-        {
-            return Optional.empty();
-        }
-        return readReplicaMembers.keySet().stream().skip( ThreadLocalRandom.current().nextInt( readReplicaMembers.size() ) ).findFirst();
     }
 
     @Override

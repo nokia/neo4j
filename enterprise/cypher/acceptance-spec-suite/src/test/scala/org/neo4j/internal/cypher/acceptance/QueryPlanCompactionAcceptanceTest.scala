@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -799,7 +799,7 @@ class QueryPlanCompactionAcceptanceTest extends ExecutionEngineFunSuite with Que
         |+-------------------------+----------------+---------------------------+-----------------------+
         |""".stripMargin
     executeWith(expectedToSucceed, query, planComparisonStrategy = ComparePlansWithAssertion(_ should matchPlan(expectedPlan),
-      expectPlansToFail = Configs.All - Configs.Version3_3 - Configs.Cost3_4 - Configs.DefaultInterpreted), params = Map("csv_filename" -> "x"))
+      expectPlansToFail = Configs.All - Configs.Version3_3 - Configs.Cost3_4), params = Map("csv_filename" -> "x"))
   }
 
   test("Don't compact query with consecutive expands due to presence of values in 'other' column") {

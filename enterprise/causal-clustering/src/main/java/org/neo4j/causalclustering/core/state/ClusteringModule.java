@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -22,11 +22,12 @@
  */
 package org.neo4j.causalclustering.core.state;
 
-import java.io.File;
 import java.util.Optional;
 import java.util.function.Supplier;
 
+import org.neo4j.causalclustering.catchup.storecopy.LocalDatabase;
 import org.neo4j.causalclustering.core.CausalClusteringSettings;
+import org.neo4j.causalclustering.core.MemberIdRepository;
 import org.neo4j.causalclustering.core.state.storage.SimpleFileStorage;
 import org.neo4j.causalclustering.core.state.storage.SimpleStorage;
 import org.neo4j.causalclustering.discovery.CoreTopologyService;
@@ -37,7 +38,6 @@ import org.neo4j.causalclustering.discovery.TopologyServiceRetryStrategy;
 import org.neo4j.causalclustering.identity.ClusterBinder;
 import org.neo4j.causalclustering.identity.ClusterId;
 import org.neo4j.causalclustering.identity.DatabaseName;
-import org.neo4j.causalclustering.identity.MemberId;
 import org.neo4j.io.fs.FileSystemAbstraction;
 import org.neo4j.kernel.configuration.Config;
 import org.neo4j.kernel.impl.factory.PlatformModule;
@@ -55,9 +55,11 @@ public class ClusteringModule
 {
     private final CoreTopologyService topologyService;
     private final ClusterBinder clusterBinder;
+    private final ClusterStateCleaner clusterStateCleaner;
+    private final MemberIdRepository memberIdRepository;
 
-    public ClusteringModule( DiscoveryServiceFactory discoveryServiceFactory, MemberId myself,
-            PlatformModule platformModule, File clusterStateDirectory )
+    public ClusteringModule( DiscoveryServiceFactory discoveryServiceFactory, PlatformModule platformModule, ClusterStateDirectory clusterStateDirectory,
+            LocalDatabase localDatabase )
     {
         LifeSupport life = platformModule.life;
         Config config = platformModule.config;
@@ -67,23 +69,27 @@ public class ClusteringModule
         FileSystemAbstraction fileSystem = platformModule.fileSystem;
         HostnameResolver hostnameResolver = chooseResolver( config, logProvider, userLogProvider );
 
+        clusterStateCleaner = new ClusterStateCleaner( localDatabase, clusterStateDirectory, fileSystem, logProvider );
+        memberIdRepository = new MemberIdRepository( platformModule, clusterStateDirectory, clusterStateCleaner );
         topologyService = discoveryServiceFactory
-                .coreTopologyService( config, myself, platformModule.jobScheduler, logProvider,
+                .coreTopologyService( config, memberIdRepository.myself(), platformModule.jobScheduler, logProvider,
                         userLogProvider, hostnameResolver, resolveStrategy( config, logProvider ) );
 
+        //Order matters!
+        life.add( clusterStateCleaner );
+        life.add( memberIdRepository );
         life.add( topologyService );
 
         dependencies.satisfyDependency( topologyService ); // for tests
 
         CoreBootstrapper coreBootstrapper =
-                new CoreBootstrapper( platformModule.storeDir, platformModule.pageCache, fileSystem, config, logProvider );
+                new CoreBootstrapper( platformModule.storeDir, platformModule.pageCache, fileSystem, config, logProvider, platformModule.monitors );
 
         SimpleStorage<ClusterId> clusterIdStorage =
-                new SimpleFileStorage<>( fileSystem, clusterStateDirectory, CLUSTER_ID_NAME, new ClusterId.Marshal(),
-                        logProvider );
+                new SimpleFileStorage<>( fileSystem, clusterStateDirectory.get(), CLUSTER_ID_NAME, new ClusterId.Marshal(), logProvider );
 
         SimpleStorage<DatabaseName> dbNameStorage =
-                new SimpleFileStorage<>( fileSystem, clusterStateDirectory, DB_NAME, new DatabaseName.Marshal(), logProvider );
+                new SimpleFileStorage<>( fileSystem, clusterStateDirectory.get(), DB_NAME, new DatabaseName.Marshal(), logProvider );
 
         String dbName = config.get( CausalClusteringSettings.database );
         int minimumCoreHosts = config.get( CausalClusteringSettings.minimum_core_cluster_size_at_formation );
@@ -114,5 +120,10 @@ public class ClusteringModule
     public ClusterBinder clusterBinder()
     {
         return clusterBinder;
+    }
+
+    public MemberIdRepository memberIdRepository()
+    {
+        return memberIdRepository;
     }
 }

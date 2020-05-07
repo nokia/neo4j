@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -30,6 +30,8 @@ import org.neo4j.cypher.internal.util.v3_4.attribution.Id
 
 case class ProduceResultSlottedPipe(source: Pipe, columns: Seq[(String, Expression)])
                                    (val id: Id = Id.INVALID_ID) extends PipeWithSource(source) with Pipe {
+
+  columns.map(_._2).foreach(_.registerOwningPipe(this))
 
   protected def internalCreateResults(input: Iterator[ExecutionContext], state: QueryState): Iterator[ExecutionContext] = {
     // do not register this pipe as parent as it does not do anything except filtering of already fetched

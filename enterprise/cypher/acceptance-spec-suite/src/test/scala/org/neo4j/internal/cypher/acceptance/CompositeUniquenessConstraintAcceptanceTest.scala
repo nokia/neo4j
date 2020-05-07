@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -50,7 +50,7 @@ class CompositeUniquenessConstraintAcceptanceTest extends ExecutionEngineFunSuit
   test("should fail to to create composite uniqueness constraints") {
     // When
 
-    failWithError(singlePropertyUniquenessFailConf + Configs.Morsel,
+    failWithError(singlePropertyUniquenessFailConf,
       "CREATE CONSTRAINT ON (n:Person) ASSERT (n.firstname,n.lastname) IS UNIQUE",
       List("Only single property uniqueness constraints are supported"))
 
@@ -60,7 +60,7 @@ class CompositeUniquenessConstraintAcceptanceTest extends ExecutionEngineFunSuit
 
   test("should fail to to drop composite uniqueness constraints") {
     // When
-    failWithError(singlePropertyUniquenessFailConf + Configs.Morsel + Configs.Procs,
+    failWithError(singlePropertyUniquenessFailConf + Configs.Procs,
       "DROP CONSTRAINT ON (n:Person) ASSERT (n.firstname,n.lastname) IS UNIQUE",
       List("Only single property uniqueness constraints are supported"))
 

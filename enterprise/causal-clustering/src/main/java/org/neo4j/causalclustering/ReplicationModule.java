@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -34,9 +34,9 @@ import org.neo4j.causalclustering.core.replication.RaftReplicator;
 import org.neo4j.causalclustering.core.replication.session.GlobalSession;
 import org.neo4j.causalclustering.core.replication.session.GlobalSessionTrackerState;
 import org.neo4j.causalclustering.core.replication.session.LocalSessionPool;
+import org.neo4j.causalclustering.core.state.storage.DurableStateStorage;
 import org.neo4j.causalclustering.helper.ConstantTimeTimeoutStrategy;
 import org.neo4j.causalclustering.helper.ExponentialBackoffStrategy;
-import org.neo4j.causalclustering.core.state.storage.DurableStateStorage;
 import org.neo4j.causalclustering.helper.TimeoutStrategy;
 import org.neo4j.causalclustering.identity.MemberId;
 import org.neo4j.causalclustering.messaging.Outbound;
@@ -78,7 +78,8 @@ public class ReplicationModule
 
         TimeoutStrategy progressRetryStrategy = new ExponentialBackoffStrategy( initialBackoff, upperBoundBackoff );
         TimeoutStrategy leaderRetryStrategy = new ConstantTimeTimeoutStrategy( leaderBackoff );
-        replicator = life.add( new RaftReplicator(
+        long availabilityTimeoutMillis = config.get( CausalClusteringSettings.replication_retry_timeout_base ).toMillis();
+        replicator = new RaftReplicator(
                 consensusModule.raftMachine(),
                 myself,
                 outbound,
@@ -86,9 +87,8 @@ public class ReplicationModule
                 progressTracker,
                 progressRetryStrategy,
                 leaderRetryStrategy,
-                platformModule.availabilityGuard,
-                logProvider,
-                replicationLimit ) );
+                availabilityTimeoutMillis,
+                platformModule.availabilityGuard, logProvider, replicationLimit, platformModule.monitors );
     }
 
     public RaftReplicator getReplicator()

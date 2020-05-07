@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -305,7 +305,7 @@ public class MultiRealmAuthManagerTest extends InitialUserTest
 
         // Then
         assertThat( result, equalTo( AuthenticationResult.FAILURE ) );
-        logProvider.assertExactly( error( "[%s]: failed to log in: invalid principal or credentials%s%s", "unknown", "", "" ) );
+        logProvider.assertExactly( error( "[%s]: failed to log in: %s", "unknown", "invalid principal or credentials" ) );
     }
 
     @Test
@@ -320,8 +320,8 @@ public class MultiRealmAuthManagerTest extends InitialUserTest
 
         // Then
         assertThat( result, equalTo( AuthenticationResult.FAILURE ) );
-        logProvider.assertExactly( error( "[%s]: failed to log in: invalid principal or credentials%s%s",
-                escape( "unknown\n\t\r\"haxx0r\"" ), "", "" ) );
+        logProvider.assertExactly( error( "[%s]: failed to log in: %s",
+                escape( "unknown\n\t\r\"haxx0r\"" ), "invalid principal or credentials" ) );
     }
 
     @Test

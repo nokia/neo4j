@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -168,7 +168,7 @@ class MatchAcceptanceTest extends ExecutionEngineFunSuite with QueryStatisticsTe
     val n4 = createNode(Map("x" -> 50d))
     val n5 = createNode(Map("x" -> 50.toByte))
 
-    val result = executeWith(Configs.Interpreted + Configs.Morsel, s"match (n) where n.x < 100 return n")
+    val result = executeWith(Configs.Interpreted, s"match (n) where n.x < 100 return n")
 
     result.columnAs[Node]("n").toList should equal(List(n1, n2, n3, n4, n5))
   }
@@ -382,7 +382,7 @@ class MatchAcceptanceTest extends ExecutionEngineFunSuite with QueryStatisticsTe
     val r1 = relate(node1, node2, "prop" -> 10)
     val r2 = relate(node1, node2, "prop" -> 0)
 
-    val result = executeWith(Configs.Interpreted + Configs.Morsel, query)
+    val result = executeWith(Configs.Interpreted, query)
 
     result.toList should equal(List(Map("r" -> r1)))
   }
@@ -390,14 +390,14 @@ class MatchAcceptanceTest extends ExecutionEngineFunSuite with QueryStatisticsTe
   // Not TCK material -- id()
   test("id in where leads to empty result") {
     // when
-    val result = executeWith(Configs.All + Configs.Morsel, "MATCH (n) WHERE id(n)=1337 RETURN n")
+    val result = executeWith(Configs.All, "MATCH (n) WHERE id(n)=1337 RETURN n")
 
     // then DOESN'T THROW EXCEPTION
     result shouldBe empty
   }
 
   test("should not fail if asking for a non existent node id with WHERE") {
-    executeWith(Configs.Interpreted + Configs.Morsel, "match (n) where id(n) in [0,1] return n")
+    executeWith(Configs.Interpreted, "match (n) where id(n) in [0,1] return n")
       .toList
     // should not throw an exception
   }
@@ -635,9 +635,9 @@ class MatchAcceptanceTest extends ExecutionEngineFunSuite with QueryStatisticsTe
 
   // Not TCK material -- id()
   test("should return empty result when there are no relationship with the given id") {
-    executeWith(Configs.Interpreted + Configs.Morsel, "MATCH ()-[r]->() WHERE id(r) = 42 RETURN r") shouldBe empty
-    executeWith(Configs.Interpreted + Configs.Morsel, "MATCH ()<-[r]-() WHERE id(r) = 42 RETURN r") shouldBe empty
-    executeWith(Configs.Interpreted + Configs.Morsel, "MATCH ()-[r]-() WHERE id(r) = 42 RETURN r") shouldBe empty
+    executeWith(Configs.Interpreted, "MATCH ()-[r]->() WHERE id(r) = 42 RETURN r") shouldBe empty
+    executeWith(Configs.Interpreted, "MATCH ()<-[r]-() WHERE id(r) = 42 RETURN r") shouldBe empty
+    executeWith(Configs.Interpreted, "MATCH ()-[r]-() WHERE id(r) = 42 RETURN r") shouldBe empty
   }
 
   // Not TCK material -- id()
@@ -772,7 +772,7 @@ class MatchAcceptanceTest extends ExecutionEngineFunSuite with QueryStatisticsTe
         |         RETURN candidate
       """.stripMargin
 
-    val res = executeWith(Configs.Interpreted + Configs.Morsel, query)
+    val res = executeWith(Configs.Interpreted, query)
 
     //Then
     res.toList should equal(List(Map("candidate" -> "John"), Map("candidate" -> "Jonathan")))
@@ -789,7 +789,7 @@ class MatchAcceptanceTest extends ExecutionEngineFunSuite with QueryStatisticsTe
         |         RETURN candidate
       """.stripMargin
 
-    val res = executeWith(Configs.Interpreted + Configs.Morsel, query)
+    val res = executeWith(Configs.Interpreted, query)
 
     //Then
     res.toList should equal(List(Map("candidate" -> "John"), Map("candidate" -> "Jonathan")))
@@ -851,7 +851,7 @@ class MatchAcceptanceTest extends ExecutionEngineFunSuite with QueryStatisticsTe
     createLabeledNode("B")
     createLabeledNode("C")
 
-    val result = executeWith(Configs.Interpreted + Configs.Morsel, "MATCH (a) WHERE a:A:B OR a:A:C RETURN a")
+    val result = executeWith(Configs.Interpreted, "MATCH (a) WHERE a:A:B OR a:A:C RETURN a")
 
     // Then
     result.toList should equal(List(Map("a" -> n1), Map("a" -> n2), Map("a" -> n3)))
@@ -913,7 +913,7 @@ class MatchAcceptanceTest extends ExecutionEngineFunSuite with QueryStatisticsTe
     // Given an empty database
 
     // When
-    val result = executeWith(Configs.All + Configs.Morsel, "PROFILE MATCH (n) WHERE 1 = 1 AND 5 > 1 RETURN n")
+    val result = executeWith(Configs.All, "PROFILE MATCH (n) WHERE 1 = 1 AND 5 > 1 RETURN n")
 
     // Then
     result.executionPlanDescription().find("Selection") shouldBe empty
@@ -923,7 +923,7 @@ class MatchAcceptanceTest extends ExecutionEngineFunSuite with QueryStatisticsTe
     // Given an empty database
 
     // When
-    val result = executeWith(Configs.All + Configs.Morsel, "PROFILE MATCH (n) WHERE FALSE OR 1 = 1 RETURN n")
+    val result = executeWith(Configs.All, "PROFILE MATCH (n) WHERE FALSE OR 1 = 1 RETURN n")
 
     // Then
     result.executionPlanDescription().find("Selection") shouldBe empty
@@ -988,5 +988,75 @@ class MatchAcceptanceTest extends ExecutionEngineFunSuite with QueryStatisticsTe
   test("Reduce and concat gh #10978") {
     val result = executeWith(Configs.Interpreted, "RETURN REDUCE(s = 0, p in [5,8,2,9] + [1,2] | s + p) as num")
     result.toList should be(List(Map("num" -> 27)))
+  }
+
+  test("should handle 3 inequalities without choking in planning") {
+    executeWith(Configs.Interpreted, "MATCH (a:A) WHERE a.prop < 1 AND a.prop <=1 AND a.prop >=1 RETURN a.prop") shouldBe empty
+  }
+
+  test("expand into non-dense") {
+    //Given
+    val a = createLabeledNode("Start")
+    val b = createLabeledNode("End")
+    val r = relate(a, b, "T1")
+    relate(a, b, "T2")
+
+    //When
+    val result = executeWith(Configs.All - Configs.Version2_3,
+                             "WITH $a AS a, $b AS b MATCH (a)-[r:T1]->(b) RETURN r", params = Map("a" -> a, "b"-> b))
+
+    //Then
+    result.toList should equal(List(Map("r" -> r)))
+  }
+
+  test("expand into with dense start node") {
+    //Given
+    val a = createLabeledNode("Start")
+    val b = createLabeledNode("End")
+    val r = relate(a, b, "T1")
+    relate(a, b, "T2")
+    1 to 100 foreach(_ => relate(a, createNode(), "T3"))
+
+    //When
+    val result = executeWith(Configs.All - Configs.Version2_3,
+                             "WITH $a AS a, $b AS b MATCH (a)-[r:T1]->(b) RETURN r", params = Map("a" -> a, "b"-> b))
+
+    //Then
+    result.toList should equal(List(Map("r" -> r)))
+  }
+
+  test("expand into with dense end node") {
+    //Given
+    val a = createLabeledNode("Start")
+    val b = createLabeledNode("End")
+    val r = relate(a, b, "T1")
+    relate(a, b, "T2")
+    1 to 100 foreach(_ => relate(b, createNode(), "T3"))
+
+    //When
+    val result = executeWith(Configs.All - Configs.Version2_3,
+                             "WITH $a AS a, $b AS b MATCH (a)-[r:T1]->(b) RETURN r", params = Map("a" -> a, "b"-> b))
+
+    //Then
+    result.toList should equal(List(Map("r" -> r)))
+  }
+
+  test("expand into with dense start and dense end node") {
+    //Given
+    val a = createLabeledNode("Start")
+    val b = createLabeledNode("End")
+    val r = relate(a, b, "T1")
+    relate(a, b, "T2")
+    1 to 100 foreach(_ => {
+      relate(a, createNode(), "T3")
+      relate(b, createNode(), "T3")
+    })
+
+    //When
+    val result = executeWith(Configs.All - Configs.Version2_3,
+                             "WITH $a AS a, $b AS b MATCH (a)-[r:T1]->(b) RETURN r", params = Map("a" -> a, "b"-> b))
+
+    //Then
+    result.toList should equal(List(Map("r" -> r)))
   }
 }

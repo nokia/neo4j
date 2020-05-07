@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -79,6 +79,12 @@ public interface KernelTransaction extends Transaction, AssertOpen
      * {@link org.neo4j.internal.kernel.api.Session#beginTransaction(Type)}.
      */
     long startTime();
+
+    /**
+     * @return start time of this transaction, i.e. basically {@link System#nanoTime()} when user called
+     * {@link org.neo4j.internal.kernel.api.Session#beginTransaction(Type)}.
+     */
+    long startTimeNanos();
 
     /**
      * Timeout for transaction in milliseconds.

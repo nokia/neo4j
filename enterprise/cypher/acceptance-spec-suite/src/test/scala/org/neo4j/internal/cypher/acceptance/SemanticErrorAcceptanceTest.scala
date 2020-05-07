@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -29,27 +29,6 @@ import org.neo4j.cypher.internal.compatibility.v3_4.runtime.{CompiledRuntimeName
 import org.neo4j.graphdb.QueryExecutionException
 
 class SemanticErrorAcceptanceTest extends ExecutionEngineFunSuite {
-
-  test("FROM should generate error") {
-    executeAndEnsureError(
-      "FROM GRAPH foo AT 'graph://url' RETURN 1",
-      "Projecting and returning graphs is not available in this implementation of Cypher due to lack of support for multiple graphs. (line 1, column 6 (offset: 5))"
-    )
-  }
-
-  test("INTO should generate error") {
-    executeAndEnsureError(
-      "INTO GRAPH foo AT 'graph://url' RETURN 1",
-      "Projecting and returning graphs is not available in this implementation of Cypher due to lack of support for multiple graphs. (line 1, column 6 (offset: 5))"
-    )
-  }
-
-  test("projecting graphs should generate error") {
-    executeAndEnsureError(
-      "WITH GRAPH AT 'url' AS foo MATCH (a) RETURN a.name",
-      "Projecting and returning graphs is not available in this implementation of Cypher due to lack of support for multiple graphs. (line 1, column 6 (offset: 5))"
-    )
-  }
 
   test("return node that's not there") {
     executeAndEnsureError(
@@ -312,7 +291,7 @@ class SemanticErrorAcceptanceTest extends ExecutionEngineFunSuite {
       "MATCH (n:Person) USING INDEX n:Person(name) where n.lastname = \"Teleman\" return n",
       "Cannot use index hint in this context. Index hints are only supported for the following "+
         "predicates in WHERE (either directly or as part of a top-level AND or OR): equality comparison, " +
-        "inequality (range) comparison, STARTS WITH, IN condition or checking property " +
+        "inequality (range) comparison, STARTS WITH, point distance, IN condition or checking property " +
         "existence. The comparison cannot be performed between two property values. Note that the " +
         "label and property comparison must be specified on a non-optional node (line 1, " +
         "column 18 (offset: 17))"

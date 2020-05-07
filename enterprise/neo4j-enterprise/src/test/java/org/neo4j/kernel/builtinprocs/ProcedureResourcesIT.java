@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -111,6 +111,10 @@ public class ProcedureResourcesIT
 
     private void verifyProcedureCloseAllAcquiredKernelStatements( ProcedureData proc ) throws ExecutionException, InterruptedException
     {
+        if ( proc.skip )
+        {
+            return;
+        }
         String failureMessage = "Failed on procedure " + proc.name;
         try ( Transaction outer = db.beginTx() )
         {
@@ -176,6 +180,7 @@ public class ProcedureResourcesIT
         private final List<Object> params = new ArrayList<>();
         private String setupQuery;
         private String postQuery;
+        private boolean skip;
 
         private ProcedureData( ProcedureSignature procedure )
         {
@@ -349,6 +354,18 @@ public class ProcedureResourcesIT
         case "dbms.setConfigValue":
             proc.withParam( "'dbms.logs.query.enabled'" );
             proc.withParam( "'false'" );
+            break;
+        case "db.createIndex":
+            proc.withParam( "':Person(name)'" );
+            proc.withParam( "'lucene+native-2.0'" );
+            break;
+        case "db.createNodeKey":
+            // Grabs schema lock an so can not execute concurrently with node creation
+            proc.skip = true;
+            break;
+        case "db.createUniquePropertyConstraint":
+            // Grabs schema lock an so can not execute concurrently with node creation
+            proc.skip = true;
             break;
         default:
         }

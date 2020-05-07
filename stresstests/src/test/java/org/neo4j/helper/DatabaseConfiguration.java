@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -40,7 +40,6 @@ public class DatabaseConfiguration
     {
         settings.put( GraphDatabaseSettings.keep_logical_logs.name(), txPrune );
         settings.put( GraphDatabaseSettings.logical_log_rotation_threshold.name(), "1M" );
-        settings.put( GraphDatabaseSettings.check_point_policy.name(), "continuous" );
         return settings;
     }
 

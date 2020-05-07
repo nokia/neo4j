@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -40,6 +40,7 @@ import org.neo4j.causalclustering.core.CausalClusteringSettings;
 import org.neo4j.commandline.admin.CommandFailed;
 import org.neo4j.commandline.admin.IncorrectUsage;
 import org.neo4j.kernel.configuration.Config;
+import org.neo4j.kernel.configuration.Settings;
 import org.neo4j.test.rule.SuppressOutput;
 import org.neo4j.test.rule.TestDirectory;
 
@@ -329,6 +330,27 @@ public class OnlineBackupContextBuilderTest
             // then
             assertEquals( expected.get( useCase ), context.getRequiredArguments().getSelectedBackupProtocol() );
         }
+    }
+
+    @Test
+    public void prometheusShouldBeDisabledToAvoidPortConflicts() throws CommandFailed, IncorrectUsage
+    {
+        OnlineBackupContext context = new OnlineBackupContextBuilder( homeDir, configDir ).createContext( requiredAnd() );
+        assertEquals( Settings.FALSE, context.getConfig().getRaw().get( "metrics.prometheus.enabled" ) );
+    }
+
+    @Test
+    public void ipv6CanBeProcessed() throws CommandFailed, IncorrectUsage
+    {
+        // given
+        OnlineBackupContextBuilder builder = new OnlineBackupContextBuilder( homeDir, configDir );
+
+        // when
+        OnlineBackupContext context = builder.createContext( requiredAnd( "--from=[fd00:ce10::2]:6362" ) );
+
+        // then
+        assertEquals( "fd00:ce10::2", context.getRequiredArguments().getAddress().getHostname().get() );
+        assertEquals( Integer.valueOf( 6362 ), context.getRequiredArguments().getAddress().getPort().get() );
     }
 
     private String[] requiredAnd( String... additionalArgs )

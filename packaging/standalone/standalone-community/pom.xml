@@ -4,7 +4,7 @@
   <parent>
     <groupId>org.neo4j.assembly</groupId>
     <artifactId>neo4j-standalone</artifactId>
-    <version>3.4.0-SNAPSHOT</version>
+    <version>3.4.19-SNAPSHOT</version>
     <relativePath>..</relativePath>
   </parent>
 
@@ -13,7 +13,7 @@
 
   <name>Neo4j Community - Server Assembler</name>
 
-  <version>3.4.0-SNAPSHOT</version>
+  <version>3.4.19-SNAPSHOT</version>
 
   <description>This project assembles the Neo4j Community stand-alone distribution,
     pulling together all the deliverable artifacts and packaging them
@@ -27,7 +27,6 @@
   </scm>
 
   <properties>
-    <license-text.header>../../../build/AGPL-3-header.txt</license-text.header>
     <neo4j.mainClass>org.neo4j.server.CommunityEntryPoint</neo4j.mainClass>
   </properties>
 
@@ -104,7 +103,7 @@ terms of the relevant Commercial Agreement.
         <groupId>org.neo4j.build.plugins</groupId>
         <artifactId>licensing-maven-plugin</artifactId>
         <configuration>
-          <prependText>notice-gpl-prefix.txt</prependText>
+          <prependText>licensing/notice-gpl-prefix.txt</prependText>
         </configuration>
         <executions>
           <execution>
@@ -131,6 +130,11 @@ terms of the relevant Commercial Agreement.
     <dependency>
       <groupId>org.neo4j.app</groupId>
       <artifactId>neo4j-server</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.neo4j</groupId>
+      <artifactId>neo4j-push-to-cloud</artifactId>
       <version>${project.version}</version>
     </dependency>
   </dependencies>

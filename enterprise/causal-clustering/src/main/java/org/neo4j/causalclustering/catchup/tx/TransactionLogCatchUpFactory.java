@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -33,10 +33,11 @@ import org.neo4j.logging.LogProvider;
 public class TransactionLogCatchUpFactory
 {
     public TransactionLogCatchUpWriter create( File storeDir, FileSystemAbstraction fs, PageCache pageCache,
-            Config config, LogProvider logProvider, long fromTxId, boolean asPartOfStoreCopy, boolean keepTxLogsInStoreDir )
+            Config config, LogProvider logProvider, long fromTxId, boolean asPartOfStoreCopy, boolean keepTxLogsInStoreDir,
+            boolean rotateTransactionsManually )
             throws IOException
     {
         return new TransactionLogCatchUpWriter( storeDir, fs, pageCache, config, logProvider, fromTxId,
-                asPartOfStoreCopy, keepTxLogsInStoreDir );
+                asPartOfStoreCopy, keepTxLogsInStoreDir, rotateTransactionsManually );
     }
 }

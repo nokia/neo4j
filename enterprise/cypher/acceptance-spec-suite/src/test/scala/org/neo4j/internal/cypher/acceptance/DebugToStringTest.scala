@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -80,6 +80,34 @@ class DebugToStringTest extends ExecutionEngineFunSuite {
 
     // There's no good toString for SemanticState, which makes it difficult to test the output in a good way
     textResult should include("ScopeLocation")
+  }
+
+  //TODO this test fails on windows
+  ignore("cost reporting") {
+    val stringResult = graph.execute("CYPHER debug=dumpCosts MATCH (a:A) RETURN *").resultAsString()
+    stringResult should equal("""+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+                                || # | planId | planText                                                             | planCost                                                          | cost   | est cardinality | winner |
+                                |+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+                                || 1 | 0      | ""                                                                   | ""                                                                | 10.0   | 1.0             | "WON"  |
+                                || 1 | <null> | "NodeByLabelScan(a, LabelName(A), Set()) {}"                         | "NodeByLabelScan costs Cost(10.0) cardinality Cardinality(1.0)"   | <null> | <null>          | <null> |
+                                || 1 | 2      | ""                                                                   | ""                                                                | 13.0   | 1.0             | "LOST" |
+                                || 1 | <null> | "Selection(ListBuffer(HasLabels(Variable(a),List(LabelName(A))))) {" | "Selection costs Cost(13.0) cardinality Cardinality(1.0)"         | <null> | <null>          | <null> |
+                                || 1 | <null> | "  LHS -> AllNodesScan(a, Set()) {}"                                 | "  AllNodesScan costs Cost(12.0) cardinality Cardinality(1.0)"    | <null> | <null>          | <null> |
+                                || 1 | 0      | ""                                                                   | ""                                                                | 0.0    | 1.0             | "LOST" |
+                                || 1 | <null> | "*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-"                       | "*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-"                    | <null> | <null>          | <null> |
+                                || 0 | 2      | ""                                                                   | ""                                                                | 13.0   | 1.0             | "WON"  |
+                                || 0 | <null> | "Selection(ListBuffer(HasLabels(Variable(a),List(LabelName(A))))) {" | "Selection costs Cost(13.0) cardinality Cardinality(1.0)"         | <null> | <null>          | <null> |
+                                || 0 | <null> | "  LHS -> AllNodesScan(a, Set()) {}"                                 | "  AllNodesScan costs Cost(12.0) cardinality Cardinality(1.0)"    | <null> | <null>          | <null> |
+                                || 0 | 4      | ""                                                                   | ""                                                                | 27.5   | 1.0             | "LOST" |
+                                || 0 | <null> | "NodeHashJoin(Set(a)) {"                                             | "NodeHashJoin costs Cost(27.5) cardinality Cardinality(1.0)"      | <null> | <null>          | <null> |
+                                || 0 | <null> | "  LHS -> AllNodesScan(a, Set()) {}"                                 | "  AllNodesScan costs Cost(12.0) cardinality Cardinality(1.0)"    | <null> | <null>          | <null> |
+                                || 0 | <null> | "  RHS -> NodeByLabelScan(a, LabelName(A), Set()) {}"                | "  NodeByLabelScan costs Cost(10.0) cardinality Cardinality(1.0)" | <null> | <null>          | <null> |
+                                || 0 | 0      | ""                                                                   | ""                                                                | 0.0    | 1.0             | "LOST" |
+                                || 0 | <null> | "*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-"                       | "*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-"                    | <null> | <null>          | <null> |
+                                |+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+                                |16 rows
+                                |""".stripMargin)
+    graph.execute("CYPHER debug=dumpCosts MATCH (a:A:B:C)-[:T]->(b:A:B:C) RETURN *").stream().count()
   }
 
   private def queryWithOutputOf(s: String) = s"CYPHER debug=tostring debug=$s MATCH (a)-[:T]->(b) RETURN *"

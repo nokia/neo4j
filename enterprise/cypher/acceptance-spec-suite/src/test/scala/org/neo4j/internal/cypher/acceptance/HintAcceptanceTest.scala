@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -22,8 +22,11 @@
  */
 package org.neo4j.internal.cypher.acceptance
 
+import java.time.LocalDate
+
 import org.neo4j.cypher.ExecutionEngineFunSuite
 import org.neo4j.internal.cypher.acceptance.CypherComparisonSupport._
+import org.neo4j.values.storable.{CoordinateReferenceSystem, Values}
 
 import scala.collection.Map
 
@@ -89,6 +92,25 @@ class HintAcceptanceTest
       }, expectPlansToFail = Configs.AllRulePlanners + Configs.Cost2_3 + Configs.Cost3_1 + cost3_3))
   }
 
+  test("should solve join hints when leaves have extra variables") {
+
+    val rel = relate(createNode(), createNode())
+
+    val query =
+      s"""
+         |    WITH 1 as nbr
+         |    MATCH (n)-[r]->(p)
+         |    USING JOIN ON p
+         |    RETURN r
+      """.stripMargin
+
+    val result = executeWith(Configs.Interpreted - Configs.Cost3_3 - Configs.Cost3_1 - Configs.Cost2_3, query,
+      planComparisonStrategy = ComparePlansWithAssertion(_  should useOperators("NodeHashJoin"),
+        expectPlansToFail = Configs.AllRulePlanners))
+
+    result.toList should be(List(Map("r" -> rel)))
+  }
+
   test("should do index seek instead of index scan with explicit index seek hint") {
     graph.createIndex("A", "prop")
     graph.createIndex("B", "prop")
@@ -110,11 +132,33 @@ class HintAcceptanceTest
                   |RETURN a.prop, b.prop
                 """.stripMargin
 
-    // TODO: Once 3.2 comes out with this feature added, we should change the following line to not exclude 3.3
-    val cost3_3 = TestScenario(Versions.V3_3, Planners.Cost, Runtimes.Default)
-    executeWith(Configs.Interpreted - Configs.AllRulePlanners - Configs.Cost2_3 - Configs.Cost3_1 - cost3_3, query,
+    executeWith(Configs.Interpreted - Configs.OldAndRule, query,
       planComparisonStrategy = ComparePlansWithAssertion((p) => {
         p should useOperatorTimes("NodeIndexSeek", 2)
       }, expectPlansToFail = Configs.AllRulePlanners + Configs.Cost2_3 + Configs.Cost3_1))
+  }
+
+  test("should accept hint on spatial index with distance function") {
+    // Given
+    graph.createIndex("Business", "location")
+    graph.createIndex("Review", "date")
+
+    val business = createLabeledNode(Map("location" -> Values.pointValue(CoordinateReferenceSystem.WGS84, -111.977, 33.3288)), "Business")
+    val review = createLabeledNode(Map("date" -> LocalDate.parse("2017-03-01")), "Review")
+    relate(review, business, "REVIEWS")
+
+    // When
+    val query =
+      """MATCH (b:Business)<-[:REVIEWS]-(r:Review)
+        |USING INDEX b:Business(location)
+        |WHERE distance(b.location, point({latitude: 33.3288, longitude: -111.977})) < 6500
+        |AND date("2017-01-01") <= r.date <= date("2018-01-01")
+        |RETURN COUNT(*)""".stripMargin
+
+    val result = executeWith(Configs.Version3_4 - Configs.Compiled - Configs.AllRulePlanners, query)
+
+    // Then
+    result.toList should be(List(Map("COUNT(*)" -> 1)))
+
   }
 }

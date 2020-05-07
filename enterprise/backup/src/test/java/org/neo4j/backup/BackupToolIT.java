@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -46,6 +46,8 @@ import org.neo4j.kernel.impl.enterprise.configuration.OnlineBackupSettings;
 import org.neo4j.kernel.impl.store.MetaDataStore;
 import org.neo4j.kernel.impl.store.format.standard.StandardV2_3;
 import org.neo4j.kernel.impl.store.format.standard.StandardV3_4;
+import org.neo4j.kernel.monitoring.Monitors;
+import org.neo4j.logging.NullLogProvider;
 import org.neo4j.ports.allocation.PortAuthority;
 import org.neo4j.test.TestGraphDatabaseFactory;
 import org.neo4j.test.rule.EmbeddedDatabaseRule;
@@ -74,7 +76,9 @@ public class BackupToolIT
         backupDir = testDirectory.directory( "backups/graph.db" ).toPath();
         fs = new DefaultFileSystemAbstraction();
         pageCache = StandalonePageCacheFactory.createPageCache( fs );
-        backupTool = new BackupTool( new BackupProtocolService(), mock( PrintStream.class ) );
+        PrintStream out = mock( PrintStream.class );
+        BackupProtocolService service = new BackupProtocolService( () -> fs, NullLogProvider.getInstance(), out, new Monitors(), pageCache );
+        backupTool = new BackupTool( service, out );
     }
 
     @After

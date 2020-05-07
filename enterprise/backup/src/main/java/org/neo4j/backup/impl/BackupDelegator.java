@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -55,14 +55,14 @@ class BackupDelegator extends LifecycleAdapter
 
     void copy( AdvertisedSocketAddress fromAddress, StoreId expectedStoreId, Path destDir ) throws StoreCopyFailedException
     {
-        remoteStore.copy( new CatchupAddressProvider.SingleAddressProvider( fromAddress ), expectedStoreId, destDir.toFile() );
+        remoteStore.copy( new CatchupAddressProvider.SingleAddressProvider( fromAddress ), expectedStoreId, destDir.toFile(), true );
     }
 
     CatchupResult tryCatchingUp( AdvertisedSocketAddress fromAddress, StoreId expectedStoreId, Path storeDir ) throws StoreCopyFailedException
     {
         try
         {
-            return remoteStore.tryCatchingUp( fromAddress, expectedStoreId, storeDir.toFile(), true );
+            return remoteStore.tryCatchingUp( fromAddress, expectedStoreId, storeDir.toFile(), true, true );
         }
         catch ( IOException e )
         {

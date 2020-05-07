@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -87,10 +87,27 @@ class NodeIndexScanAcceptanceTest extends ExecutionEngineFunSuite with CypherCom
     createLabeledNode(Map("id" -> "139dbf46f0dc8a325e27ffd118331ca2947e34f0", "label" -> "z"), "phone_type", "timed")
 
     // When
-    val result = executeWith(expectedToSucceed, "MATCH (n:phone_type:timed) where n.label =~ 'a.' return count(n)",
-      planComparisonStrategy = ComparePlansWithAssertion(_ should useOperators("NodeIndexScan"), expectPlansToFail = Configs.AllRulePlanners))
+    // This test is flaky on 2.3 so we don't want to run with compatibility here
+    val result = execute("MATCH (n:phone_type:timed) where n.label =~ 'a.' return count(n)")
 
     // Then
+    result.executionPlanDescription() should useOperators("NodeIndexScan")
     result should evaluateTo(List(Map("count(n)" -> 3)))
+  }
+
+  test("should work just fine and use an index scan") {
+    graph.createIndex("Method", "arg0")
+    val query =
+      """
+        |match (f:XMLElement:Function)<-[r:Use]-
+        | (p:XMLElement:Product)-[:ReferTo]->
+        | (pc:Class)-[:Declares]->
+        | (pm:Method)
+        | WHERE pm.arg0 = r.name
+        | merge (pm)-[:Call]->(f);
+      """.stripMargin
+
+    val result = executeWith(Configs.Interpreted - Configs.Cost2_3, query)
+    result.toList should be(empty)
   }
 }

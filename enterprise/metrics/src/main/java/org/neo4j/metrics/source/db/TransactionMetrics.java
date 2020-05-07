@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -34,14 +34,14 @@ import org.neo4j.kernel.lifecycle.LifecycleAdapter;
 
 import static com.codahale.metrics.MetricRegistry.name;
 
-@Documented( ".Database Transaction Metrics" )
+@Documented( ".Database transaction metrics" )
 public class TransactionMetrics extends LifecycleAdapter
 {
     private static final String TRANSACTION_PREFIX = "neo4j.transaction";
 
     @Documented( "The total number of started transactions" )
     public static final String TX_STARTED = name( TRANSACTION_PREFIX, "started" );
-    @Documented( "The highest peak of concurrent transactions ever seen on this machine" )
+    @Documented( "The highest peak of concurrent transactions" )
     public static final String TX_PEAK_CONCURRENT = name( TRANSACTION_PREFIX, "peak_concurrent" );
 
     @Documented( "The number of currently active transactions" )

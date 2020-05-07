@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -210,7 +210,6 @@ object GeneratedQueryStructure extends CodeStructure[GeneratedQuery] {
       params = clazz.field(typeRef[MapValue], "params"),
       closeable = clazz.field(typeRef[Completable], "closeable"),
       queryContext = clazz.field(typeRef[QueryContext], "queryContext"),
-      skip = clazz.field(typeRef[Boolean], "skip"),
       cursors = clazz.field(typeRef[CursorFactory], "cursors"),
       nodeCursor = clazz.field(typeRef[NodeCursor], "nodeCursor"),
       relationshipScanCursor = clazz.field(typeRef[RelationshipScanCursor], "relationshipScanCursor"),

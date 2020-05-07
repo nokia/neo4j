@@ -29,13 +29,11 @@ Apache Software License, Version 2.0
   Lucene codecs
   Lucene Common Analyzers
   Lucene Core
-  Lucene Memory
   Lucene QueryParsers
   LZ4 and xxHash
   Metrics Core
   Netty
   Netty/All-in-One
-  Objenesis
   opencsv
   parboiled-core
   parboiled-scala
@@ -295,10 +293,10 @@ SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
 BSD License
-  ASM Analysis
-  ASM Core
-  ASM Tree
-  ASM Util
+  asm
+  asm-analysis
+  asm-tree
+  asm-util
   Scala Compiler
 ------------------------------------------------------------------------------
 

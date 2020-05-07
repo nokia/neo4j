@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -35,6 +35,7 @@ import org.neo4j.causalclustering.catchup.CatchupClientBuilder;
 import org.neo4j.causalclustering.catchup.CatchupProtocolServerInstaller;
 import org.neo4j.causalclustering.catchup.CatchupServerBuilder;
 import org.neo4j.causalclustering.catchup.CatchupServerHandler;
+import org.neo4j.causalclustering.catchup.CheckPointerService;
 import org.neo4j.causalclustering.catchup.CheckpointerSupplier;
 import org.neo4j.causalclustering.catchup.RegularCatchupServerHandler;
 import org.neo4j.causalclustering.catchup.storecopy.CommitStateHelper;
@@ -46,7 +47,7 @@ import org.neo4j.causalclustering.catchup.storecopy.StoreCopyProcess;
 import org.neo4j.causalclustering.catchup.tx.TransactionLogCatchUpFactory;
 import org.neo4j.causalclustering.catchup.tx.TxPullClient;
 import org.neo4j.causalclustering.core.CausalClusteringSettings;
-import org.neo4j.causalclustering.core.IdentityModule;
+import org.neo4j.causalclustering.core.MemberIdRepository;
 import org.neo4j.causalclustering.core.SupportedProtocolCreator;
 import org.neo4j.causalclustering.core.TransactionBackupServiceProvider;
 import org.neo4j.causalclustering.core.consensus.ConsensusModule;
@@ -110,7 +111,7 @@ public class CoreServerModule
     private final Server catchupServer;
     @SuppressWarnings( "OptionalUsedAsFieldOrParameterType" )
     private final Optional<Server> backupServer;
-    private final IdentityModule identityModule;
+    private final MemberIdRepository memberIdRepository;
     private final CoreStateMachinesModule coreStateMachinesModule;
     private final ConsensusModule consensusModule;
     private final ClusteringModule clusteringModule;
@@ -124,13 +125,13 @@ public class CoreServerModule
     private final LogProvider logProvider;
     private final PlatformModule platformModule;
 
-    public CoreServerModule( IdentityModule identityModule, final PlatformModule platformModule, ConsensusModule consensusModule,
+    public CoreServerModule( MemberIdRepository memberIdRepository, final PlatformModule platformModule, ConsensusModule consensusModule,
             CoreStateMachinesModule coreStateMachinesModule, ClusteringModule clusteringModule, ReplicationModule replicationModule,
             LocalDatabase localDatabase, Supplier<DatabaseHealth> dbHealthSupplier, File clusterStateDirectory,
             NettyPipelineBuilderFactory clientPipelineBuilderFactory, NettyPipelineBuilderFactory serverPipelineBuilderFactory,
             NettyPipelineBuilderFactory backupServerPipelineBuilderFactory, InstalledProtocolHandler installedProtocolsHandler )
     {
-        this.identityModule = identityModule;
+        this.memberIdRepository = memberIdRepository;
         this.coreStateMachinesModule = coreStateMachinesModule;
         this.consensusModule = consensusModule;
         this.clusteringModule = clusteringModule;
@@ -192,11 +193,13 @@ public class CoreServerModule
         ApplicationProtocolRepository catchupProtocolRepository = new ApplicationProtocolRepository( ApplicationProtocols.values(), supportedCatchupProtocols );
         ModifierProtocolRepository modifierProtocolRepository = new ModifierProtocolRepository( ModifierProtocols.values(), supportedModifierProtocols );
 
+        CheckPointerService checkPointerService =
+                new CheckPointerService( new CheckpointerSupplier( platformModule.dependencies ), jobScheduler, JobScheduler.Groups.checkPoint );
         CatchupServerHandler catchupServerHandler = new RegularCatchupServerHandler( platformModule.monitors,
                 logProvider, localDatabase::storeId, platformModule.dependencies.provideDependency( TransactionIdStore.class ),
                 platformModule.dependencies.provideDependency( LogicalTransactionStore.class ), localDatabase::dataSource, localDatabase::isAvailable,
                 fileSystem, platformModule.pageCache, platformModule.storeCopyCheckPointMutex, snapshotService,
-                new CheckpointerSupplier( platformModule.dependencies ) );
+                checkPointerService );
 
         CatchupProtocolServerInstaller.Factory catchupProtocolServerInstaller = new CatchupProtocolServerInstaller.Factory( serverPipelineBuilderFactory,
                 logProvider, catchupServerHandler );
@@ -276,7 +279,7 @@ public class CoreServerModule
     private MembershipWaiterLifecycle createMembershipWaiterLifecycle()
     {
         long electionTimeout = config.get( CausalClusteringSettings.leader_election_timeout ).toMillis();
-        MembershipWaiter membershipWaiter = new MembershipWaiter( identityModule.myself(), jobScheduler,
+        MembershipWaiter membershipWaiter = new MembershipWaiter( memberIdRepository.myself(), jobScheduler,
                 dbHealthSupplier, electionTimeout * 4, logProvider );
         long joinCatchupTimeout = config.get( CausalClusteringSettings.join_catch_up_timeout ).toMillis();
         return new MembershipWaiterLifecycle( membershipWaiter, joinCatchupTimeout, consensusModule.raftMachine(), logProvider );

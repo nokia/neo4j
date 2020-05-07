@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -54,12 +54,22 @@ public class VoidPipelineWrapperFactory implements DuplexPipelineWrapperFactory
     @Override
     public PipelineWrapper forServer( Config config, Dependencies dependencies, LogProvider logProvider, Setting<String> policyName )
     {
+        verifyNoEncryption( config, policyName );
         return VOID_WRAPPER;
     }
 
     @Override
     public PipelineWrapper forClient( Config config, Dependencies dependencies, LogProvider logProvider, Setting<String> policyName )
     {
+        verifyNoEncryption( config, policyName );
         return VOID_WRAPPER;
+    }
+
+    private static void verifyNoEncryption( Config config, Setting<String> policyName )
+    {
+        if ( config.get( policyName ) != null )
+        {
+            throw new IllegalArgumentException( "Unexpected SSL policy " + policyName );
+        }
     }
 }

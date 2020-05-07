@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -61,11 +61,13 @@ import org.neo4j.scheduler.JobScheduler;
 
 import static java.util.Collections.singletonList;
 
-class RaftServerModule
+public class RaftServerModule
 {
+    public static final String RAFT_SERVER_NAME = "raft-server";
+
     private final PlatformModule platformModule;
     private final ConsensusModule consensusModule;
-    private final IdentityModule identityModule;
+    private final MemberIdRepository memberIdRepository;
     private final ApplicationSupportedProtocols supportedApplicationProtocol;
     private final LocalDatabase localDatabase;
     private final MessageLogger<MemberId> messageLogger;
@@ -74,15 +76,15 @@ class RaftServerModule
     private CatchupAddressProvider.PrioritisingUpstreamStrategyBasedAddressProvider catchupAddressProvider;
     private final Collection<ModifierSupportedProtocols> supportedModifierProtocols;
 
-    private RaftServerModule( PlatformModule platformModule, ConsensusModule consensusModule, IdentityModule identityModule, CoreServerModule coreServerModule,
-            LocalDatabase localDatabase, NettyPipelineBuilderFactory pipelineBuilderFactory, MessageLogger<MemberId> messageLogger,
-            CatchupAddressProvider.PrioritisingUpstreamStrategyBasedAddressProvider catchupAddressProvider,
+    private RaftServerModule( PlatformModule platformModule, ConsensusModule consensusModule, MemberIdRepository memberIdRepository,
+            CoreServerModule coreServerModule, LocalDatabase localDatabase, NettyPipelineBuilderFactory pipelineBuilderFactory,
+            MessageLogger<MemberId> messageLogger, CatchupAddressProvider.PrioritisingUpstreamStrategyBasedAddressProvider catchupAddressProvider,
             ApplicationSupportedProtocols supportedApplicationProtocol,
             Collection<ModifierSupportedProtocols> supportedModifierProtocols, ChannelInboundHandler installedProtocolsHandler )
     {
         this.platformModule = platformModule;
         this.consensusModule = consensusModule;
-        this.identityModule = identityModule;
+        this.memberIdRepository = memberIdRepository;
         this.supportedApplicationProtocol = supportedApplicationProtocol;
         this.localDatabase = localDatabase;
         this.messageLogger = messageLogger;
@@ -96,13 +98,13 @@ class RaftServerModule
         createRaftServer( coreServerModule, messageHandlerChain, installedProtocolsHandler );
     }
 
-    static void createAndStart( PlatformModule platformModule, ConsensusModule consensusModule, IdentityModule identityModule,
+    static void createAndStart( PlatformModule platformModule, ConsensusModule consensusModule, MemberIdRepository memberIdRepository,
             CoreServerModule coreServerModule, LocalDatabase localDatabase, NettyPipelineBuilderFactory pipelineBuilderFactory,
             MessageLogger<MemberId> messageLogger, CatchupAddressProvider.PrioritisingUpstreamStrategyBasedAddressProvider addressProvider,
             ApplicationSupportedProtocols supportedApplicationProtocol,
             Collection<ModifierSupportedProtocols> supportedModifierProtocols, ChannelInboundHandler installedProtocolsHandler )
     {
-        new RaftServerModule( platformModule, consensusModule, identityModule, coreServerModule, localDatabase, pipelineBuilderFactory, messageLogger,
+        new RaftServerModule( platformModule, consensusModule, memberIdRepository, coreServerModule, localDatabase, pipelineBuilderFactory, messageLogger,
                         addressProvider, supportedApplicationProtocol, supportedModifierProtocols, installedProtocolsHandler );
     }
 
@@ -125,10 +127,11 @@ class RaftServerModule
 
         ListenSocketAddress raftListenAddress = platformModule.config.get( CausalClusteringSettings.raft_listen_address );
         Server raftServer = new Server( handshakeServerInitializer, installedProtocolsHandler, logProvider, platformModule.logging.getUserLogProvider(),
-                raftListenAddress, "raft-server" );
+                raftListenAddress, RAFT_SERVER_NAME );
+        platformModule.dependencies.satisfyDependency( raftServer ); // resolved in tests
 
         LoggingInbound<ReceivedInstantClusterIdAwareMessage<?>> loggingRaftInbound =
-                new LoggingInbound<>( nettyHandler, messageLogger, identityModule.myself() );
+                new LoggingInbound<>( nettyHandler, messageLogger, memberIdRepository.myself() );
         loggingRaftInbound.registerHandler( messageHandlerChain );
 
         platformModule.life.add( raftServer ); // must start before core state so that it can trigger snapshot downloads when necessary

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -49,7 +49,7 @@ import org.neo4j.test.rule.fs.EphemeralFileSystemRule;
 
 import static org.junit.Assert.assertEquals;
 import static org.neo4j.causalclustering.ReplicationModule.SESSION_TRACKER_NAME;
-import static org.neo4j.causalclustering.core.IdentityModule.CORE_MEMBER_ID_NAME;
+import static org.neo4j.causalclustering.core.MemberIdRepository.CORE_MEMBER_ID_NAME;
 import static org.neo4j.causalclustering.core.consensus.ConsensusModule.RAFT_MEMBERSHIP_NAME;
 import static org.neo4j.causalclustering.core.consensus.ConsensusModule.RAFT_TERM_NAME;
 import static org.neo4j.causalclustering.core.consensus.ConsensusModule.RAFT_VOTE_NAME;

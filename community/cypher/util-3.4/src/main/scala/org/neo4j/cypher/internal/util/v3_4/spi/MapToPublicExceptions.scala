@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,7 @@ package org.neo4j.cypher.internal.util.v3_4.spi
 import org.neo4j.cypher.internal.util.v3_4.CypherException
 
 trait MapToPublicExceptions[T <: Throwable] {
-  def failedIndexException(indexName: String, cause: Throwable): T
+  def failedIndexException(indexName: String, failureMessage: String, cause: Throwable): T
 
   def periodicCommitInOpenTransactionException(cause: Throwable): T
 

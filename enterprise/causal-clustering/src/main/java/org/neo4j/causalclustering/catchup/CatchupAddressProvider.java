@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -26,9 +26,7 @@ import org.neo4j.causalclustering.core.consensus.LeaderLocator;
 import org.neo4j.causalclustering.core.consensus.NoLeaderFoundException;
 import org.neo4j.causalclustering.discovery.TopologyService;
 import org.neo4j.causalclustering.identity.MemberId;
-import org.neo4j.causalclustering.upstream.UpstreamDatabaseSelectionException;
 import org.neo4j.causalclustering.upstream.UpstreamDatabaseStrategySelector;
-import org.neo4j.function.ThrowingSupplier;
 import org.neo4j.helpers.AdvertisedSocketAddress;
 
 /**
@@ -78,31 +76,6 @@ public interface CatchupAddressProvider
     }
 
     /**
-     * Uses given strategy for both primary and secondary address.
-     */
-    class UpstreamStrategyBoundAddressProvider implements CatchupAddressProvider
-    {
-        private final UpstreamStrategyAddressSupplier upstreamStrategyAddressSupplier;
-
-        public UpstreamStrategyBoundAddressProvider( TopologyService topologyService, UpstreamDatabaseStrategySelector strategySelector )
-        {
-            upstreamStrategyAddressSupplier = new UpstreamStrategyAddressSupplier( strategySelector, topologyService );
-        }
-
-        @Override
-        public AdvertisedSocketAddress primary() throws CatchupAddressResolutionException
-        {
-            return upstreamStrategyAddressSupplier.get();
-        }
-
-        @Override
-        public AdvertisedSocketAddress secondary() throws CatchupAddressResolutionException
-        {
-            return upstreamStrategyAddressSupplier.get();
-        }
-    }
-
-    /**
      * Uses leader address as primary and given upstream strategy as secondary address.
      */
     class PrioritisingUpstreamStrategyBasedAddressProvider implements CatchupAddressProvider
@@ -137,32 +110,6 @@ public interface CatchupAddressProvider
         public AdvertisedSocketAddress secondary() throws CatchupAddressResolutionException
         {
             return secondaryUpstreamStrategyAddressSupplier.get();
-        }
-    }
-
-    class UpstreamStrategyAddressSupplier implements ThrowingSupplier<AdvertisedSocketAddress,CatchupAddressResolutionException>
-    {
-        private final UpstreamDatabaseStrategySelector strategySelector;
-        private final TopologyService topologyService;
-
-        private UpstreamStrategyAddressSupplier( UpstreamDatabaseStrategySelector strategySelector, TopologyService topologyService )
-        {
-            this.strategySelector = strategySelector;
-            this.topologyService = topologyService;
-        }
-
-        @Override
-        public AdvertisedSocketAddress get() throws CatchupAddressResolutionException
-        {
-            try
-            {
-                MemberId upstreamMember = strategySelector.bestUpstreamDatabase();
-                return topologyService.findCatchupAddress( upstreamMember ).orElseThrow( () -> new CatchupAddressResolutionException( upstreamMember ) );
-            }
-            catch ( UpstreamDatabaseSelectionException e )
-            {
-                throw new CatchupAddressResolutionException( e );
-            }
         }
     }
 }

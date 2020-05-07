@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -169,7 +169,7 @@ public class CoreStateDownloader
             CatchupResult catchupResult;
             try
             {
-                catchupResult = remoteStore.tryCatchingUp( primary, localStoreId, localDatabase.storeDir(), false );
+                catchupResult = remoteStore.tryCatchingUp( primary, localStoreId, localDatabase.storeDir(), false, false );
             }
             catch ( StoreCopyFailedException e )
             {

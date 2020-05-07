@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,6 +35,20 @@ object Transformer {
     override def transform(from: Unit, context: BaseContext) = ()
 
     override def name: String = "identity"
+  }
+
+  /**
+    * Transformer that can be inserted when debugging, to help detect
+    * what part of the compilation that introduces an ast issue.
+    */
+  def printAst(tag: String) = new Transformer[BaseContext, BaseState, BaseState] {
+    override def transform(from: BaseState, context: BaseContext) = {
+      println("     |||||||| PRINT AST: "+tag)
+      println(from.maybeStatement.get)
+      from
+    }
+
+    override def name: String = "print ast"
   }
 }
 

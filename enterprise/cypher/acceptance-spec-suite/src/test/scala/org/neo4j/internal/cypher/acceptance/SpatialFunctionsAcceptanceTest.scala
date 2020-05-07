@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -29,9 +29,10 @@ import org.neo4j.values.storable.{CoordinateReferenceSystem, Values}
 
 class SpatialFunctionsAcceptanceTest extends ExecutionEngineFunSuite with CypherComparisonSupport {
 
-  val pointConfig = Configs.Interpreted - Configs.Version2_3
-  val equalityConfig = Configs.Interpreted - Configs.OldAndRule
-  val latestPointConfig = Configs.Interpreted - Configs.BackwardsCompatibility - Configs.AllRulePlanners
+  private val pointConfig = Configs.Interpreted - Configs.Version2_3
+  private val equalityConfig = Configs.Interpreted - Configs.OldAndRule
+  private val unrecognizedKeyPointConfig = Configs.Interpreted - Configs.OldAndRule
+  private val latestPointConfig = Configs.Interpreted - Configs.BackwardsCompatibility - Configs.AllRulePlanners
 
   test("toString on points") {
     executeWith(latestPointConfig, "RETURN toString(point({x:1, y:2})) AS s").toList should equal(List(Map("s" -> "point({x: 1.0, y: 2.0, crs: 'cartesian'})")))
@@ -55,7 +56,7 @@ class SpatialFunctionsAcceptanceTest extends ExecutionEngineFunSuite with Cypher
   }
 
   test("point function should work with literal map and 3D cartesian coordinates") {
-    val result = executeWith(pointConfig - Configs.Version3_1 - Configs.AllRulePlanners,
+    val result = executeWith(unrecognizedKeyPointConfig - Configs.Version3_1 - Configs.AllRulePlanners,
       "RETURN point({x: 2.3, y: 4.5, z: 6.7, crs: 'cartesian-3D'}) as point",
       expectedDifferentResults = Configs.Version3_1 + Configs.AllRulePlanners,
       planComparisonStrategy = ComparePlansWithAssertion(_ should useOperatorWithText("Projection", "point"),
@@ -65,7 +66,7 @@ class SpatialFunctionsAcceptanceTest extends ExecutionEngineFunSuite with Cypher
   }
 
   test("point function should work with literal map and srid") {
-    val result = executeWith(pointConfig, "RETURN point({x: 2.3, y: 4.5, srid: 4326}) as point",
+    val result = executeWith(unrecognizedKeyPointConfig, "RETURN point({x: 2.3, y: 4.5, srid: 4326}) as point",
       expectedDifferentResults = Configs.Version3_1 + Configs.AllRulePlanners,
       planComparisonStrategy = ComparePlansWithAssertion(_ should useOperatorWithText("Projection", "point"),
         expectPlansToFail = Configs.AllRulePlanners))
@@ -90,7 +91,7 @@ class SpatialFunctionsAcceptanceTest extends ExecutionEngineFunSuite with Cypher
   }
 
   test("point function should work with node with some invalid properties") {
-    val result = executeWith(pointConfig, "CREATE (n {latitude: 12.78, longitude: 56.7, banana: 'yes', some: 1.2, andAlso: [1,2]}) RETURN point(n) as point",
+    val result = executeWith(unrecognizedKeyPointConfig, "CREATE (n {latitude: 12.78, longitude: 56.7, banana: 'yes', some: 1.2, andAlso: [1,2]}) RETURN point(n) as point",
       planComparisonStrategy = ComparePlansWithAssertion(_ should useOperatorWithText("Projection", "point"),
         expectPlansToFail = Configs.AllRulePlanners))
 
@@ -233,7 +234,7 @@ class SpatialFunctionsAcceptanceTest extends ExecutionEngineFunSuite with Cypher
     createLabeledNode(Map("latitude" -> 12.78, "longitude" -> 56.7), "Place")
 
     // When
-    val result = executeWith(pointConfig - Configs.Morsel, "MATCH (p:Place) RETURN point({latitude: p.latitude, longitude: p.longitude}) as point",
+    val result = executeWith(pointConfig, "MATCH (p:Place) RETURN point({latitude: p.latitude, longitude: p.longitude}) as point",
       planComparisonStrategy = ComparePlansWithAssertion(_ should useOperatorWithText("Projection", "point"),
         expectPlansToFail = Configs.AllRulePlanners))
 
@@ -259,7 +260,7 @@ class SpatialFunctionsAcceptanceTest extends ExecutionEngineFunSuite with Cypher
     createLabeledNode(Map("latitude" -> 12.78, "longitude" -> 56.7), "Place")
 
     // When
-    val result = executeWith(pointConfig - Configs.Morsel, "MATCH (p:Place) RETURN point(p) as point",
+    val result = executeWith(pointConfig, "MATCH (p:Place) RETURN point(p) as point",
       planComparisonStrategy = ComparePlansWithAssertion(_ should useOperatorWithText("Projection", "point"),
         expectPlansToFail = Configs.AllRulePlanners))
 
@@ -327,7 +328,7 @@ class SpatialFunctionsAcceptanceTest extends ExecutionEngineFunSuite with Cypher
     createLabeledNode("Place")
 
     // When
-    val config = pointConfig - Configs.Cost3_1 - Configs.AllRulePlanners - Configs.Morsel
+    val config = pointConfig - Configs.Cost3_1 - Configs.AllRulePlanners
     val result = executeWith(config, "MATCH (p:Place) SET p.location = point({x: 1.2, y: 3.4, z: 5.6}) RETURN p.location as point",
       planComparisonStrategy = ComparePlansWithAssertion(_ should useOperatorWithText("Projection", "point"),
         expectPlansToFail = Configs.AllRulePlanners))
@@ -356,54 +357,54 @@ class SpatialFunctionsAcceptanceTest extends ExecutionEngineFunSuite with Cypher
 
   test("inequality on cartesian points") {
     // case same point
-    shouldCompareLike("point({x: 0, y: 0})", "point({x: 0, y: 0})", aBiggerB = false, aSmallerB = false)
+    shouldCompareLike("point({x: 0, y: 0})", "point({x: 0, y: 0})", a_GT_b = false, a_LT_b = false, a_GTEQ_b = true, a_LTEQ_b = true)
 
     // case top right quadrant
-    shouldCompareLike("point({x: 1, y: 1})", "point({x: 0, y: 0})", aBiggerB = true, aSmallerB = false)
+    shouldCompareLike("point({x: 1, y: 1})", "point({x: 0, y: 0})", a_GT_b = true, a_LT_b = false, a_GTEQ_b = true, a_LTEQ_b = false)
     // case bottom left quadrant
-    shouldCompareLike("point({x: -1, y: -1})", "point({x: 0, y: 0})", aBiggerB = false, aSmallerB = true)
+    shouldCompareLike("point({x: -1, y: -1})", "point({x: 0, y: 0})", a_GT_b = false, a_LT_b = true, a_GTEQ_b = false, a_LTEQ_b = true)
     // case top left quadrant
-    shouldCompareLike("point({x: -1, y: 1})", "point({x: 0, y: 0})", aBiggerB = null, aSmallerB = null)
+    shouldCompareLike("point({x: -1, y: 1})", "point({x: 0, y: 0})", a_GT_b = null, a_LT_b = null, a_GTEQ_b = null, a_LTEQ_b = null)
     // case bottom right quadrant
-    shouldCompareLike("point({x: 1, y: -1})", "point({x: 0, y: 0})", aBiggerB = null, aSmallerB = null)
+    shouldCompareLike("point({x: 1, y: -1})", "point({x: 0, y: 0})", a_GT_b = null, a_LT_b = null, a_GTEQ_b = null, a_LTEQ_b = null)
 
     // case straight top
-    shouldCompareLike("point({x: 0, y: 1})", "point({x: 0, y: 0})", aBiggerB = true, aSmallerB = false)
+    shouldCompareLike("point({x: 0, y: 1})", "point({x: 0, y: 0})", a_GT_b = false, a_LT_b = false, a_GTEQ_b = true, a_LTEQ_b = false)
     // case straight right
-    shouldCompareLike("point({x: 1, y: 0})", "point({x: 0, y: 0})", aBiggerB = true, aSmallerB = false)
+    shouldCompareLike("point({x: 1, y: 0})", "point({x: 0, y: 0})", a_GT_b = false, a_LT_b = false, a_GTEQ_b = true, a_LTEQ_b = false)
     // case straight bottom
-    shouldCompareLike("point({x: 0, y: -1})", "point({x: 0, y: 0})", aBiggerB = false, aSmallerB = true)
+    shouldCompareLike("point({x: 0, y: -1})", "point({x: 0, y: 0})", a_GT_b = false, a_LT_b = false, a_GTEQ_b = false, a_LTEQ_b = true)
     // case straight left
-    shouldCompareLike("point({x: -1, y: 0})", "point({x: 0, y: 0})", aBiggerB = false, aSmallerB = true)
+    shouldCompareLike("point({x: -1, y: 0})", "point({x: 0, y: 0})", a_GT_b = false, a_LT_b = false, a_GTEQ_b = false, a_LTEQ_b = true)
   }
 
   test("inequality on geographic points") {
     // case same point
-    shouldCompareLike("point({longitude: 0, latitude: 0})", "point({longitude: 0, latitude: 0})", aBiggerB = false, aSmallerB = false)
+    shouldCompareLike("point({longitude: 0, latitude: 0})", "point({longitude: 0, latitude: 0})", a_GT_b = false, a_LT_b = false, a_GTEQ_b = true, a_LTEQ_b = true)
 
     // case top right quadrant
-    shouldCompareLike("point({longitude: 1, latitude: 1})", "point({longitude: 0, latitude: 0})", aBiggerB = true, aSmallerB = false)
+    shouldCompareLike("point({longitude: 1, latitude: 1})", "point({longitude: 0, latitude: 0})", a_GT_b = true, a_LT_b = false, a_GTEQ_b = true, a_LTEQ_b = false)
     // case bottom left quadrant
-    shouldCompareLike("point({longitude: -1, latitude: -1})", "point({longitude: 0, latitude: 0})", aBiggerB = false, aSmallerB = true)
+    shouldCompareLike("point({longitude: -1, latitude: -1})", "point({longitude: 0, latitude: 0})", a_GT_b = false, a_LT_b = true, a_GTEQ_b = false, a_LTEQ_b = true)
     // case top left quadrant
-    shouldCompareLike("point({longitude: -1, latitude: 1})", "point({longitude: 0, latitude: 0})", aBiggerB = null, aSmallerB = null)
+    shouldCompareLike("point({longitude: -1, latitude: 1})", "point({longitude: 0, latitude: 0})", a_GT_b = null, a_LT_b = null, a_GTEQ_b = null, a_LTEQ_b = null)
     // case bottom right quadrant
-    shouldCompareLike("point({longitude: 1, latitude: -1})", "point({longitude: 0, latitude: 0})", aBiggerB = null, aSmallerB = null)
+    shouldCompareLike("point({longitude: 1, latitude: -1})", "point({longitude: 0, latitude: 0})", a_GT_b = null, a_LT_b = null, a_GTEQ_b = null, a_LTEQ_b = null)
 
     // case straight top
-    shouldCompareLike("point({longitude: 0, latitude: 1})", "point({longitude: 0, latitude: 0})", aBiggerB = true, aSmallerB = false)
+    shouldCompareLike("point({longitude: 0, latitude: 1})", "point({longitude: 0, latitude: 0})", a_GT_b = false, a_LT_b = false, a_GTEQ_b = true, a_LTEQ_b = false)
     // case straight right
-    shouldCompareLike("point({longitude: 1, latitude: 0})", "point({longitude: 0, latitude: 0})", aBiggerB = true, aSmallerB = false)
+    shouldCompareLike("point({longitude: 1, latitude: 0})", "point({longitude: 0, latitude: 0})", a_GT_b = false, a_LT_b = false, a_GTEQ_b = true, a_LTEQ_b = false)
     // case straight bottom
-    shouldCompareLike("point({longitude: 0, latitude: -1})", "point({longitude: 0, latitude: 0})", aBiggerB = false, aSmallerB = true)
+    shouldCompareLike("point({longitude: 0, latitude: -1})", "point({longitude: 0, latitude: 0})", a_GT_b = false, a_LT_b = false, a_GTEQ_b = false, a_LTEQ_b = true)
     // case straight left
-    shouldCompareLike("point({longitude: -1, latitude: 0})", "point({longitude: 0, latitude: 0})", aBiggerB = false, aSmallerB = true)
+    shouldCompareLike("point({longitude: -1, latitude: 0})", "point({longitude: 0, latitude: 0})", a_GT_b = false, a_LT_b = false, a_GTEQ_b = false, a_LTEQ_b = true)
 
     // the poles might be the same point, but in the effective projection onto 2D plane, they are not the same
-    shouldCompareLike("point({longitude: -1, latitude: 90})", "point({longitude: 1, latitude: 90})", aBiggerB = false, aSmallerB = true)
-    shouldCompareLike("point({longitude: 1, latitude: 90})", "point({longitude: -1, latitude: 90})", aBiggerB = true, aSmallerB = false)
-    shouldCompareLike("point({longitude: -1, latitude: -90})", "point({longitude: 1, latitude: -90})", aBiggerB = false, aSmallerB = true)
-    shouldCompareLike("point({longitude: 1, latitude: -90})", "point({longitude: -1, latitude: -90})", aBiggerB = true, aSmallerB = false)
+    shouldCompareLike("point({longitude: -1, latitude: 90})", "point({longitude: 1, latitude: 90})", a_GT_b = false, a_LT_b = false, a_GTEQ_b = false, a_LTEQ_b = true)
+    shouldCompareLike("point({longitude: 1, latitude: 90})", "point({longitude: -1, latitude: 90})", a_GT_b = false, a_LT_b = false, a_GTEQ_b = true, a_LTEQ_b = false)
+    shouldCompareLike("point({longitude: -1, latitude: -90})", "point({longitude: 1, latitude: -90})", a_GT_b = false, a_LT_b = false, a_GTEQ_b = false, a_LTEQ_b = true)
+    shouldCompareLike("point({longitude: 1, latitude: -90})", "point({longitude: -1, latitude: -90})", a_GT_b = false, a_LT_b = false, a_GTEQ_b = true, a_LTEQ_b = false)
   }
 
   test("inequality on 3D points") {
@@ -411,17 +412,32 @@ class SpatialFunctionsAcceptanceTest extends ExecutionEngineFunSuite with Cypher
       (-1 to 1).foreach { x =>
         (-1 to 1).foreach { y =>
           (-1 to 1).foreach { z =>
-            val same = x == 0 && y == 0 && z == 0
-            val smaller = x <= 0 && y <= 0 && z <= 0
-            val larger = x >= 0 && y >= 0 && z >= 0
+            val same = Seq(x, y, z).forall(_ == 0)
+            val lteq = Seq(x, y, z).forall(_ <= 0)
+            val gteq = Seq(x, y, z).forall(_ >= 0)
+            val onAxis = Seq(x, y, z).contains(0)
+            val a = s"point({x: $x, y: $y, z: $z, crs: '$crsName'})"
+            val b = s"point({x: 0, y: 0, z: 0, crs: '$crsName'})"
             if (same) {
-              shouldCompareLike(s"point({x: $x, y: $y, z: $z, crs: '$crsName'})", s"point({x: 0, y: 0, z: 0, crs: '$crsName'})", aBiggerB = false, aSmallerB = false)
-            } else if (smaller) {
-              shouldCompareLike(s"point({x: $x, y: $y, z: $z, crs: '$crsName'})", s"point({x: 0, y: 0, z: 0, crs: '$crsName'})", aBiggerB = false, aSmallerB = true)
-            } else if (larger) {
-              shouldCompareLike(s"point({x: $x, y: $y, z: $z, crs: '$crsName'})", s"point({x: 0, y: 0, z: 0, crs: '$crsName'})", aBiggerB = true, aSmallerB = false)
+              shouldCompareLike(a, b, a_GT_b = false, a_LT_b = false, a_GTEQ_b = true, a_LTEQ_b = true)
             } else {
-              shouldCompareLike(s"point({x: $x, y: $y, z: $z, crs: '$crsName'})", s"point({x: 0, y: 0, z: 0, crs: '$crsName'})", aBiggerB = null, aSmallerB = null)
+              if (onAxis) {
+                if (lteq) {
+                  shouldCompareLike(a, b, a_GT_b = false, a_LT_b = false, a_GTEQ_b = false, a_LTEQ_b = true)
+                } else if (gteq) {
+                  shouldCompareLike(a, b, a_GT_b = false, a_LT_b = false, a_GTEQ_b = true, a_LTEQ_b = false)
+                } else {
+                  shouldCompareLike(a, b, a_GT_b = null, a_LT_b = null, a_GTEQ_b = null, a_LTEQ_b = null)
+                }
+              } else {
+                if (lteq) {
+                  shouldCompareLike(a, b, a_GT_b = false, a_LT_b = true, a_GTEQ_b = false, a_LTEQ_b = true)
+                } else if (gteq) {
+                  shouldCompareLike(a, b, a_GT_b = true, a_LT_b = false, a_GTEQ_b = true, a_LTEQ_b = false)
+                } else {
+                  shouldCompareLike(a, b, a_GT_b = null, a_LT_b = null, a_GTEQ_b = null, a_LTEQ_b = null)
+                }
+              }
             }
           }
         }
@@ -430,19 +446,19 @@ class SpatialFunctionsAcceptanceTest extends ExecutionEngineFunSuite with Cypher
   }
 
   test("inequality on mixed points") {
-    shouldCompareLike("point({longitude: 0, latitude: 0})", "point({x: 0, y: 0})", aBiggerB = null, aSmallerB = null)
+    shouldCompareLike("point({longitude: 0, latitude: 0})", "point({x: 0, y: 0})", a_GT_b = null, a_LT_b = null, a_GTEQ_b = null, a_LTEQ_b = null)
   }
 
-  private def shouldCompareLike(a: String, b: String, aBiggerB: Any, aSmallerB: Any) = {
+  private def shouldCompareLike(a: String, b: String, a_GT_b: Any, a_LT_b: Any, a_GTEQ_b: Any, a_LTEQ_b: Any) = {
     val query =
       s"""WITH $a as a, $b as b
-         |RETURN a > b, a < b
+         |RETURN a > b, a < b, a >= b, a <= b
       """.stripMargin
 
     val pointConfig = Configs.Interpreted - Configs.BackwardsCompatibility - Configs.AllRulePlanners
     val result = executeWith(pointConfig, query).toList
     withClue(s"Comparing '$a' to '$b'") {
-      result should equal(List(Map("a > b" -> aBiggerB, "a < b" -> aSmallerB)))
+      result should equal(List(Map("a > b" -> a_GT_b, "a < b" -> a_LT_b, "a >= b" -> a_GTEQ_b, "a <= b" -> a_LTEQ_b)))
     }
   }
 

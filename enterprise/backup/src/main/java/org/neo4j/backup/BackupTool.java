@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -87,9 +87,10 @@ public class BackupTool
     {
         System.err.println("WARNING: neo4j-backup is deprecated and support for it will be removed in a future\n" +
                 "version of Neo4j; please use neo4j-admin backup instead.\n");
-        BackupTool tool = new BackupTool( new BackupProtocolService(), System.out );
         try
         {
+            BackupProtocolService service = new BackupProtocolService( System.out, Config.defaults() );
+            BackupTool tool = new BackupTool( service, System.out );
             BackupOutcome backupOutcome = tool.run( args );
 
             if ( !backupOutcome.isConsistent() )

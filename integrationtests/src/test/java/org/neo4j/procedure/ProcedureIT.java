@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -541,6 +541,20 @@ public class ProcedureIT
 
         assertThat( res.next().get( "node" ), nullValue() );
         assertFalse( res.hasNext() );
+    }
+
+    @Test
+    public void shouldGiveHelpfulErrorOnMissingOkapiSchemaProcedure()
+    {
+        // This is an 3.4 only thing!
+
+        // Expect
+        exception.expect( QueryExecutionException.class );
+        exception.expectMessage( "The procedure 'okapi.schema' has been removed. " +
+                "Please use 'db.schema.nodeTypeProperties' and 'db.schema.relTypeProperties' instead." );
+
+        // When
+        db.execute( "CALL okapi.schema" );
     }
 
     @Test

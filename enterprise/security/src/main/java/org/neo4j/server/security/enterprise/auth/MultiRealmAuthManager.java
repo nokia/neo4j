@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -174,10 +174,10 @@ class MultiRealmAuthManager implements EnterpriseAuthAndUserManager
                     new ShiroSubject( securityManager, AuthenticationResult.FAILURE ) );
             Throwable cause = e.getCause();
             Throwable causeCause = e.getCause() != null ? e.getCause().getCause() : null;
-            securityLog.error( "[%s]: failed to log in: invalid principal or credentials%s%s",
-                    escape( token.getPrincipal().toString() ),
+            String errorMessage = String.format( "invalid principal or credentials%s%s",
                     cause != null && cause.getMessage() != null ? " (" + cause.getMessage() + ")" : "",
                     causeCause != null && causeCause.getMessage() != null ? " (" + causeCause.getMessage() + ")" : "" );
+            securityLog.error( "[%s]: failed to log in: %s", escape( token.getPrincipal().toString() ), errorMessage );
         }
 
         return securityContext;

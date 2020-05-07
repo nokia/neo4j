@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,11 +33,11 @@ case class desugarMapProjection(state: SemanticState) extends Rewriter {
   def apply(that: AnyRef): AnyRef = topDown(instance).apply(that)
 
   private val instance: Rewriter = Rewriter.lift {
-    case e@MapProjection(id, items, definitionPos) =>
+    case e@MapProjection(id, items) =>
 
       def propertySelect(propertyPosition: InputPosition, name: String): LiteralEntry = {
         val key = PropertyKeyName(name)(propertyPosition)
-        val idPos = definitionPos.getOrElse(throw new InternalException("MapProjection definition pos is not known"))
+        val idPos = e.definitionPos.getOrElse(throw new InternalException("MapProjection definition pos is not known"))
         val newIdentifier = Variable(id.name)(idPos)
         val value = Property(newIdentifier, key)(propertyPosition)
         LiteralEntry(key, value)(propertyPosition)

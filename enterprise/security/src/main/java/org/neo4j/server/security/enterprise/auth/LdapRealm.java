@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -232,6 +232,9 @@ public class LdapRealm extends DefaultLdapRealm implements RealmLifecycle, Shiro
             ctx.addToEnvironment( Context.SECURITY_PRINCIPAL, principal );
             ctx.addToEnvironment( Context.SECURITY_CREDENTIALS, credentials );
 
+            // do a lookup of the user to trigger authentication
+            ctx.lookup( principal.toString() );
+
             return ctx;
         }
         catch ( IOException e )
@@ -384,13 +387,9 @@ public class LdapRealm extends DefaultLdapRealm implements RealmLifecycle, Shiro
         }
         catch ( AuthorizationException e )
         {
-            securityLog.error( withRealm( "Failed to get authorization info: '%s' caused by '%s'",
+            securityLog.warn( withRealm( "Failed to get authorization info: '%s' caused by '%s'",
                     e.getMessage(), e.getCause().getMessage() ) );
-            if ( isAuthorizationExceptionAnLdapReadTimeout( e ) )
-            {
-                throw new AuthProviderTimeoutException( LDAP_READ_TIMEOUT_CLIENT_MESSAGE, e );
-            }
-            throw new AuthProviderFailedException( LDAP_AUTHORIZATION_FAILURE_CLIENT_MESSAGE, e );
+            return null;
         }
     }
 

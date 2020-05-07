@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -238,7 +238,6 @@ class GeneratedMethodStructureTest extends CypherFunSuite {
         params = body.field(typeRef[util.Map[String, Object]], "params"),
         closeable = body.field(typeRef[Completable], "closeable"),
         queryContext = body.field(typeRef[QueryContext], "queryContext"),
-        skip = body.field(typeRef[Boolean], "skip"),
         cursors = body.field(typeRef[CursorFactory], "cursors"),
         nodeCursor = body.field(typeRef[NodeCursor], "nodeCursor"),
         relationshipScanCursor = body.field(typeRef[RelationshipScanCursor], "relationshipScanCursor"),

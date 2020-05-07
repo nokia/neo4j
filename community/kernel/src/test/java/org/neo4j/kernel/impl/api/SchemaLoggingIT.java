@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -57,8 +57,7 @@ public class SchemaLoggingIT
         LogMatcherBuilder match = inLog( IndexPopulationJob.class );
         logProvider.assertAtLeastOnce(
                 match.info( "Index population started: [%s]", ":User(name) [provider: {key=in-memory-index, version=1.0}]" ),
-                match.info( "Index population completed. Index [%s] is %s.",
-                        ":User(name) [provider: {key=in-memory-index, version=1.0}]", "ONLINE" ) );
+                match.info( "Index creation finished for index [%s].", ":User(name) [provider: {key=in-memory-index, version=1.0}]") );
     }
 
     private void createIndex( GraphDatabaseAPI db, String labelName, String property )

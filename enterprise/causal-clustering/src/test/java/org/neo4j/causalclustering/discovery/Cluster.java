@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Enterprise Edition. The included source
@@ -41,6 +41,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -58,8 +59,10 @@ import org.neo4j.function.ThrowingSupplier;
 import org.neo4j.graphdb.DatabaseShutdownException;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.TransactionFailureException;
+import org.neo4j.graphdb.TransientTransactionFailureException;
 import org.neo4j.graphdb.security.WriteOperationsNotAllowedException;
 import org.neo4j.helpers.AdvertisedSocketAddress;
+import org.neo4j.helpers.Exceptions;
 import org.neo4j.kernel.internal.DatabaseHealth;
 import org.neo4j.kernel.internal.GraphDatabaseAPI;
 import org.neo4j.kernel.monitoring.Monitors;
@@ -398,11 +401,24 @@ public class Cluster
         ensureDBName( dbName );
         Set<Role> roleSet = Arrays.stream( roles ).collect( toSet() );
 
-        return coreMembers.values().stream()
-                .filter( m -> m.database() != null )
-                .filter( m -> m.dbName().equals( dbName ) )
-                .filter( m -> roleSet.contains( m.database().getRole() ) )
-                .collect( Collectors.toList() );
+        List<CoreClusterMember> list = new ArrayList<>();
+        for ( CoreClusterMember m : coreMembers.values() )
+        {
+            CoreGraphDatabase database = m.database();
+            if ( database == null )
+            {
+                continue;
+            }
+
+            if ( m.dbName().equals( dbName ) )
+            {
+                if ( roleSet.contains( database.getRole() ) )
+                {
+                    list.add( m );
+                }
+            }
+        }
+        return list;
     }
 
     public CoreClusterMember awaitLeader() throws TimeoutException
@@ -500,11 +516,10 @@ public class Cluster
 
     private boolean isTransientFailure( Throwable e )
     {
-        // TODO: This should really catch all cases of transient failures. Must be able to express that in a clearer
-        // manner...
-        return (e instanceof IdGenerationException) || isLockExpired( e ) || isLockOnFollower( e ) ||
-               isWriteNotOnLeader( e );
-
+        Predicate<Throwable> throwablePredicate =
+                e1 -> isLockExpired( e1 ) || isLockOnFollower( e1 ) || isWriteNotOnLeader( e1 ) || e1 instanceof TransientTransactionFailureException ||
+                        e1 instanceof IdGenerationException;
+        return Exceptions.contains( e, throwablePredicate );
     }
 
     private boolean isWriteNotOnLeader( Throwable e )

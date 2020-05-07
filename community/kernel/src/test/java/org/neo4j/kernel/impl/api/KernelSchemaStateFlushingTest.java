@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2018 "Neo4j,"
+ * Copyright (c) 2002-2020 "Neo4j,"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
@@ -160,7 +160,7 @@ public class KernelSchemaStateFlushingTest
         try ( Transaction transaction = session.beginTransaction( KernelTransaction.Type.implicit ) )
         {
             IndexReference reference = transaction.schemaWrite().indexCreate(
-                    SchemaDescriptorFactory.forLabel( 1, 1 ) );
+                    SchemaDescriptorFactory.forLabel( 1, 1 ), null );
             transaction.success();
             return reference;
         }
