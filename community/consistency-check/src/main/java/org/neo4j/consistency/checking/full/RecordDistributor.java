@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -109,7 +109,7 @@ public class RecordDistributor
         void accept( RECORD record, int qIndex ) throws InterruptedException;
     }
 
-    public static long calculateRecodsPerCpu( long highId, int numberOfThreads )
+    public static long calculateRecordsPerCpu( long highId, int numberOfThreads )
     {
         boolean hasRest = highId % numberOfThreads > 0;
         long result = highId / numberOfThreads;

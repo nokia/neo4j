@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,13 +20,18 @@
 package org.neo4j.cypher.internal.runtime.interpreted.pipes
 
 import org.neo4j.cypher.internal.runtime.interpreted.ExecutionContext
-import org.neo4j.cypher.internal.util.v3_5.attribution.Id
+import org.neo4j.cypher.internal.v3_5.logical.plans.CachedNodeProperty
+import org.neo4j.cypher.internal.v3_5.util.attribution.Id
 
 import scala.collection.mutable
 
-case class NodeLeftOuterHashJoinPipe(nodeVariables: Set[String], lhs: Pipe, rhs: Pipe, nullableVariables: Set[String])
+case class NodeLeftOuterHashJoinPipe(nodeVariables: Set[String],
+                                     lhs: Pipe,
+                                     rhs: Pipe,
+                                     nullableVariables: Set[String],
+                                     nullableCachedProperties: Set[CachedNodeProperty])
                                     (val id: Id = Id.INVALID_ID)
-  extends NodeOuterHashJoinPipe(nodeVariables, lhs, rhs, nullableVariables) {
+  extends NodeOuterHashJoinPipe(nodeVariables, lhs, rhs, nullableVariables, nullableCachedProperties) {
 
   protected def internalCreateResults(input: Iterator[ExecutionContext], state: QueryState): Iterator[ExecutionContext] = {
 
@@ -41,9 +46,13 @@ case class NodeLeftOuterHashJoinPipe(nodeVariables: Set[String], lhs: Pipe, rhs:
       for {rhsRow <- rhs.createResults(state)
            joinKey <- computeKey(rhsRow)}
         yield {
-          val seq = probeTable(joinKey)
+          val lhsRows = probeTable(joinKey)
           rhsKeys.add(joinKey)
-          seq.map(lhsRow => executionContextFactory.copyWith(lhsRow).mergeWith(rhsRow))
+          lhsRows.map { lhsRow =>
+            val outputRow = executionContextFactory.copyWith(lhsRow)
+            outputRow.mergeWith(rhsRow, state.query)
+            outputRow
+          }
         }).flatten
 
     def rowsWithoutRhsMatch: Iterator[ExecutionContext] = {
@@ -54,6 +63,6 @@ case class NodeLeftOuterHashJoinPipe(nodeVariables: Set[String], lhs: Pipe, rhs:
 
     val rowsWithNullAsJoinKey = probeTable.nullRows.map(addNulls)
 
-    rowsWithNullAsJoinKey ++ joinedRows ++ rowsWithoutRhsMatch
+    joinedRows ++ rowsWithNullAsJoinKey ++ rowsWithoutRhsMatch
   }
 }

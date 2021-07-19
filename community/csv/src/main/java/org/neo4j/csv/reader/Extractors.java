@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -18,6 +18,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 package org.neo4j.csv.reader;
+
+import org.apache.commons.lang3.exception.CloneFailedException;
 
 import java.lang.reflect.Field;
 import java.nio.CharBuffer;
@@ -336,7 +338,7 @@ public class Extractors
             }
             catch ( CloneNotSupportedException e )
             {
-                throw new AssertionError( Extractor.class.getName() + " implements " + Cloneable.class.getSimpleName() +
+                throw new CloneFailedException( Extractor.class.getName() + " implements " + Cloneable.class.getSimpleName() +
                         ", at least this implementation assumes that. This doesn't seem to be the case anymore", e );
             }
         }

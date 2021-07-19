@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,20 +21,20 @@ package org.neo4j.kernel.impl.scheduler;
 
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinWorkerThread;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.neo4j.scheduler.JobScheduler;
+import org.neo4j.scheduler.Group;
+import org.neo4j.scheduler.SchedulerThreadFactory;
 
-final class GroupedDaemonThreadFactory implements ThreadFactory, ForkJoinPool.ForkJoinWorkerThreadFactory
+final class GroupedDaemonThreadFactory implements SchedulerThreadFactory
 {
-    private final JobScheduler.Group group;
+    private final Group group;
     private final ThreadGroup threadGroup;
 
-    GroupedDaemonThreadFactory( JobScheduler.Group group, ThreadGroup parentThreadGroup )
+    GroupedDaemonThreadFactory( Group group, ThreadGroup parentThreadGroup )
     {
         this.group = group;
-        threadGroup = new ThreadGroup( parentThreadGroup, group.name() );
+        threadGroup = new ThreadGroup( parentThreadGroup, group.groupName() );
     }
 
     @Override

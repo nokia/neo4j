@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,11 +19,11 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.ast
 
-import org.neo4j.cypher.internal.util.v3_5.ASTNode
-import org.neo4j.cypher.internal.frontend.v3_5.ast._
-import org.neo4j.cypher.internal.v3_5.functions._
-import org.neo4j.cypher.internal.frontend.v3_5.parser.CypherParser
+import org.neo4j.cypher.internal.v3_5.util.ASTNode
+import org.neo4j.cypher.internal.v3_5.ast._
+import org.neo4j.cypher.internal.v3_5.expressions.functions._
 import org.neo4j.cypher.internal.v3_5.expressions._
+import org.neo4j.cypher.internal.v3_5.parser.CypherParser
 
 import scala.annotation.tailrec
 import scala.util.{Failure, Success, Try}

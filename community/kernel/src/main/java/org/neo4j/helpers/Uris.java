@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -25,6 +25,7 @@ import java.util.function.Function;
 /**
  * Functions for working with URIs
  */
+@Deprecated
 public final class Uris
 {
     /**
@@ -34,6 +35,7 @@ public final class Uris
      * @param name of the parameter
      * @return value of named parameter or null if missing
      */
+    @Deprecated
     public static Function<URI, String> parameter( final String name )
     {
         return uri ->

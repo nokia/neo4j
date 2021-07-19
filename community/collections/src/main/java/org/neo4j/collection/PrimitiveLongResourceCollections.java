@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,10 +19,7 @@
  */
 package org.neo4j.collection;
 
-import org.eclipse.collections.api.iterator.LongIterator;
-
 import java.util.Arrays;
-import java.util.function.LongPredicate;
 
 import org.neo4j.graphdb.Resource;
 import org.neo4j.graphdb.ResourceUtils;
@@ -60,24 +57,12 @@ public class PrimitiveLongResourceCollections
         return new PrimitiveLongConcatingResourceIterator( primitiveLongResourceIterators );
     }
 
-    public static PrimitiveLongResourceIterator filter( PrimitiveLongResourceIterator source, LongPredicate filter )
-    {
-        return new PrimitiveLongFilteringResourceIterator( source )
-        {
-            @Override
-            public boolean test( long item )
-            {
-                return filter.test( item );
-            }
-        };
-    }
-
-    abstract static class PrimitiveLongBaseResourceIterator extends PrimitiveLongCollections.PrimitiveLongBaseIterator
+    public abstract static class PrimitiveLongBaseResourceIterator extends PrimitiveLongCollections.PrimitiveLongBaseIterator
             implements PrimitiveLongResourceIterator
     {
         private Resource resource;
 
-        PrimitiveLongBaseResourceIterator( Resource resource )
+        public PrimitiveLongBaseResourceIterator( Resource resource )
         {
             this.resource = resource;
         }
@@ -120,34 +105,5 @@ public class PrimitiveLongResourceCollections
                 ResourceUtils.closeAll( iterators );
             }
         }
-
-    }
-
-    private abstract static class PrimitiveLongFilteringResourceIterator extends PrimitiveLongBaseResourceIterator implements LongPredicate
-    {
-        private final LongIterator source;
-
-        private PrimitiveLongFilteringResourceIterator( PrimitiveLongResourceIterator source )
-        {
-            super( source );
-            this.source = source;
-        }
-
-        @Override
-        protected boolean fetchNext()
-        {
-            while ( source.hasNext() )
-            {
-                long testItem = source.next();
-                if ( test( testItem ) )
-                {
-                    return next( testItem );
-                }
-            }
-            return false;
-        }
-
-        @Override
-        public abstract boolean test( long testItem );
     }
 }

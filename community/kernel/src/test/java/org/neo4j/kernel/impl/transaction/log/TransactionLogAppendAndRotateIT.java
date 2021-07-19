@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -85,7 +85,7 @@ public class TransactionLogAppendAndRotateIT
     {
         // GIVEN
         LogVersionRepository logVersionRepository = new SimpleLogVersionRepository();
-        LogFiles logFiles = LogFilesBuilder.builder( directory.directory(), fileSystemRule.get() )
+        LogFiles logFiles = LogFilesBuilder.builder( directory.databaseLayout(), fileSystemRule.get() )
                 .withLogVersionRepository( logVersionRepository )
                 .withRotationThreshold( ByteUnit.mebiBytes( 1 ) )
                 .withTransactionIdStore( new SimpleTransactionIdStore() ).build();
@@ -93,7 +93,7 @@ public class TransactionLogAppendAndRotateIT
         final AtomicBoolean end = new AtomicBoolean();
         AllTheMonitoring monitoring = new AllTheMonitoring( end, 100 );
         TransactionIdStore txIdStore = new SimpleTransactionIdStore();
-        TransactionMetadataCache metadataCache = new TransactionMetadataCache( 100 );
+        TransactionMetadataCache metadataCache = new TransactionMetadataCache();
         monitoring.setLogFile( logFiles.getLogFile() );
         DatabaseHealth health = new DatabaseHealth( mock( DatabasePanicEventGenerator.class ), NullLog.getInstance() );
         LogRotation rotation = new LogRotationImpl( monitoring, logFiles, health );

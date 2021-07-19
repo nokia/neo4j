@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,8 +19,8 @@
  */
 package org.neo4j.cypher.internal.runtime.interpreted.symbols
 
-import org.neo4j.cypher.internal.util.v3_5.{CypherException, CypherTypeException, SyntaxException}
-import org.neo4j.cypher.internal.util.v3_5.symbols._
+import org.neo4j.cypher.internal.v3_5.util.{CypherException, CypherTypeException, SyntaxException}
+import org.neo4j.cypher.internal.v3_5.util.symbols._
 
 import scala.collection.Map
 
@@ -39,7 +39,6 @@ case class SymbolTable(variables: Map[String, CypherType] = Map.empty) {
 
   def filter(f: String => Boolean): SymbolTable = SymbolTable(variables.filterKeys(f))
   def keys: Seq[String] = variables.keys.toIndexedSeq
-  def missingSymbolTableDependencies(x: TypeSafe): Set[String] = x.symbolTableDependencies.filterNot(dep => variables.exists(_._1 == dep))
 
   def evaluateType(name: String, expectedType: CypherType): CypherType = variables.get(name) match {
     case Some(typ) if expectedType.isAssignableFrom(typ) => typ

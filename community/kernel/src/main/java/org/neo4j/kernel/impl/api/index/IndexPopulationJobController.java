@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -24,14 +24,12 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 
+import org.neo4j.scheduler.Group;
 import org.neo4j.scheduler.JobScheduler;
-
-import static org.neo4j.scheduler.JobScheduler.Groups.indexPopulation;
 
 class IndexPopulationJobController
 {
-    private final Set<IndexPopulationJob> populationJobs =
-            Collections.newSetFromMap( new ConcurrentHashMap<IndexPopulationJob,Boolean>() );
+    private final Set<IndexPopulationJob> populationJobs = Collections.newSetFromMap( new ConcurrentHashMap<>() );
     private final JobScheduler scheduler;
 
     IndexPopulationJobController( JobScheduler scheduler )
@@ -50,7 +48,7 @@ class IndexPopulationJobController
     void startIndexPopulation( IndexPopulationJob job )
     {
         populationJobs.add( job );
-        scheduler.schedule( indexPopulation, new IndexPopulationJobWrapper( job, this ) );
+        scheduler.schedule( Group.INDEX_POPULATION, new IndexPopulationJobWrapper( job, this ) );
     }
 
     void indexPopulationCompleted( IndexPopulationJob populationJob )
@@ -65,8 +63,8 @@ class IndexPopulationJobController
 
     private static class IndexPopulationJobWrapper implements Runnable
     {
-        private IndexPopulationJob indexPopulationJob;
-        private IndexPopulationJobController jobController;
+        private final IndexPopulationJob indexPopulationJob;
+        private final IndexPopulationJobController jobController;
 
         IndexPopulationJobWrapper( IndexPopulationJob indexPopulationJob, IndexPopulationJobController jobController )
         {

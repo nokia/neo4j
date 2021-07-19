@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,36 +19,58 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical
 
-import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.steps.{countStorePlanner, verifyBestPlan}
+import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.steps.alignGetValueFromIndexBehavior
+import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.steps.countStorePlanner
+import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.steps.verifyBestPlan
 import org.neo4j.cypher.internal.ir.v3_5.PlannerQuery
-import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.{Cardinalities, Solveds}
-import org.neo4j.cypher.internal.util.v3_5.attribution.{Attributes, IdGen}
 import org.neo4j.cypher.internal.v3_5.logical.plans.LogicalPlan
+import org.neo4j.cypher.internal.v3_5.util.attribution.IdGen
 
 /*
 This coordinates PlannerQuery planning and delegates work to the classes that do the actual planning of
 QueryGraphs and EventHorizons
  */
-case class PlanSingleQuery(planPart: (PlannerQuery, LogicalPlanningContext, Solveds, Cardinalities) => LogicalPlan = planPart,
-                           planEventHorizon: ((PlannerQuery, LogicalPlan, LogicalPlanningContext, Solveds, Cardinalities) => LogicalPlan) = PlanEventHorizon,
-                           planWithTail: ((LogicalPlan, Option[PlannerQuery], LogicalPlanningContext, Solveds, Cardinalities, Attributes) => LogicalPlan) = PlanWithTail(),
-                           planUpdates: ((PlannerQuery, LogicalPlan, Boolean, LogicalPlanningContext, Solveds, Cardinalities) => (LogicalPlan, LogicalPlanningContext)) = PlanUpdates)
-  extends ((PlannerQuery, LogicalPlanningContext, Solveds, Cardinalities, IdGen) => LogicalPlan) {
+case class PlanSingleQuery(planPart: PartPlanner = planPart,
+                           planEventHorizon: EventHorizonPlanner = PlanEventHorizon,
+                           planWithTail: TailPlanner = PlanWithTail(),
+                           planUpdates:UpdatesPlanner = PlanUpdates)
+  extends SingleQueryPlanner {
 
-  override def apply(in: PlannerQuery, context: LogicalPlanningContext,
-                     solveds: Solveds, cardinalities: Cardinalities, idGen: IdGen): LogicalPlan = {
-    val (completePlan, ctx) = countStorePlanner(in, context, solveds, cardinalities) match {
-      case Some(plan) =>
-        (plan, context.withUpdatedCardinalityInformation(plan, solveds, cardinalities))
-      case None =>
-        val partPlan = planPart(in, context, solveds, cardinalities)
-        val (planWithUpdates, newContext) = planUpdates(in, partPlan, true /*first QG*/, context, solveds, cardinalities)
-        val projectedPlan = planEventHorizon(in, planWithUpdates, newContext, solveds, cardinalities)
-        val projectedContext = newContext.withUpdatedCardinalityInformation(projectedPlan, solveds, cardinalities)
-        (projectedPlan, projectedContext)
-    }
+  override def apply(in: PlannerQuery, context: LogicalPlanningContext, idGen: IdGen): (LogicalPlan, LogicalPlanningContext) = {
+    val (completePlan, ctx) =
+      countStorePlanner(in, context) match {
+        case Some(plan) =>
+          (plan, context.withUpdatedCardinalityInformation(plan))
+        case None =>
+          val attributes = context.planningAttributes.asAttributes(idGen)
 
-    val finalPlan = planWithTail(completePlan, in.tail, ctx, solveds, cardinalities, Attributes(idGen))
-    verifyBestPlan(finalPlan, in, context, solveds, cardinalities)
+          val partPlan = planPart(in, context)
+          val (planWithUpdates, contextAfterUpdates) = planUpdates(in, partPlan, firstPlannerQuery = true, context)
+          val projectedPlan = planEventHorizon(in, planWithUpdates, contextAfterUpdates)
+          val projectedContext = contextAfterUpdates.withUpdatedCardinalityInformation(projectedPlan)
+
+          // Mark properties from indexes to be fetched, if the properties are used later in the query
+          val alignedPlan = alignGetValueFromIndexBehavior(in, projectedPlan, context.logicalPlanProducer, context.planningAttributes.solveds, attributes)
+          (alignedPlan, projectedContext)
+      }
+
+    val (finalPlan, finalContext) = planWithTail(completePlan, in.tail, ctx, idGen)
+    (verifyBestPlan(finalPlan, in, finalContext), finalContext)
   }
+}
+
+trait PartPlanner {
+  def apply(query: PlannerQuery, context: LogicalPlanningContext): LogicalPlan
+}
+
+trait EventHorizonPlanner {
+  def apply(query: PlannerQuery, plan: LogicalPlan, context: LogicalPlanningContext): LogicalPlan
+}
+
+trait TailPlanner {
+  def apply(lhs: LogicalPlan, remaining: Option[PlannerQuery], context: LogicalPlanningContext, idGen: IdGen): (LogicalPlan, LogicalPlanningContext)
+}
+
+trait UpdatesPlanner {
+  def apply(query: PlannerQuery, in: LogicalPlan, firstPlannerQuery: Boolean, context: LogicalPlanningContext): (LogicalPlan, LogicalPlanningContext)
 }

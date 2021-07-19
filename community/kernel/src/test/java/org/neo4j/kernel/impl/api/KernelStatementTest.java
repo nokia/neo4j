@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -27,10 +27,10 @@ import org.neo4j.graphdb.NotInTransactionException;
 import org.neo4j.io.pagecache.tracing.cursor.context.EmptyVersionContextSupplier;
 import org.neo4j.kernel.api.query.ExecutingQuery;
 import org.neo4j.kernel.api.txstate.TxStateHolder;
-import org.neo4j.kernel.impl.locking.LockTracer;
 import org.neo4j.resources.CpuClock;
 import org.neo4j.resources.HeapAllocation;
-import org.neo4j.storageengine.api.StorageStatement;
+import org.neo4j.storageengine.api.StorageReader;
+import org.neo4j.storageengine.api.lock.LockTracer;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
@@ -40,10 +40,10 @@ import static org.mockito.Mockito.when;
 public class KernelStatementTest
 {
     @Test
-    public void shouldReleaseStorageStatementWhenForceClosed()
+    public void shouldReleaseStorageReaderWhenForceClosed()
     {
         // given
-        StorageStatement storeStatement = mock( StorageStatement.class );
+        StorageReader storeStatement = mock( StorageReader.class );
         KernelStatement statement = new KernelStatement( mock( KernelTransactionImplementation.class ),
                 null, storeStatement, LockTracer.NONE,
                 mock( StatementOperationParts.class ), new ClockContext(), EmptyVersionContextSupplier.EMPTY );
@@ -68,7 +68,7 @@ public class KernelStatementTest
     {
         KernelTransactionImplementation transaction = mock( KernelTransactionImplementation.class );
         TxStateHolder txStateHolder = mock( TxStateHolder.class );
-        StorageStatement storeStatement = mock( StorageStatement.class );
+        StorageReader storeStatement = mock( StorageReader.class );
         KernelStatement statement = new KernelStatement( transaction, txStateHolder,
                 storeStatement, LockTracer.NONE, mock( StatementOperationParts.class ),
                 new ClockContext(), EmptyVersionContextSupplier.EMPTY );
@@ -81,7 +81,7 @@ public class KernelStatementTest
     {
         KernelTransactionImplementation transaction = mock( KernelTransactionImplementation.class );
         TxStateHolder txStateHolder = mock( TxStateHolder.class );
-        StorageStatement storeStatement = mock( StorageStatement.class );
+        StorageReader storeStatement = mock( StorageReader.class );
 
         KernelTransactionImplementation.Statistics statistics = new KernelTransactionImplementation.Statistics( transaction,
                 new AtomicReference<>( CpuClock.NOT_AVAILABLE ), new AtomicReference<>( HeapAllocation.NOT_AVAILABLE ) );

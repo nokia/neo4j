@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -24,7 +24,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.regex.Pattern;
 import javax.servlet.FilterChain;
@@ -53,6 +52,7 @@ import static org.mockito.Mockito.when;
 import static org.neo4j.internal.kernel.api.security.LoginContext.AUTH_DISABLED;
 import static org.neo4j.logging.AssertableLogProvider.inLog;
 import static org.neo4j.server.security.auth.SecurityTestUtils.authToken;
+import static org.neo4j.test.AuthTokenUtil.authTokenArgumentMatcher;
 
 public class AuthorizationFilterTest
 {
@@ -176,7 +176,7 @@ public class AuthorizationFilterTest
         when( servletRequest.getContextPath() ).thenReturn( "/db/data" );
         when( servletRequest.getHeader( HttpHeaders.AUTHORIZATION ) ).thenReturn( "BASIC " + credentials );
         when( servletRequest.getRemoteAddr() ).thenReturn( "remote_ip_address" );
-        when( authManager.login( authToken( "foo", "bar" ) ) ).thenReturn( loginContext );
+        when( authManager.login( authTokenArgumentMatcher( authToken( "foo", "bar" ) ) ) ).thenReturn( loginContext );
         when( loginContext.subject() ).thenReturn( authSubject );
         when( authSubject.getAuthenticationResult() ).thenReturn( AuthenticationResult.FAILURE );
 
@@ -206,7 +206,7 @@ public class AuthorizationFilterTest
         when( servletRequest.getMethod() ).thenReturn( "GET" );
         when( servletRequest.getContextPath() ).thenReturn( "/user/foo" );
         when( servletRequest.getHeader( HttpHeaders.AUTHORIZATION ) ).thenReturn( "BASIC " + credentials );
-        when( authManager.login( authToken( "foo", "bar" ) ) ).thenReturn( loginContext );
+        when( authManager.login( authTokenArgumentMatcher( authToken( "foo", "bar" ) ) ) ).thenReturn( loginContext );
         when( loginContext.subject() ).thenReturn( authSubject );
         when( authSubject.getAuthenticationResult() ).thenReturn( AuthenticationResult.PASSWORD_CHANGE_REQUIRED );
 
@@ -231,7 +231,7 @@ public class AuthorizationFilterTest
         when( servletRequest.getRequestURL() ).thenReturn( new StringBuffer( "http://bar.baz:7474/db/data/" ) );
         when( servletRequest.getRequestURI() ).thenReturn( "/db/data/" );
         when( servletRequest.getHeader( HttpHeaders.AUTHORIZATION ) ).thenReturn( "BASIC " + credentials );
-        when( authManager.login( authToken( "foo", "bar" ) ) ).thenReturn( loginContext );
+        when( authManager.login( authTokenArgumentMatcher( authToken( "foo", "bar" ) ) ) ).thenReturn( loginContext );
         when( loginContext.subject() ).thenReturn( authSubject );
         when( authSubject.getAuthenticationResult() ).thenReturn( AuthenticationResult.PASSWORD_CHANGE_REQUIRED );
 
@@ -261,7 +261,7 @@ public class AuthorizationFilterTest
         when( servletRequest.getMethod() ).thenReturn( "GET" );
         when( servletRequest.getContextPath() ).thenReturn( "/db/data" );
         when( servletRequest.getHeader( HttpHeaders.AUTHORIZATION ) ).thenReturn( "BASIC " + credentials );
-        when( authManager.login( authToken( "foo", "bar" ) ) ).thenReturn( loginContext );
+        when( authManager.login( authTokenArgumentMatcher( authToken( "foo", "bar" ) ) ) ).thenReturn( loginContext );
         when( loginContext.subject() ).thenReturn( authSubject );
         when( authSubject.getAuthenticationResult() ).thenReturn( AuthenticationResult.TOO_MANY_ATTEMPTS );
 
@@ -290,7 +290,7 @@ public class AuthorizationFilterTest
         when( servletRequest.getMethod() ).thenReturn( "GET" );
         when( servletRequest.getContextPath() ).thenReturn( "/db/data" );
         when( servletRequest.getHeader( HttpHeaders.AUTHORIZATION ) ).thenReturn( "BASIC " + credentials );
-        when( authManager.login( authToken( "foo", "bar" ) ) ).thenReturn( loginContext );
+        when( authManager.login( authTokenArgumentMatcher( authToken( "foo", "bar" ) ) ) ).thenReturn( loginContext );
         when( loginContext.subject() ).thenReturn( authSubject );
         when( authSubject.getAuthenticationResult() ).thenReturn( AuthenticationResult.SUCCESS );
 

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -30,9 +30,9 @@ import java.util.function.Function;
 import org.neo4j.graphdb.Resource;
 import org.neo4j.graphdb.ResourceIterator;
 import org.neo4j.helpers.collection.Iterators;
-import org.neo4j.kernel.api.exceptions.index.IndexNotFoundKernelException;
+import org.neo4j.internal.kernel.api.exceptions.schema.IndexNotFoundKernelException;
 import org.neo4j.kernel.api.labelscan.LabelScanStore;
-import org.neo4j.kernel.impl.api.ExplicitIndexProviderLookup;
+import org.neo4j.kernel.impl.api.ExplicitIndexProvider;
 import org.neo4j.kernel.impl.api.index.IndexingService;
 import org.neo4j.kernel.impl.store.format.RecordFormat;
 import org.neo4j.kernel.impl.util.MultiResource;
@@ -45,11 +45,11 @@ public class NeoStoreFileIndexListing
 {
     private final LabelScanStore labelScanStore;
     private final IndexingService indexingService;
-    private final ExplicitIndexProviderLookup explicitIndexProviders;
+    private final ExplicitIndexProvider explicitIndexProviders;
 
     private static final Function<File,StoreFileMetadata> toStoreFileMetatadata = file -> new StoreFileMetadata( file, RecordFormat.NO_RECORD_SIZE );
 
-    NeoStoreFileIndexListing( LabelScanStore labelScanStore, IndexingService indexingService, ExplicitIndexProviderLookup explicitIndexProviders )
+    NeoStoreFileIndexListing( LabelScanStore labelScanStore, IndexingService indexingService, ExplicitIndexProvider explicitIndexProviders )
     {
         this.labelScanStore = labelScanStore;
         this.indexingService = indexingService;
@@ -82,7 +82,7 @@ public class NeoStoreFileIndexListing
     Resource gatherExplicitIndexFiles( Collection<StoreFileMetadata> files ) throws IOException
     {
         final Collection<ResourceIterator<File>> snapshots = new ArrayList<>();
-        for ( IndexImplementation indexProvider : explicitIndexProviders.all() )
+        for ( IndexImplementation indexProvider : explicitIndexProviders.allIndexProviders() )
         {
             ResourceIterator<File> snapshot = indexProvider.listStoreFiles();
             snapshots.add( snapshot );

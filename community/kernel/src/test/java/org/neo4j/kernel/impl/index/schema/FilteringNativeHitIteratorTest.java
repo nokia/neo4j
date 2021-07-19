@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -55,11 +55,11 @@ public class FilteringNativeHitIteratorTest
             keys.add( random.nextAlphaNumericString() );
         }
 
-        RawCursor<Hit<StringSchemaKey,NativeSchemaValue>,IOException> cursor = new ResultCursor( keys.iterator() );
+        RawCursor<Hit<StringIndexKey,NativeIndexValue>,IOException> cursor = new ResultCursor( keys.iterator() );
         IndexQuery[] predicates = new IndexQuery[]{mock( IndexQuery.class )};
         Predicate<String> filter = string -> string.contains( "a" );
         when( predicates[0].acceptsValue( any( Value.class ) ) ).then( invocation -> filter.test( ((TextValue)invocation.getArgument( 0 )).stringValue() ) );
-        FilteringNativeHitIterator<StringSchemaKey,NativeSchemaValue> iterator = new FilteringNativeHitIterator<>( cursor, new ArrayList<>(), predicates );
+        FilteringNativeHitIterator<StringIndexKey,NativeIndexValue> iterator = new FilteringNativeHitIterator<>( cursor, new ArrayList<>(), predicates );
         List<Long> result = new ArrayList<>();
 
         // when

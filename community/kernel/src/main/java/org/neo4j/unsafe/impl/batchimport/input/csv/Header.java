@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -62,23 +62,6 @@ public class Header implements Cloneable
     public Entry[] entries()
     {
         return entries;
-    }
-
-    public Entry entry( Type type )
-    {
-        Entry result = null;
-        for ( Entry entry : entries )
-        {
-            if ( entry.type() == type )
-            {
-                if ( result != null )
-                {
-                    throw new IllegalStateException( "Multiple header entries of type " + type );
-                }
-                result = entry;
-            }
-        }
-        return result;
     }
 
     @Override

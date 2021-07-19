@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,17 +20,18 @@
 package org.neo4j.kernel.recovery;
 
 import java.io.IOException;
+import java.nio.channels.ClosedByInterruptException;
 
-import org.neo4j.kernel.impl.core.StartupStatisticsProvider;
+import org.neo4j.graphdb.factory.GraphDatabaseSettings;
 import org.neo4j.kernel.impl.transaction.CommittedTransactionRepresentation;
 import org.neo4j.kernel.impl.transaction.log.LogPosition;
 import org.neo4j.kernel.impl.transaction.log.TransactionCursor;
 import org.neo4j.kernel.impl.transaction.log.TransactionIdStore;
 import org.neo4j.kernel.impl.transaction.log.entry.LogEntryCommit;
 import org.neo4j.kernel.impl.util.monitoring.ProgressReporter;
+import org.neo4j.kernel.lifecycle.Lifecycle;
 import org.neo4j.kernel.lifecycle.LifecycleAdapter;
 
-import static org.neo4j.helpers.Exceptions.throwIfUnchecked;
 import static org.neo4j.storageengine.api.TransactionApplicationMode.RECOVERY;
 import static org.neo4j.storageengine.api.TransactionApplicationMode.REVERSE_RECOVERY;
 
@@ -43,30 +44,31 @@ public class Recovery extends LifecycleAdapter
 
     private final RecoveryService recoveryService;
     private final RecoveryMonitor monitor;
-    private final StartupStatisticsProvider startupStatistics;
     private final CorruptedLogsTruncator logsTruncator;
+    private final Lifecycle schemaLife;
     private final ProgressReporter progressReporter;
     private final boolean failOnCorruptedLogFiles;
     private int numberOfRecoveredTransactions;
 
-    public Recovery( RecoveryService recoveryService, StartupStatisticsProvider startupStatistics,
-            CorruptedLogsTruncator logsTruncator, RecoveryMonitor monitor, ProgressReporter progressReporter,
-            boolean failOnCorruptedLogFiles )
+    public Recovery( RecoveryService recoveryService, CorruptedLogsTruncator logsTruncator, Lifecycle schemaLife,
+            RecoveryMonitor monitor, ProgressReporter progressReporter, boolean failOnCorruptedLogFiles )
     {
         this.recoveryService = recoveryService;
         this.monitor = monitor;
-        this.startupStatistics = startupStatistics;
         this.logsTruncator = logsTruncator;
+        this.schemaLife = schemaLife;
         this.progressReporter = progressReporter;
         this.failOnCorruptedLogFiles = failOnCorruptedLogFiles;
     }
 
     @Override
-    public void init() throws IOException
+    public void init() throws Throwable
     {
         RecoveryStartInformation recoveryStartInformation = recoveryService.getRecoveryStartInformation();
         if ( !recoveryStartInformation.isRecoveryRequired() )
         {
+            // If there is nothing to recovery, then the schema is initialised immediately.
+            schemaLife.init();
             return;
         }
 
@@ -100,6 +102,11 @@ public class Recovery extends LifecycleAdapter
 
             monitor.reverseStoreRecoveryCompleted( lowestRecoveredTxId );
 
+            // We cannot initialise the schema (tokens, schema cache, indexing service, etc.) until we have returned the store to a consistent state.
+            // We need to be able to read the store before we can even figure out what indexes, tokens, etc. we have. Hence we defer the initialisation
+            // of the schema life until after we've done the reverse recovery.
+            schemaLife.init();
+
             try ( TransactionCursor transactionsToRecover = recoveryService.getTransactions( recoveryPosition );
                     RecoveryApplier recoveryVisitor = recoveryService.getRecoveryApplier( RECOVERY ) )
             {
@@ -116,12 +123,17 @@ public class Recovery extends LifecycleAdapter
                 recoveryToPosition = transactionsToRecover.position();
             }
         }
+        catch ( Error | ClosedByInterruptException e )
+        {
+            // We do not want to truncate logs based on these exceptions. Since users can influence them with config changes
+            // the users are able to workaround this if truncations is really needed.
+            throw e;
+        }
         catch ( Throwable t )
         {
             if ( failOnCorruptedLogFiles )
             {
-                throwIfUnchecked( t );
-                throw new RuntimeException( t );
+                throwUnableToCleanRecover( t );
             }
             if ( lastTransaction != null )
             {
@@ -138,8 +150,16 @@ public class Recovery extends LifecycleAdapter
         logsTruncator.truncate( recoveryToPosition );
 
         recoveryService.transactionsRecovered( lastTransaction, recoveryToPosition );
-        startupStatistics.setNumberOfRecoveredTransactions( numberOfRecoveredTransactions );
         monitor.recoveryCompleted( numberOfRecoveredTransactions );
+    }
+
+    static void throwUnableToCleanRecover( Throwable t )
+    {
+        throw new RuntimeException(
+                "Error reading transaction logs, recovery not possible. To force the database to start anyway, you can specify '" +
+                        GraphDatabaseSettings.fail_on_corrupted_log_files.name() + "=false'. This will try to recover as much " +
+                        "as possible and then truncate the corrupt part of the transaction log. Doing this means your database " +
+                        "integrity might be compromised, please consider restoring from a consistent backup instead.", t );
     }
 
     private void initProgressReporter( RecoveryStartInformation recoveryStartInformation,
@@ -162,5 +182,23 @@ public class Recovery extends LifecycleAdapter
     {
         return lastReversedTransaction.getCommitEntry().getTxId() -
                 recoveryStartInformation.getFirstTxIdAfterLastCheckPoint() + 1;
+    }
+
+    @Override
+    public void start() throws Throwable
+    {
+        schemaLife.start();
+    }
+
+    @Override
+    public void stop() throws Throwable
+    {
+        schemaLife.stop();
+    }
+
+    @Override
+    public void shutdown() throws Throwable
+    {
+        schemaLife.shutdown();
     }
 }

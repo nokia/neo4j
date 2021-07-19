@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -39,7 +39,6 @@ import org.neo4j.kernel.configuration.HttpConnector.Encryption;
 import org.neo4j.kernel.configuration.Settings;
 import org.neo4j.kernel.configuration.ssl.LegacySslPolicyConfig;
 import org.neo4j.server.CommunityBootstrapper;
-import org.neo4j.server.configuration.ServerSettings;
 import org.neo4j.test.rule.SuppressOutput;
 import org.neo4j.test.rule.TestDirectory;
 import org.neo4j.test.server.ExclusiveServerTestBase;
@@ -83,11 +82,10 @@ public class StartupLoggingIT extends ExclusiveServerTestBase
     {
         Map<String,String> properties = new HashMap<>();
 
-        properties.put( GraphDatabaseSettings.data_directory.name(), testDir.graphDbDir().toString() );
-        properties.put( GraphDatabaseSettings.logs_directory.name(), testDir.graphDbDir().toString() );
-        properties.put( LegacySslPolicyConfig.certificates_directory.name(), testDir.graphDbDir().toString() );
+        properties.put( GraphDatabaseSettings.data_directory.name(), testDir.databaseDir().toString() );
+        properties.put( GraphDatabaseSettings.logs_directory.name(), testDir.databaseDir().toString() );
+        properties.put( LegacySslPolicyConfig.certificates_directory.name(), testDir.databaseDir().toString() );
         properties.put( GraphDatabaseSettings.allow_upgrade.name(), Settings.TRUE );
-        properties.put( ServerSettings.script_enabled.name(), Settings.TRUE );
 
         HttpConnector http = new HttpConnector( "http", Encryption.NONE );
         properties.put( http.type.name(), "HTTP" );

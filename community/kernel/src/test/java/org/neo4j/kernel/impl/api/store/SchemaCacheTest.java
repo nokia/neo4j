@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -30,13 +30,19 @@ import org.neo4j.helpers.collection.Iterables;
 import org.neo4j.helpers.collection.Iterators;
 import org.neo4j.internal.kernel.api.schema.LabelSchemaDescriptor;
 import org.neo4j.internal.kernel.api.schema.constraints.ConstraintDescriptor;
-import org.neo4j.kernel.api.schema.constaints.ConstraintDescriptorFactory;
-import org.neo4j.kernel.api.schema.index.SchemaIndexDescriptor;
-import org.neo4j.kernel.api.schema.index.SchemaIndexDescriptorFactory;
+import org.neo4j.kernel.api.schema.MultiTokenSchemaDescriptor;
+import org.neo4j.kernel.api.schema.SchemaDescriptorFactory;
+import org.neo4j.kernel.api.schema.constraints.ConstraintDescriptorFactory;
+import org.neo4j.kernel.api.schema.index.TestIndexDescriptorFactory;
+import org.neo4j.kernel.impl.api.index.IndexProviderMap;
 import org.neo4j.kernel.impl.constraints.StandardConstraintSemantics;
 import org.neo4j.kernel.impl.store.record.ConstraintRule;
-import org.neo4j.kernel.impl.store.record.IndexRule;
+import org.neo4j.storageengine.api.EntityType;
+import org.neo4j.storageengine.api.schema.CapableIndexDescriptor;
+import org.neo4j.storageengine.api.schema.IndexDescriptor;
+import org.neo4j.storageengine.api.schema.IndexDescriptorFactory;
 import org.neo4j.storageengine.api.schema.SchemaRule;
+import org.neo4j.storageengine.api.schema.StoreIndexDescriptor;
 import org.neo4j.test.Race;
 
 import static java.util.Arrays.asList;
@@ -45,10 +51,10 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.fail;
 import static org.neo4j.helpers.collection.Iterators.asSet;
 import static org.neo4j.kernel.api.schema.SchemaDescriptorFactory.forLabel;
-import static org.neo4j.kernel.api.schema.constaints.ConstraintDescriptorFactory.uniqueForLabel;
-import static org.neo4j.kernel.impl.api.index.TestIndexProviderDescriptor.PROVIDER_DESCRIPTOR;
+import static org.neo4j.kernel.api.schema.constraints.ConstraintDescriptorFactory.uniqueForLabel;
 import static org.neo4j.kernel.impl.store.record.ConstraintRule.constraintRule;
 
 public class SchemaCacheTest
@@ -63,10 +69,10 @@ public class SchemaCacheTest
     {
         // GIVEN
         Collection<SchemaRule> rules = asList( hans, witch, gretel, robot );
-        SchemaCache cache = new SchemaCache( new ConstraintSemantics(), rules );
+        SchemaCache cache = new SchemaCache( new ConstraintSemantics(), rules, IndexProviderMap.EMPTY );
 
         // THEN
-        assertEquals( asSet( hans, gretel ), Iterables.asSet( cache.indexRules() ) );
+        assertEquals( asSet( hans, gretel ), Iterables.asSet( cache.indexDescriptors() ) );
         assertEquals( asSet( witch, robot ), Iterables.asSet( cache.constraintRules() ) );
     }
 
@@ -74,17 +80,17 @@ public class SchemaCacheTest
     public void addRemoveIndexes()
     {
         Collection<SchemaRule> rules = asList( hans, witch, gretel, robot );
-        SchemaCache cache = new SchemaCache( new ConstraintSemantics(), rules );
+        SchemaCache cache = new SchemaCache( new ConstraintSemantics(), rules, IndexProviderMap.EMPTY );
 
-        IndexRule rule1 = newIndexRule( 10, 11, 12 );
-        IndexRule rule2 = newIndexRule( 13, 14, 15 );
+        StoreIndexDescriptor rule1 = newIndexRule( 10, 11, 12 );
+        StoreIndexDescriptor rule2 = newIndexRule( 13, 14, 15 );
         cache.addSchemaRule( rule1 );
         cache.addSchemaRule( rule2 );
 
         cache.removeSchemaRule( hans.getId() );
         cache.removeSchemaRule( witch.getId() );
 
-        assertEquals( asSet( gretel, rule1, rule2 ), Iterables.asSet( cache.indexRules() ) );
+        assertEquals( asSet( gretel, rule1, rule2 ), Iterables.asSet( cache.indexDescriptors() ) );
         assertEquals( asSet( robot ), Iterables.asSet( cache.constraintRules() ) );
     }
 
@@ -101,7 +107,7 @@ public class SchemaCacheTest
         cache.addSchemaRule( robot );
 
         // THEN
-        assertEquals( asSet( hans, gretel ), Iterables.asSet( cache.indexRules() ) );
+        assertEquals( asSet( hans, gretel ), Iterables.asSet( cache.indexDescriptors() ) );
         assertEquals( asSet( witch, robot ), Iterables.asSet( cache.constraintRules() ) );
     }
 
@@ -201,10 +207,41 @@ public class SchemaCacheTest
 
         // When
         LabelSchemaDescriptor schema = forLabel( 1, 3 );
-        SchemaIndexDescriptor descriptor = cache.indexDescriptor( schema );
+        IndexDescriptor descriptor = cache.indexDescriptor( schema );
 
         // Then
         assertThat( descriptor.schema(), equalTo( schema ) );
+    }
+
+    @Test
+    public void schemaCacheSnapshotsShouldBeReadOnly()
+    {
+        // Given
+        SchemaCache cache = newSchemaCache();
+
+        cache.addSchemaRule( newIndexRule( 1L, 1, 2 ) );
+        cache.addSchemaRule( newIndexRule( 2L, 2, 3 ) );
+
+        SchemaCache snapshot = cache.snapshot();
+
+        cache.addSchemaRule( newIndexRule( 3L, 1, 2 ) );
+
+        // When
+        Set<CapableIndexDescriptor> indexes = asSet( snapshot.indexDescriptorsForLabel( 1 ) );
+
+        // Then
+        Set<StoreIndexDescriptor> expected = asSet( newIndexRule( 1L, 1, 2 ) );
+        assertEquals( expected, indexes );
+
+        try
+        {
+            snapshot.addSchemaRule( newIndexRule( 3L, 1, 2 ) );
+            fail( "SchemaCache snapshots should not permit mutation." );
+        }
+        catch ( IllegalStateException ignore )
+        {
+            // Good.
+        }
     }
 
     @Test
@@ -214,7 +251,7 @@ public class SchemaCacheTest
         SchemaCache schemaCache = newSchemaCache();
 
         // When
-        SchemaIndexDescriptor schemaIndexDescriptor = schemaCache.indexDescriptor( forLabel( 1, 1 ) );
+        IndexDescriptor schemaIndexDescriptor = schemaCache.indexDescriptor( forLabel( 1, 1 ) );
 
         // Then
         assertNull( schemaIndexDescriptor );
@@ -297,7 +334,7 @@ public class SchemaCacheTest
         }
         race.go();
 
-        assertEquals( indexNumber, Iterables.count( cache.indexRules() ) );
+        assertEquals( indexNumber, Iterables.count( cache.indexDescriptors() ) );
         for ( int labelId = 0; labelId < indexNumber; labelId++ )
         {
             assertEquals( 1, Iterators.count( cache.indexDescriptorsForLabel( labelId ) ) );
@@ -326,7 +363,7 @@ public class SchemaCacheTest
         }
         race.go();
 
-        assertEquals( indexNumber - numberOfDeletions, Iterables.count( cache.indexRules() ) );
+        assertEquals( indexNumber - numberOfDeletions, Iterables.count( cache.indexDescriptors() ) );
         for ( int labelId = numberOfDeletions; labelId < indexNumber; labelId++ )
         {
             assertEquals( 1, Iterators.count( cache.indexDescriptorsForLabel( labelId ) ) );
@@ -337,9 +374,35 @@ public class SchemaCacheTest
         }
     }
 
-    private IndexRule newIndexRule( long id, int label, int propertyKey )
+    @Test
+    public void removeSchemaWithRepeatedLabel()
     {
-        return IndexRule.indexRule( id, SchemaIndexDescriptorFactory.forLabel( label, propertyKey ), PROVIDER_DESCRIPTOR );
+        final SchemaCache cache = newSchemaCache();
+
+        final int id = 1;
+        final int[] repeatedLabels = {0, 1, 0};
+        final MultiTokenSchemaDescriptor schema = SchemaDescriptorFactory.multiToken( repeatedLabels, EntityType.NODE, 1 );
+        final StoreIndexDescriptor storeIndexDescriptor = IndexDescriptorFactory.forSchema( schema ).withId( id );
+        cache.addSchemaRule( storeIndexDescriptor );
+        cache.removeSchemaRule( id );
+    }
+
+    @Test
+    public void removeSchemaWithRepeatedRelType()
+    {
+        final SchemaCache cache = newSchemaCache();
+
+        final int id = 1;
+        final int[] repeatedRelTypes = {0, 1, 0};
+        final MultiTokenSchemaDescriptor schema = SchemaDescriptorFactory.multiToken( repeatedRelTypes, EntityType.RELATIONSHIP, 1 );
+        final StoreIndexDescriptor storeIndexDescriptor = IndexDescriptorFactory.forSchema( schema ).withId( id );
+        cache.addSchemaRule( storeIndexDescriptor );
+        cache.removeSchemaRule( id );
+    }
+
+    private StoreIndexDescriptor newIndexRule( long id, int label, int propertyKey )
+    {
+        return TestIndexDescriptorFactory.forLabel( label, propertyKey ).withId( id );
     }
 
     private ConstraintRule nodePropertyExistenceConstraintRule( long ruleId, int labelId, int propertyId )
@@ -360,7 +423,8 @@ public class SchemaCacheTest
     private static SchemaCache newSchemaCache( SchemaRule... rules )
     {
         return new SchemaCache( new ConstraintSemantics(), (rules == null || rules.length == 0)
-                                                           ? Collections.emptyList() : Arrays.asList( rules ) );
+                                                           ? Collections.emptyList() : Arrays.asList( rules ),
+                                IndexProviderMap.EMPTY );
     }
 
     private static class ConstraintSemantics extends StandardConstraintSemantics

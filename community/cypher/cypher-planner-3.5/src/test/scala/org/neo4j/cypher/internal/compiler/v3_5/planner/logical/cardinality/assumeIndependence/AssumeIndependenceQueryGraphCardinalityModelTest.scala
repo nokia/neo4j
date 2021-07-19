@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,7 +20,8 @@
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.cardinality.assumeIndependence
 
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.Metrics.QueryGraphCardinalityModel
-import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.cardinality.{ABCDCardinalityData, RandomizedCardinalityModelTestSuite}
+import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.cardinality.ABCDCardinalityData
+import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.cardinality.RandomizedCardinalityModelTestSuite
 import org.neo4j.cypher.internal.planner.v3_5.spi.GraphStatistics
 
 class AssumeIndependenceQueryGraphCardinalityModelTest extends RandomizedCardinalityModelTestSuite with ABCDCardinalityData {
@@ -68,10 +69,7 @@ class AssumeIndependenceQueryGraphCardinalityModelTest extends RandomizedCardina
         -> A * Aprop,
 
       "MATCH (a:A) WHERE a.prop STARTS WITH 'p'"
-        -> {
-        val equalitySelectivity = orTimes(DEFAULT_NUMBER_OF_INDEX_LOOKUPS, Aprop)
-        A * (equalitySelectivity + ((1d - equalitySelectivity) * DEFAULT_RANGE_SEEK_FACTOR))
-      },
+        -> A * DEFAULT_RANGE_SEEK_FACTOR,
 
       "MATCH (a:B) WHERE a.bar = 42"
         -> B * DEFAULT_EQUALITY_SELECTIVITY,
@@ -239,12 +237,12 @@ class AssumeIndependenceQueryGraphCardinalityModelTest extends RandomizedCardina
     shouldHaveQueryGraphCardinality(1000.0 / 500.0 * 13.0)
   }
 
-  test("input cardinality of zero on a different variable should not affect cardinality estimation of the pattern") {
+  test("input cardinality of zero on a different variable should affect cardinality estimation of the pattern") {
     givenPattern("MATCH (a)").
     withQueryGraphArgumentIds("e").
     withInboundCardinality(0.0).
     withGraphNodes(500).
-    shouldHaveQueryGraphCardinality(500)
+    shouldHaveQueryGraphCardinality(0)
   }
 
 
@@ -266,15 +264,6 @@ class AssumeIndependenceQueryGraphCardinalityModelTest extends RandomizedCardina
     shouldHaveQueryGraphCardinality(maxRelCount * totalSelectivity)
   }
 
-//  test("varlength three steps out") {
-//    forQuery("MATCH (a:A)-[r:T1*1..3]->(b:B)").
-//      shouldHaveQueryGraphCardinality(
-//        A * B * A_T1_A_sel + // The result includes all (:A)-[:T1]->(:B)
-//        A * N * B * A_T1_STAR_sel * STAR_T1_B_sel + // and all (:A)-[:T1]->()-[:T1]->(:B)
-//        A * N * N * B * A_T1_STAR_sel * STAR_T1_STAR_sel * STAR_T1_B_sel  // and all (:A)-[:T1]->()-[:T1]->()-[:T1]-(:B)
-//      )
-//  }
-
-  def createCardinalityModel(stats: GraphStatistics): QueryGraphCardinalityModel =
+  def createQueryGraphCardinalityModel(stats: GraphStatistics): QueryGraphCardinalityModel =
     AssumeIndependenceQueryGraphCardinalityModel(stats, combiner)
 }

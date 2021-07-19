@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -58,6 +58,13 @@ public abstract class ClientConnectionInfo
     public abstract String protocol();
 
     /**
+     * Identifier of the network connection.
+     *
+     * @return the identifier or {@code null} for embedded connections.
+     */
+    public abstract String connectionId();
+
+    /**
      * This method is overridden in the subclasses where this information is available.
      *
      * @return the address of the client. or {@code null} if the address is not available.
@@ -90,6 +97,12 @@ public abstract class ClientConnectionInfo
         {
             return "embedded";
         }
+
+        @Override
+        public String connectionId()
+        {
+            return null;
+        }
     };
 
     /**
@@ -117,6 +130,12 @@ public abstract class ClientConnectionInfo
         public String protocol()
         {
             return source.protocol();
+        }
+
+        @Override
+        public String connectionId()
+        {
+            return source.connectionId();
         }
 
         @Override

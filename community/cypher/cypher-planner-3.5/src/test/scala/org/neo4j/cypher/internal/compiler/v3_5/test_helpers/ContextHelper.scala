@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,14 +21,15 @@ package org.neo4j.cypher.internal.compiler.v3_5.test_helpers
 
 import java.time.Clock
 
-import org.neo4j.cypher.internal.util.v3_5.{CypherException, InputPosition, InternalException}
 import org.neo4j.cypher.internal.compiler.v3_5._
-import org.neo4j.cypher.internal.compiler.v3_5.phases.CompilerContext
+import org.neo4j.cypher.internal.compiler.v3_5.phases.PlannerContext
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.{Metrics, QueryGraphSolver}
-import org.neo4j.cypher.internal.frontend.v3_5.phases.CompilationPhaseTracer.NO_TRACING
-import org.neo4j.cypher.internal.frontend.v3_5.phases.{CompilationPhaseTracer, InternalNotificationLogger, Monitors, devNullLogger}
 import org.neo4j.cypher.internal.planner.v3_5.spi.PlanContext
-import org.neo4j.cypher.internal.util.v3_5.attribution.{IdGen, SequentialIdGen}
+import org.neo4j.cypher.internal.v3_5.frontend.phases.CompilationPhaseTracer
+import org.neo4j.cypher.internal.v3_5.frontend.phases.CompilationPhaseTracer.NO_TRACING
+import org.neo4j.cypher.internal.v3_5.frontend.phases.{InternalNotificationLogger, Monitors, devNullLogger}
+import org.neo4j.cypher.internal.v3_5.util.attribution.{IdGen, SequentialIdGen}
+import org.neo4j.cypher.internal.v3_5.util.{CypherException, InputPosition, InternalException}
 import org.scalatest.mock.MockitoSugar
 
 object ContextHelper extends MockitoSugar {
@@ -38,13 +39,13 @@ object ContextHelper extends MockitoSugar {
              planContext: PlanContext = new NotImplementedPlanContext,
              monitors: Monitors = mock[Monitors],
              metrics: Metrics = mock[Metrics],
-             config: CypherCompilerConfiguration = mock[CypherCompilerConfiguration],
+             config: CypherPlannerConfiguration = mock[CypherPlannerConfiguration],
              queryGraphSolver: QueryGraphSolver = mock[QueryGraphSolver],
              updateStrategy: UpdateStrategy = mock[UpdateStrategy],
              debugOptions: Set[String] = Set.empty,
              clock: Clock = Clock.systemUTC(),
-             logicalPlanIdGen: IdGen = new SequentialIdGen()): CompilerContext = {
-    new CompilerContext(exceptionCreator, tracer, notificationLogger, planContext,
+             logicalPlanIdGen: IdGen = new SequentialIdGen()): PlannerContext = {
+    new PlannerContext(exceptionCreator, tracer, notificationLogger, planContext,
       monitors, metrics, config, queryGraphSolver, updateStrategy, debugOptions, clock, logicalPlanIdGen)
   }
 }

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -57,9 +57,9 @@ class WrappingFileHandle implements FileHandle
     public void rename( File to, CopyOption... options ) throws IOException
     {
         File parentFile = file.getParentFile();
-        File cannonicalTarget = to.getCanonicalFile();
-        fs.mkdirs( cannonicalTarget.getParentFile() );
-        fs.renameFile( file, cannonicalTarget, options );
+        File canonicalTarget = to.getCanonicalFile();
+        fs.mkdirs( canonicalTarget.getParentFile() );
+        fs.renameFile( file, canonicalTarget, options );
         removeEmptyParent( parentFile );
     }
 

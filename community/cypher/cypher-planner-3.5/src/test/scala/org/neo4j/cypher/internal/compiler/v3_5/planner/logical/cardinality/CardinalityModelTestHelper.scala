@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -23,14 +23,14 @@ import org.neo4j.cypher.internal.compiler.v3_5.planner.LogicalPlanningTestSuppor
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.Metrics
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.Metrics._
 import org.neo4j.cypher.internal.planner.v3_5.spi.GraphStatistics
-import org.neo4j.cypher.internal.util.v3_5.Cardinality
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
+import org.neo4j.cypher.internal.v3_5.util.Cardinality
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
 
 trait CardinalityModelTestHelper extends CardinalityTestHelper {
 
   self: CypherFunSuite with LogicalPlanningTestSupport =>
 
-  def createCardinalityModel(stats: GraphStatistics): QueryGraphCardinalityModel
+  def createQueryGraphCardinalityModel(stats: GraphStatistics): QueryGraphCardinalityModel
 
   def givenPattern(pattern: String) = TestUnit(pattern)
   def givenPredicate(pattern: String) = TestUnit("MATCH " + pattern)
@@ -43,7 +43,7 @@ trait CardinalityModelTestHelper extends CardinalityTestHelper {
       val (statistics, semanticTable) = testUnit.prepareTestContext
 
       val (queryGraph, rewrittenSemanticTable) = testUnit.createQueryGraph(semanticTable)
-      val cardinalityModel = createCardinalityModel(statistics)
+      val cardinalityModel = createQueryGraphCardinalityModel(statistics)
       val input = QueryGraphSolverInput(Map.empty, testUnit.inboundCardinality, testUnit.strictness)
       val result = cardinalityModel(queryGraph, input, rewrittenSemanticTable)
       result should equal(Cardinality(number))
@@ -55,7 +55,7 @@ trait CardinalityModelTestHelper extends CardinalityTestHelper {
 
       val (statistics, semanticTable) = testUnit.prepareTestContext
 
-      val graphCardinalityModel = createCardinalityModel(statistics)
+      val graphCardinalityModel = createQueryGraphCardinalityModel(statistics)
       val cardinalityModelUnderTest = f(graphCardinalityModel)
       val (plannerQuery, _) = producePlannerQueryForPattern(testUnit.query)
       cardinalityModelUnderTest(plannerQuery, QueryGraphSolverInput.empty, semanticTable) should equal(Cardinality(number))
@@ -66,10 +66,12 @@ trait CardinalityModelTestHelper extends CardinalityTestHelper {
     def forQuery(q: String) = cardinalityData.forQuery(givenPattern(q))
   }
 
-  val DEFAULT_PREDICATE_SELECTIVITY = GraphStatistics.DEFAULT_PREDICATE_SELECTIVITY.factor
-  val DEFAULT_EQUALITY_SELECTIVITY = GraphStatistics.DEFAULT_EQUALITY_SELECTIVITY.factor
-  val DEFAULT_RANGE_SELECTIVITY = GraphStatistics.DEFAULT_RANGE_SELECTIVITY.factor
-  val DEFAULT_REL_UNIQUENESS_SELECTIVITY = GraphStatistics.DEFAULT_REL_UNIQUENESS_SELECTIVITY.factor
-  val DEFAULT_RANGE_SEEK_FACTOR = GraphStatistics.DEFAULT_RANGE_SEEK_FACTOR
-  val DEFAULT_NUMBER_OF_INDEX_LOOKUPS = GraphStatistics.DEFAULT_NUMBER_OF_INDEX_LOOKUPS.amount.toInt
+  val DEFAULT_PREDICATE_SELECTIVITY: Double = GraphStatistics.DEFAULT_PREDICATE_SELECTIVITY.factor
+  val DEFAULT_EQUALITY_SELECTIVITY: Double = GraphStatistics.DEFAULT_EQUALITY_SELECTIVITY.factor
+  val DEFAULT_RANGE_SELECTIVITY: Double = GraphStatistics.DEFAULT_RANGE_SELECTIVITY.factor
+  val DEFAULT_REL_UNIQUENESS_SELECTIVITY: Double = GraphStatistics.DEFAULT_REL_UNIQUENESS_SELECTIVITY.factor
+  val DEFAULT_RANGE_SEEK_FACTOR: Double = GraphStatistics.DEFAULT_RANGE_SEEK_FACTOR
+  val DEFAULT_LIST_CARDINALITY: Int = GraphStatistics.DEFAULT_LIST_CARDINALITY.amount.toInt
+  val DEFAULT_LIMIT_CARDINALITY: Int = GraphStatistics.DEFAULT_LIMIT_CARDINALITY.amount.toInt
+  val DEFAULT_DISTINCT_SELECTIVITY: Double = GraphStatistics.DEFAULT_DISTINCT_SELECTIVITY.factor
 }

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -50,7 +50,7 @@ public class StoreProcessorTask<R extends AbstractBaseRecord> extends Consistenc
         this.processor = processor;
         this.distribution = distribution;
         this.progressListener = builder.progressForPart( name +
-                indexedPartName( store.getStorageFileName().getName(), builderPrefix ), store.getHighId() );
+                indexedPartName( store.getStorageFile().getName(), builderPrefix ), store.getHighId() );
     }
 
     private String indexedPartName( String storeFileName, String prefix )
@@ -87,7 +87,7 @@ public class StoreProcessorTask<R extends AbstractBaseRecord> extends Consistenc
                 {
                     highId = storeAccess.getNodeStore().getHighId();
                 }
-                long recordsPerCPU = RecordDistributor.calculateRecodsPerCpu( highId, numberOfThreads );
+                long recordsPerCPU = RecordDistributor.calculateRecordsPerCpu( highId, numberOfThreads );
                 QueueDistributor<R> distributor = distribution.distributor( recordsPerCPU, numberOfThreads );
                 processor.applyFilteredParallel( store, progressListener, numberOfThreads, recordsPerCPU, distributor );
             }

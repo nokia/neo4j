@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,8 +20,8 @@
 package org.neo4j.cypher.internal.v3_5.logical.plans
 
 import org.neo4j.cypher.internal.ir.v3_5.StrictnessMode
-import org.neo4j.cypher.internal.util.v3_5.attribution.IdGen
 import org.neo4j.cypher.internal.v3_5.expressions.{Expression, PropertyKeyName}
+import org.neo4j.cypher.internal.v3_5.util.attribution.IdGen
 
 /**
   * for ( row <- source )
@@ -35,13 +35,15 @@ case class SetProperty(
                         entity: Expression,
                         propertyKey: PropertyKeyName,
                         value: Expression
-                      )(implicit idGen: IdGen) extends LogicalPlan(idGen) {
+                      )(implicit idGen: IdGen) extends LogicalPlan(idGen) with UpdatingPlan {
 
-  override def lhs = Some(source)
+  override def lhs: Option[LogicalPlan] = Some(source)
 
-  override def rhs = None
+  override def rhs: Option[LogicalPlan] = None
 
   override val availableSymbols: Set[String] = source.availableSymbols
 
   override def strictness: StrictnessMode = source.strictness
+
+  override def withSource(source: LogicalPlan)(implicit idGen: IdGen): SetProperty = copy(source = source)
 }

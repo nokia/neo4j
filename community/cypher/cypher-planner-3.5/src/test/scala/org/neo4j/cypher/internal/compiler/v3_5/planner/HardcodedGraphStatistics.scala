@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,8 +19,12 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner
 
-import org.neo4j.cypher.internal.planner.v3_5.spi.{GraphStatistics, IndexDescriptor}
-import org.neo4j.cypher.internal.util.v3_5.{Cardinality, LabelId, RelTypeId, Selectivity}
+import org.neo4j.cypher.internal.planner.v3_5.spi.GraphStatistics
+import org.neo4j.cypher.internal.planner.v3_5.spi.IndexDescriptor
+import org.neo4j.cypher.internal.v3_5.util.Cardinality
+import org.neo4j.cypher.internal.v3_5.util.LabelId
+import org.neo4j.cypher.internal.v3_5.util.RelTypeId
+import org.neo4j.cypher.internal.v3_5.util.Selectivity
 
 case object HardcodedGraphStatistics extends GraphStatistics {
   val NODES_CARDINALITY = Cardinality(10000)
@@ -30,7 +34,7 @@ case object HardcodedGraphStatistics extends GraphStatistics {
   val INDEX_SELECTIVITY = Selectivity.of(.02).get
   val INDEX_PROPERTY_EXISTS_SELECTIVITY = Selectivity.of(.5).get
 
-  def indexSelectivity(index: IndexDescriptor): Option[Selectivity] =
+  def uniqueValueSelectivity(index: IndexDescriptor): Option[Selectivity] =
     Some(INDEX_SELECTIVITY * Selectivity.of(index.properties.length).get)
 
   def indexPropertyExistsSelectivity(index: IndexDescriptor): Option[Selectivity] =

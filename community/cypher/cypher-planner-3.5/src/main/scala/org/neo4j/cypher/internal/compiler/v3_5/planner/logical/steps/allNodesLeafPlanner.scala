@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,11 +20,11 @@
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.steps
 
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.{LeafPlanner, LogicalPlanningContext}
-import org.neo4j.cypher.internal.ir.v3_5.QueryGraph
-import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.{Cardinalities, Solveds}
+import org.neo4j.cypher.internal.ir.v3_5.{QueryGraph, InterestingOrder}
+import org.neo4j.cypher.internal.v3_5.logical.plans.LogicalPlan
 
 object allNodesLeafPlanner extends LeafPlanner {
-  def apply(queryGraph: QueryGraph, context: LogicalPlanningContext, solveds: Solveds, cardinalities: Cardinalities) =
+  def apply(queryGraph: QueryGraph, interestingOrder: InterestingOrder, context: LogicalPlanningContext): Seq[LogicalPlan] =
     queryGraph.patternNodes
     .filter(!queryGraph.argumentIds.contains(_))
     .map(context.logicalPlanProducer.planAllNodesScan(_, queryGraph.argumentIds, context)).toIndexedSeq

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -41,6 +41,7 @@ public class StubPageCursor extends PageCursor
     private boolean needsRetry;
     protected StubPageCursor linkedCursor;
     private boolean writeLocked;
+    private int mark;
 
     public StubPageCursor( long initialPageId, int pageSize )
     {
@@ -418,6 +419,18 @@ public class StubPageCursor extends PageCursor
             throw new IndexOutOfBoundsException();
         }
         currentOffset = offset;
+    }
+
+    @Override
+    public void mark()
+    {
+        this.mark = currentOffset;
+    }
+
+    @Override
+    public void setOffsetToMark()
+    {
+        this.currentOffset = this.mark;
     }
 
     @Override

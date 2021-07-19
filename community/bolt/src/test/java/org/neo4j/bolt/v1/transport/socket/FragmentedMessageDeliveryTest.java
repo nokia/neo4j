@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -31,23 +31,21 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.neo4j.bolt.BoltChannel;
-import org.neo4j.bolt.logging.NullBoltMessageLogger;
+import org.neo4j.bolt.BoltProtocol;
+import org.neo4j.bolt.messaging.Neo4jPack;
+import org.neo4j.bolt.messaging.RequestMessage;
+import org.neo4j.bolt.runtime.BoltResponseHandler;
+import org.neo4j.bolt.runtime.BoltStateMachine;
 import org.neo4j.bolt.runtime.SynchronousBoltConnection;
-import org.neo4j.bolt.transport.DefaultBoltProtocolPipelineInstaller;
-import org.neo4j.bolt.transport.TransportThrottleGroup;
+import org.neo4j.bolt.v1.BoltProtocolV1;
 import org.neo4j.bolt.v1.messaging.BoltRequestMessageWriter;
-import org.neo4j.bolt.v1.messaging.Neo4jPack;
 import org.neo4j.bolt.v1.messaging.Neo4jPackV1;
 import org.neo4j.bolt.v1.messaging.RecordingByteChannel;
-import org.neo4j.bolt.v1.messaging.message.RequestMessage;
-import org.neo4j.bolt.v1.messaging.message.RunMessage;
+import org.neo4j.bolt.v1.messaging.request.RunMessage;
 import org.neo4j.bolt.v1.packstream.BufferedChannelOutput;
-import org.neo4j.bolt.v1.runtime.BoltResponseHandler;
-import org.neo4j.bolt.v1.runtime.BoltStateMachine;
 import org.neo4j.bolt.v2.messaging.Neo4jPackV2;
-import org.neo4j.kernel.impl.logging.NullLogService;
 import org.neo4j.kernel.impl.util.HexPrinter;
-import org.neo4j.values.virtual.MapValue;
+import org.neo4j.logging.internal.NullLogService;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static org.junit.runners.Parameterized.Parameter;
@@ -57,6 +55,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.neo4j.values.virtual.VirtualValues.EMPTY_MAP;
 
 /**
  * This tests network fragmentation of messages. Given a set of messages, it will serialize and chunk the message up
@@ -81,7 +80,7 @@ public class FragmentedMessageDeliveryTest
     private int chunkSize = 16;
 
     // Only test one message for now. This can be parameterized later to test lots of different ones
-    private RequestMessage[] messages = new RequestMessage[]{RunMessage.run( "Mjölnir" )};
+    private RequestMessage[] messages = new RequestMessage[]{new RunMessage( "Mjölnir" )};
 
     @Parameter
     public Neo4jPack neo4jPack;
@@ -137,11 +136,10 @@ public class FragmentedMessageDeliveryTest
         BoltChannel boltChannel = newBoltChannel( channel );
 
         BoltStateMachine machine = mock( BoltStateMachine.class );
-        DefaultBoltProtocolPipelineInstaller protocol = new DefaultBoltProtocolPipelineInstaller( boltChannel,
-                new SynchronousBoltConnection( machine ), neo4jPack, TransportThrottleGroup.NO_THROTTLE,
-                NullLogService.getInstance() );
-
-        protocol.install();
+        SynchronousBoltConnection boltConnection = new SynchronousBoltConnection( machine );
+        NullLogService logging = NullLogService.getInstance();
+        BoltProtocol boltProtocol = new BoltProtocolV1( boltChannel, ( ch, s ) -> boltConnection, ( v, ch ) -> machine, logging );
+        boltProtocol.install();
 
         // When data arrives split up according to the current permutation
         for ( ByteBuf fragment : fragments )
@@ -152,7 +150,8 @@ public class FragmentedMessageDeliveryTest
         // Then the session should've received the specified messages, and the protocol should be in a nice clean state
         try
         {
-            verify( machine ).run( eq( "Mjölnir" ), any(MapValue.class), any( BoltResponseHandler.class ) );
+            RequestMessage run = new RunMessage( "Mjölnir", EMPTY_MAP );
+            verify( machine ).process( eq( run ), any( BoltResponseHandler.class ) );
         }
         catch ( AssertionError e )
         {
@@ -198,8 +197,6 @@ public class FragmentedMessageDeliveryTest
     {
         BoltChannel boltChannel = mock( BoltChannel.class );
         when( boltChannel.rawChannel() ).thenReturn( rawChannel );
-        when( boltChannel.log() ).thenReturn( NullBoltMessageLogger.getInstance() );
         return boltChannel;
     }
-
 }

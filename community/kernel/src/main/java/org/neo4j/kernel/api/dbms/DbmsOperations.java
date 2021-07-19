@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,11 +20,12 @@
 package org.neo4j.kernel.api.dbms;
 
 import org.neo4j.collection.RawIterator;
+import org.neo4j.graphdb.DependencyResolver;
 import org.neo4j.internal.kernel.api.exceptions.ProcedureException;
+import org.neo4j.internal.kernel.api.procs.ProcedureCallContext;
 import org.neo4j.internal.kernel.api.procs.QualifiedName;
 import org.neo4j.internal.kernel.api.security.SecurityContext;
 import org.neo4j.kernel.api.ResourceTracker;
-import org.neo4j.values.AnyValue;
 
 /**
  * Defines all types of system-oriented operations - i.e. those which do not read from or
@@ -33,30 +34,11 @@ import org.neo4j.values.AnyValue;
  */
 public interface DbmsOperations
 {
-    //=================================================
-    //== PROCEDURE OPERATIONS ==
-    //=================================================
-
     /** Invoke a DBMS procedure by name */
-    RawIterator<Object[],ProcedureException> procedureCallDbms(
-            QualifiedName name,
-            Object[] input,
-            SecurityContext securityContext,
-            ResourceTracker resourceTracker
-    ) throws ProcedureException;
+    RawIterator<Object[],ProcedureException> procedureCallDbms( QualifiedName name, Object[] input, DependencyResolver dependencyResolver,
+            SecurityContext securityContext, ResourceTracker resourceTracker, ProcedureCallContext context ) throws ProcedureException;
 
     /** Invoke a DBMS procedure by id */
-    RawIterator<Object[],ProcedureException> procedureCallDbms(
-            int id,
-            Object[] input,
-            SecurityContext securityContext,
-            ResourceTracker resourceTracker
-    ) throws ProcedureException;
-
-    /** Invoke a DBMS function by name */
-    AnyValue functionCallDbms(
-            QualifiedName name,
-            AnyValue[] input,
-            SecurityContext securityContext
-    ) throws ProcedureException;
+    RawIterator<Object[],ProcedureException> procedureCallDbms( int id, Object[] input, DependencyResolver dependencyResolver, SecurityContext securityContext,
+            ResourceTracker resourceTracker, ProcedureCallContext context ) throws ProcedureException;
 }

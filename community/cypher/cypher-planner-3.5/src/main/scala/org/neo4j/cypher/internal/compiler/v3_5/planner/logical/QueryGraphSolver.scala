@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,17 +19,16 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical
 
-import org.neo4j.cypher.internal.util.v3_5.InternalException
+import org.neo4j.cypher.internal.ir.v3_5.{QueryGraph, InterestingOrder}
 import org.neo4j.cypher.internal.v3_5.logical.plans.LogicalPlan
-import org.neo4j.cypher.internal.frontend.v3_5.ast.rewriters.PatternExpressionPatternElementNamer
-import org.neo4j.cypher.internal.ir.v3_5.QueryGraph
-import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.{Cardinalities, Solveds}
 import org.neo4j.cypher.internal.v3_5.expressions._
+import org.neo4j.cypher.internal.v3_5.rewriting.rewriters.PatternExpressionPatternElementNamer
+import org.neo4j.cypher.internal.v3_5.util.InternalException
 
 trait QueryGraphSolver {
-  def plan(queryGraph: QueryGraph, context: LogicalPlanningContext, solveds: Solveds, cardinalities: Cardinalities): LogicalPlan
-  def planPatternExpression(planArguments: Set[String], expr: PatternExpression, context: LogicalPlanningContext, solveds: Solveds, cardinalities: Cardinalities): (LogicalPlan, PatternExpression)
-  def planPatternComprehension(planArguments: Set[String], expr: PatternComprehension, context: LogicalPlanningContext, solveds: Solveds, cardinalities: Cardinalities): (LogicalPlan, PatternComprehension)
+  def plan(queryGraph: QueryGraph, interestingOrder: InterestingOrder, context: LogicalPlanningContext): LogicalPlan
+  def planPatternExpression(planArguments: Set[String], expr: PatternExpression, interestingOrder: InterestingOrder, context: LogicalPlanningContext): (LogicalPlan, PatternExpression)
+  def planPatternComprehension(planArguments: Set[String], expr: PatternComprehension, interestingOrder: InterestingOrder, context: LogicalPlanningContext): LogicalPlan
 }
 
 trait PatternExpressionSolving {
@@ -38,28 +37,27 @@ trait PatternExpressionSolving {
 
   import org.neo4j.cypher.internal.ir.v3_5.helpers.ExpressionConverters._
 
-  def planPatternExpression(planArguments: Set[String], expr: PatternExpression, context: LogicalPlanningContext, solveds: Solveds, cardinalities: Cardinalities): (LogicalPlan, PatternExpression) = {
+  def planPatternExpression(planArguments: Set[String], expr: PatternExpression, interestingOrder: InterestingOrder, context: LogicalPlanningContext): (LogicalPlan, PatternExpression) = {
     val dependencies = expr.dependencies.map(_.name)
     val qgArguments = planArguments intersect dependencies
     val (namedExpr, namedMap) = PatternExpressionPatternElementNamer(expr)
     val qg = namedExpr.asQueryGraph.withArgumentIds(qgArguments)
-    val plan = planQueryGraph(qg, namedMap, context, solveds, cardinalities)
+    val plan = planQueryGraph(qg, namedMap, interestingOrder, context)
     (plan, namedExpr)
   }
 
-  def planPatternComprehension(planArguments: Set[String], expr: PatternComprehension, context: LogicalPlanningContext, solveds: Solveds, cardinalities: Cardinalities): (LogicalPlan, PatternComprehension) = {
+  def planPatternComprehension(planArguments: Set[String], expr: PatternComprehension, interestingOrder: InterestingOrder, context: LogicalPlanningContext): LogicalPlan = {
     val asQueryGraph = expr.asQueryGraph
     val qgArguments = planArguments intersect asQueryGraph.idsWithoutOptionalMatchesOrUpdates
     val qg = asQueryGraph.withArgumentIds(qgArguments).addPredicates(expr.predicate.toIndexedSeq:_*)
-    val plan: LogicalPlan = planQueryGraph(qg, Map.empty, context, solveds, cardinalities)
-    (plan, expr)
+    planQueryGraph(qg, Map.empty, interestingOrder, context)
   }
 
-  private def planQueryGraph(qg: QueryGraph, namedMap: Map[PatternElement, Variable], context: LogicalPlanningContext, solveds: Solveds, cardinalities: Cardinalities): LogicalPlan = {
+  private def planQueryGraph(qg: QueryGraph, namedMap: Map[PatternElement, Variable], interestingOrder: InterestingOrder, context: LogicalPlanningContext): LogicalPlan = {
     val namedNodes = namedMap.collect { case (_: NodePattern, identifier) => identifier }
     val namedRels = namedMap.collect { case (_: RelationshipChain, identifier) => identifier }
     val patternPlanningContext = context.forExpressionPlanning(namedNodes, namedRels)
-    self.plan(qg, patternPlanningContext, solveds, cardinalities)
+    self.plan(qg, interestingOrder, patternPlanningContext)
   }
 }
 

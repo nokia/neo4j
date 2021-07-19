@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,7 +19,7 @@
  */
 package org.neo4j.cypher.internal.compatibility.v3_5
 
-import org.neo4j.cypher.internal.frontend.v3_5.phases.Monitors
+import org.neo4j.cypher.internal.v3_5.frontend.phases.Monitors
 import org.neo4j.kernel.monitoring.{Monitors => KernelMonitors}
 
 import scala.reflect.ClassTag

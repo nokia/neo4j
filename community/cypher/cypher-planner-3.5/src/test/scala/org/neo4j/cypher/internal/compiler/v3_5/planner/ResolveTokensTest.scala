@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,17 +20,16 @@
 package org.neo4j.cypher.internal.compiler.v3_5.planner
 
 import org.mockito.Mockito._
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
-import org.neo4j.cypher.internal.frontend.v3_5._
-import org.neo4j.cypher.internal.frontend.v3_5.ast.{Match, Query, SingleQuery, Where, _}
-import org.neo4j.cypher.internal.frontend.v3_5.semantics.SemanticTable
 import org.neo4j.cypher.internal.planner.v3_5.spi.PlanContext
-import org.neo4j.cypher.internal.util.v3_5.{LabelId, PropertyKeyId, RelTypeId}
+import org.neo4j.cypher.internal.v3_5.ast.semantics.SemanticTable
+import org.neo4j.cypher.internal.v3_5.ast.{Match, Query, SingleQuery, Where, _}
 import org.neo4j.cypher.internal.v3_5.expressions._
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
+import org.neo4j.cypher.internal.v3_5.util.{LabelId, PropertyKeyId, RelTypeId}
 
 class ResolveTokensTest extends CypherFunSuite {
 
-  import org.neo4j.cypher.internal.compiler.v3_5.parser.ParserFixture._
+  import org.neo4j.cypher.internal.v3_5.parser.ParserFixture._
 
   parseTest("match (n) where n.name = 'Resolved' return *") { query =>
     implicit val semanticTable = SemanticTable()
@@ -44,11 +43,11 @@ class ResolveTokensTest extends CypherFunSuite {
         SingleQuery(Seq(
           Match(
             false,
-            Pattern(Seq(EveryPath(NodePattern(Some(Variable("n")), Seq(), None)))),
+            Pattern(Seq(EveryPath(NodePattern(Some(Variable("n")), Seq(), None, _)))),
             Seq(),
             Some(Where(Equals(Property(Variable("n"), pkToken), StringLiteral("Resolved"))))
           ),
-          Return(false, ReturnItems(true, Seq()), _, None, None, None, _)
+          Return(false, ReturnItems(true, Seq()), None, None, None, _)
         ))) =>
             pkToken.name should equal("name")
             semanticTable.id(pkToken) should equal(Some(PropertyKeyId(12)))
@@ -67,11 +66,11 @@ class ResolveTokensTest extends CypherFunSuite {
         SingleQuery(Seq(
           Match(
             false,
-            Pattern(Seq(EveryPath(NodePattern(Some(Variable("n")), Seq(), None)))),
+            Pattern(Seq(EveryPath(NodePattern(Some(Variable("n")), Seq(), None, _)))),
             Seq(),
             Some(Where(Equals(Property(Variable("n"), pkToken), StringLiteral("Unresolved"))))
           ),
-          Return(false, ReturnItems(true, Seq()), _, None, None, None, _)
+          Return(false, ReturnItems(true, Seq()), None, None, None, _)
         ))) =>
             pkToken.name should equal("name")
             semanticTable.id(pkToken) should equal(None)
@@ -90,11 +89,11 @@ class ResolveTokensTest extends CypherFunSuite {
       SingleQuery(Seq(
         Match(
           false,
-          Pattern(Seq(EveryPath(NodePattern(Some(Variable("n")), Seq(), None)))),
+          Pattern(Seq(EveryPath(NodePattern(Some(Variable("n")), Seq(), None, _)))),
           Seq(),
           Some(Where(HasLabels(Variable("n"), Seq(labelToken))))
         ),
-        Return(false, ReturnItems(true, Seq()), _, None, None, None, _)
+        Return(false, ReturnItems(true, Seq()), None, None, None, _)
       ))) =>
         labelToken.name should equal("Resolved")
         semanticTable.id(labelToken) should equal(Some(LabelId(12)))
@@ -113,11 +112,11 @@ class ResolveTokensTest extends CypherFunSuite {
       SingleQuery(Seq(
         Match(
           false,
-          Pattern(Seq(EveryPath(NodePattern(Some(Variable("n")), Seq(), None)))),
+          Pattern(Seq(EveryPath(NodePattern(Some(Variable("n")), Seq(), None, _)))),
           Seq(),
           Some(Where(HasLabels(Variable("n"), Seq(labelToken))))
         ),
-        Return(false, ReturnItems(true, Seq()), _, None, None, None, _)
+        Return(false, ReturnItems(true, Seq()), None, None, None, _)
       ))) =>
         labelToken.name should equal("Unresolved")
         semanticTable.id(labelToken) should equal(None)
@@ -137,14 +136,14 @@ class ResolveTokensTest extends CypherFunSuite {
         Match(
           false,
           Pattern(Seq(EveryPath(RelationshipChain(
-            NodePattern(None, Seq(), None),
-            RelationshipPattern(None, Seq(relTypeToken), None, None, SemanticDirection.OUTGOING, _),
-            NodePattern(None, Seq(), None)
+            NodePattern(None, Seq(), None, _),
+            RelationshipPattern(None, Seq(relTypeToken), None, None, SemanticDirection.OUTGOING, _, _),
+            NodePattern(None, Seq(), None, _)
           )))),
           Seq(),
           None
         ),
-        Return(false, ReturnItems(true, Seq()), _, None, None, None, _)
+        Return(false, ReturnItems(true, Seq()), None, None, None, _)
       ))) =>
         relTypeToken.name should equal("RESOLVED")
         semanticTable.id(relTypeToken) should equal(Some(RelTypeId(12)))
@@ -164,14 +163,14 @@ class ResolveTokensTest extends CypherFunSuite {
         Match(
           false,
           Pattern(Seq(EveryPath(RelationshipChain(
-            NodePattern(None, Seq(), None),
-            RelationshipPattern(None, Seq(relTypeToken), None, None, SemanticDirection.OUTGOING, _),
-            NodePattern(None, Seq(), None)
+            NodePattern(None, Seq(), None, _),
+            RelationshipPattern(None, Seq(relTypeToken), None, None, SemanticDirection.OUTGOING, _, _),
+            NodePattern(None, Seq(), None, _)
           )))),
           Seq(),
           None
         ),
-        Return(false, ReturnItems(true, Seq()), _, None, None, None, _)
+        Return(false, ReturnItems(true, Seq()), None, None, None, _)
       ))) =>
         relTypeToken.name should equal("UNRESOLVED")
         semanticTable.id(relTypeToken) should equal(None)

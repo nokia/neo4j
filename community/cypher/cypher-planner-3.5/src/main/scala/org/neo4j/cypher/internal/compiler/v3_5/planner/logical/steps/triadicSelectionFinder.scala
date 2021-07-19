@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,20 +20,21 @@
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.steps
 
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.{CandidateGenerator, LogicalPlanningContext}
-import org.neo4j.cypher.internal.ir.v3_5.QueryGraph
-import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.{Cardinalities, Solveds}
-import org.neo4j.cypher.internal.util.v3_5.attribution.SameId
-import org.neo4j.cypher.internal.v3_5.expressions._
+import org.neo4j.cypher.internal.ir.v3_5.{InterestingOrder, QueryGraph}
+import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.Solveds
 import org.neo4j.cypher.internal.v3_5.logical.plans.{Expand, ExpandAll, LogicalPlan, Selection}
+import org.neo4j.cypher.internal.v3_5.expressions._
+import org.neo4j.cypher.internal.v3_5.expressions.functions.Exists
+import org.neo4j.cypher.internal.v3_5.util.attribution.SameId
 
 object triadicSelectionFinder extends CandidateGenerator[LogicalPlan] {
 
-  override def apply(in: LogicalPlan, qg: QueryGraph, context: LogicalPlanningContext, solveds: Solveds, cardinalities: Cardinalities): Seq[LogicalPlan] =
-    unsolvedPredicates(in, qg, solveds).collect {
+  override def apply(in: LogicalPlan, qg: QueryGraph, interestingOrder: InterestingOrder, context: LogicalPlanningContext): Seq[LogicalPlan] =
+    unsolvedPredicates(in, qg, context.planningAttributes.solveds).collect {
       // WHERE NOT (a)-[:X]->(c)
-      case predicate@Not(patternExpr: PatternExpression) => findMatchingRelationshipPattern(positivePredicate = false, predicate, patternExpr, in, qg, context)
+      case predicate@Not(Exists(patternExpr: PatternExpression)) => findMatchingRelationshipPattern(positivePredicate = false, predicate, patternExpr, in, qg, context)
       // WHERE (a)-[:X]->(c)
-      case patternExpr: PatternExpression => findMatchingRelationshipPattern(positivePredicate = true, patternExpr, patternExpr, in, qg, context)
+      case predicate@Exists(patternExpr: PatternExpression) => findMatchingRelationshipPattern(positivePredicate = true, predicate, patternExpr, in, qg, context)
     }.flatten
 
   def unsolvedPredicates(in: LogicalPlan, qg: QueryGraph, solveds: Solveds) = {
@@ -48,7 +49,7 @@ object triadicSelectionFinder extends CandidateGenerator[LogicalPlan] {
                                               patternExpression: PatternExpression, in: LogicalPlan, qg: QueryGraph, context: LogicalPlanningContext): Seq[LogicalPlan] = in match {
 
     // MATCH (a)-[:X]->(b)-[:X]->(c) WHERE (predicate involving (a)-[:X]->(c))
-    case Selection(predicates,exp:Expand) => findMatchingOuterExpand(positivePredicate, triadicPredicate, patternExpression, predicates, exp, qg, context)
+    case Selection(Ands(predicates),exp:Expand) => findMatchingOuterExpand(positivePredicate, triadicPredicate, patternExpression, predicates.toSeq, exp, qg, context)
 
     // MATCH (a)-[:X]->(b)-[:Y]->(c) WHERE (predicate involving (a)-[:X]->(c))
     case exp:Expand => findMatchingOuterExpand(positivePredicate, triadicPredicate, patternExpression, Seq.empty, exp, qg, context)
@@ -59,10 +60,10 @@ object triadicSelectionFinder extends CandidateGenerator[LogicalPlan] {
   private def findMatchingOuterExpand(positivePredicate: Boolean, triadicPredicate: Expression,
                                               patternExpression: PatternExpression, incomingPredicates: Seq[Expression], expand: Expand, qg: QueryGraph, context: LogicalPlanningContext): Seq[LogicalPlan] = expand match {
     case exp2@Expand(exp1: Expand, _, _, _, _, _, ExpandAll) =>
-      findMatchingInnerExpand(positivePredicate, triadicPredicate, patternExpression, incomingPredicates, Seq.empty, exp1, exp2.selfThis, qg, context)
+      findMatchingInnerExpand(positivePredicate, triadicPredicate, patternExpression, incomingPredicates, Seq.empty, exp1, exp2, qg, context)
 
-    case exp2@Expand(Selection(innerPredicates, exp1: Expand), _, _, _, _, _, ExpandAll) =>
-      findMatchingInnerExpand(positivePredicate, triadicPredicate, patternExpression, incomingPredicates, innerPredicates, exp1, exp2.selfThis, qg, context)
+    case exp2@Expand(Selection(Ands(innerPredicates), exp1: Expand), _, _, _, _, _, ExpandAll) =>
+      findMatchingInnerExpand(positivePredicate, triadicPredicate, patternExpression, incomingPredicates, innerPredicates.toSeq, exp1, exp2, qg, context)
 
     case _ => Seq.empty
   }
@@ -112,9 +113,9 @@ object triadicSelectionFinder extends CandidateGenerator[LogicalPlan] {
     case p@PatternExpression(
       RelationshipsPattern(
         RelationshipChain(
-          NodePattern(Some(Variable(predicateFrom)), List(), None),
-          RelationshipPattern(None, predicateTypes, None, None, predicateDir, _),
-          NodePattern(Some(Variable(predicateTo)), List(), None))))
+          NodePattern(Some(Variable(predicateFrom)), List(), None, _),
+          RelationshipPattern(None, predicateTypes, None, None, predicateDir, _, _),
+          NodePattern(Some(Variable(predicateTo)), List(), None, _))))
       if predicateFrom == from && predicateTo == to && predicateTypes == types && predicateDir == dir => true
     case _ => false
   }

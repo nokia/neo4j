@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -52,7 +52,7 @@ final class CountsUpdater implements CountsAccessor.Updater, CountsAccessor.Inde
      * For key format, see {@link KeyFormat#visitNodeCount(int, long)}
      */
     @Override
-    public void incrementNodeCount( int labelId, long delta )
+    public void incrementNodeCount( long labelId, long delta )
     {
         try
         {
@@ -74,7 +74,7 @@ final class CountsUpdater implements CountsAccessor.Updater, CountsAccessor.Inde
      * For key format, see {@link KeyFormat#visitRelationshipCount(int, int, int, long)}
      */
     @Override
-    public void incrementRelationshipCount( int startLabelId, int typeId, int endLabelId, long delta )
+    public void incrementRelationshipCount( long startLabelId, int typeId, long endLabelId, long delta )
     {
         try
         {

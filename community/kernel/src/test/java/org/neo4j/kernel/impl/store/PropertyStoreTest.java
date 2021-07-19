@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -25,8 +25,8 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import java.io.File;
-import java.io.IOException;
 
+import org.neo4j.graphdb.factory.GraphDatabaseSettings;
 import org.neo4j.graphdb.mockfs.EphemeralFileSystemAbstraction;
 import org.neo4j.io.pagecache.PageCache;
 import org.neo4j.kernel.configuration.Config;
@@ -38,6 +38,7 @@ import org.neo4j.kernel.impl.store.record.PropertyKeyTokenRecord;
 import org.neo4j.kernel.impl.store.record.PropertyRecord;
 import org.neo4j.logging.NullLogProvider;
 import org.neo4j.test.rule.PageCacheRule;
+import org.neo4j.test.rule.TestDirectory;
 import org.neo4j.test.rule.fs.EphemeralFileSystemRule;
 
 import static org.junit.Assert.assertFalse;
@@ -54,16 +55,20 @@ public class PropertyStoreTest
 
     @Rule
     public final EphemeralFileSystemRule fsRule = new EphemeralFileSystemRule();
+    @Rule
+    public final TestDirectory testDirectory = TestDirectory.testDirectory();
     private EphemeralFileSystemAbstraction fileSystemAbstraction;
-    private File path;
+    private File storeFile;
+    private File idFile;
 
     @Before
     public void setup()
     {
         fileSystemAbstraction = fsRule.get();
-        path = new File( "/tmp/foobar" );
+        storeFile = testDirectory.databaseLayout().propertyStore();
+        idFile = testDirectory.databaseLayout().idPropertyStore();
 
-        fileSystemAbstraction.mkdir( path.getParentFile() );
+        fileSystemAbstraction.mkdir( storeFile.getParentFile() );
     }
 
     @Test
@@ -71,14 +76,14 @@ public class PropertyStoreTest
     {
         // given
         PageCache pageCache = pageCacheRule.getPageCache( fileSystemAbstraction );
-        Config config = Config.defaults( PropertyStore.Configuration.rebuild_idgenerators_fast, "true" );
+        Config config = Config.defaults( GraphDatabaseSettings.rebuild_idgenerators_fast, "true" );
 
         DynamicStringStore stringPropertyStore = mock( DynamicStringStore.class );
 
-        final PropertyStore store = new PropertyStore( path, config, new JumpingIdGeneratorFactory( 1 ), pageCache,
-                NullLogProvider.getInstance(), stringPropertyStore,
-                mock( PropertyKeyTokenStore.class ), mock( DynamicArrayStore.class ),
-                RecordFormatSelector.defaultFormat() );
+        final PropertyStore store =
+                new PropertyStore( storeFile, idFile, config, new JumpingIdGeneratorFactory( 1 ), pageCache,
+                        NullLogProvider.getInstance(), stringPropertyStore, mock( PropertyKeyTokenStore.class ), mock( DynamicArrayStore.class ),
+                        RecordFormatSelector.defaultFormat() );
         store.initialise( true );
 
         try

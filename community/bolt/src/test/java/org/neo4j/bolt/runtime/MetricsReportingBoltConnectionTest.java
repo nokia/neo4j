@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,21 +21,16 @@ package org.neo4j.bolt.runtime;
 
 import org.junit.Test;
 
-import java.util.UUID;
-
 import org.neo4j.bolt.BoltChannel;
+import org.neo4j.bolt.testing.BoltTestUtil;
 import org.neo4j.bolt.v1.packstream.PackOutput;
-import org.neo4j.bolt.v1.runtime.BoltConnectionAuthFatality;
-import org.neo4j.bolt.v1.runtime.BoltProtocolBreachFatality;
-import org.neo4j.bolt.v1.runtime.BoltStateMachine;
 import org.neo4j.bolt.v1.runtime.Job;
-import org.neo4j.kernel.impl.logging.NullLogService;
+import org.neo4j.logging.internal.NullLogService;
 import org.neo4j.time.Clocks;
 
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class MetricsReportingBoltConnectionTest
 {
@@ -69,7 +64,7 @@ public class MetricsReportingBoltConnectionTest
     {
         verifyConnectionClosed( machine ->
         {
-            throw new BoltConnectionAuthFatality( "auth failure" );
+            throw new BoltConnectionAuthFatality( "auth failure", new RuntimeException() );
         } );
     }
 
@@ -149,7 +144,7 @@ public class MetricsReportingBoltConnectionTest
         connection.start();
         connection.enqueue( machine ->
         {
-            throw new BoltConnectionAuthFatality( "some error" );
+            throw new BoltConnectionAuthFatality( "some error", new RuntimeException() );
         } );
         connection.processNextBatch();
 
@@ -170,9 +165,7 @@ public class MetricsReportingBoltConnectionTest
 
     private static BoltConnection newConnection( BoltConnectionMetricsMonitor metricsMonitor )
     {
-        BoltChannel channel = mock( BoltChannel.class );
-        when( channel.id() ).thenReturn( UUID.randomUUID().toString() );
-
+        BoltChannel channel = BoltTestUtil.newTestBoltChannel();
         return new MetricsReportingBoltConnection( channel, mock( PackOutput.class ), mock( BoltStateMachine.class ), NullLogService.getInstance(),
                 mock( BoltConnectionLifetimeListener.class ), mock( BoltConnectionQueueMonitor.class ), metricsMonitor, Clocks.systemClock() );
     }

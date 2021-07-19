@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -30,9 +30,9 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 
+import org.neo4j.bolt.messaging.BoltIOException;
+import org.neo4j.bolt.messaging.Neo4jPack;
 import org.neo4j.bolt.messaging.StructType;
-import org.neo4j.bolt.v1.messaging.BoltIOException;
-import org.neo4j.bolt.v1.messaging.Neo4jPack;
 import org.neo4j.bolt.v1.messaging.Neo4jPackV1;
 import org.neo4j.bolt.v1.packstream.PackInput;
 import org.neo4j.bolt.v1.packstream.PackOutput;

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -24,6 +24,7 @@ import org.junit.Test;
 import org.neo4j.kernel.impl.transaction.log.LogHeaderCache;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 public class LogHeaderCacheTest
 {
@@ -37,7 +38,7 @@ public class LogHeaderCacheTest
         final Long logHeader = cache.getLogHeader( 5 );
 
         // then
-        assertEquals( null, logHeader );
+        assertNull( logHeader );
     }
 
     @Test
@@ -66,6 +67,6 @@ public class LogHeaderCacheTest
         final Long logHeader = cache.getLogHeader( 5 );
 
         // then
-        assertEquals( null, logHeader );
+        assertNull( logHeader );
     }
 }

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,19 +19,18 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical
 
-import org.neo4j.cypher.internal.frontend.v3_5.IdentityMap
-import org.neo4j.cypher.internal.frontend.v3_5.ast.rewriters.projectNamedPaths
-import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.{Cardinalities, Solveds}
-import org.neo4j.cypher.internal.util.v3_5.Foldable._
-import org.neo4j.cypher.internal.util.v3_5.{Rewriter, topDown}
-import org.neo4j.cypher.internal.v3_5.expressions._
+import org.neo4j.cypher.internal.ir.v3_5.InterestingOrder
 import org.neo4j.cypher.internal.v3_5.logical.plans.NestedPlanExpression
+import org.neo4j.cypher.internal.v3_5.expressions._
+import org.neo4j.cypher.internal.v3_5.rewriting.rewriters.projectNamedPaths
+import org.neo4j.cypher.internal.v3_5.util.Foldable._
+import org.neo4j.cypher.internal.v3_5.util.{IdentityMap, Rewriter, topDown}
 
 /*
 Rewrite pattern expressions and pattern comprehensions to nested plan expressions by planning them using the given context.
 This is only done for expressions that have not already been unnested
  */
-case class patternExpressionRewriter(planArguments: Set[String], context: LogicalPlanningContext, solveds: Solveds, cardinalities: Cardinalities) extends Rewriter {
+case class patternExpressionRewriter(planArguments: Set[String], interestingOrder: InterestingOrder, context: LogicalPlanningContext) extends Rewriter {
 
   override def apply(that: AnyRef): AnyRef = that match {
     case expression: Expression =>
@@ -66,7 +65,7 @@ case class patternExpressionRewriter(planArguments: Set[String], context: Logica
             acc
           } else {
             val arguments = planArguments ++ scopeMap(expr)
-            val (plan, namedExpr) = context.strategy.planPatternExpression(arguments, expr, context, solveds, cardinalities)
+            val (plan, namedExpr) = context.strategy.planPatternExpression(arguments, expr, interestingOrder, context)
             val uniqueNamedExpr = namedExpr.copy()
             val path = EveryPath(namedExpr.pattern.element)
             val step: PathStep = projectNamedPaths.patternPartPathExpression(path)
@@ -79,7 +78,7 @@ case class patternExpressionRewriter(planArguments: Set[String], context: Logica
           (newAcc, Some(identity))
 
       // replace pattern comprehension
-      case expr@PatternComprehension(namedPath, pattern, predicate, projection, _) =>
+      case expr@PatternComprehension(namedPath, pattern, predicate, projection) =>
         acc =>
           assert(namedPath.isEmpty, "Named paths in pattern comprehensions should have been rewritten away already")
           // only process pattern expressions that were not contained in previously seen nested plans
@@ -87,8 +86,8 @@ case class patternExpressionRewriter(planArguments: Set[String], context: Logica
             acc
           } else {
             val arguments = planArguments ++ scopeMap(expr)
-            val (plan, namedExpr) = context.strategy.planPatternComprehension(arguments, expr, context, solveds, cardinalities)
-            val uniqueNamedExpr = namedExpr.copy()(expr.position)
+            val plan = context.strategy.planPatternComprehension(arguments, expr, interestingOrder, context)
+            val uniqueNamedExpr = expr.copy()(expr.position, expr.outerScope)
 
             val rewrittenExpression = NestedPlanExpression(plan, projection)(uniqueNamedExpr.position)
             acc.updated(expr, rewrittenExpression)

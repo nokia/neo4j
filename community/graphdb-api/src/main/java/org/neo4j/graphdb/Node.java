@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -216,7 +216,7 @@ public interface Node extends Entity
     /**
      * Returns the only relationship of a given type and direction that is
      * attached to this node, or <code>null</code>. This is a convenience method
-     * that is used in the commonly occuring situation where a node has exactly
+     * that is used in the commonly occurring situation where a node has exactly
      * zero or one relationships of a given type and direction to another node.
      * Typically this invariant is maintained by the rest of the code: if at any
      * time more than one such relationships exist, it is a fatal error that

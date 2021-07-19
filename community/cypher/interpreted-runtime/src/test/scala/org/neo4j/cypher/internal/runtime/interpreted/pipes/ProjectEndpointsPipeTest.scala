@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -26,7 +26,7 @@ import org.mockito.stubbing.Answer
 import org.neo4j.cypher.internal.runtime.interpreted.ValueComparisonHelper.beEquivalentTo
 import org.neo4j.cypher.internal.runtime.interpreted.{ExecutionContext, QueryStateHelper}
 import org.neo4j.cypher.internal.runtime.ImplicitValueConversion._
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
 import org.neo4j.cypher.internal.runtime.QueryContext
 import org.neo4j.graphdb.{Node, Relationship}
 import org.neo4j.kernel.impl.util.ValueUtils.{asListOfEdges, fromNodeProxy}
@@ -220,6 +220,36 @@ class ProjectEndpointsPipeTest extends CypherFunSuite {
     ))
   }
 
+  test("projected endpoints of simple null relationship") {
+    // given
+    val left = newMockedPipe("r", row("r" -> Seq(null)))
+
+    // when
+    val result =
+      ProjectEndpointsPipe(left, "r", "a", startInScope = false, "b", endInScope = false, None, directed = false, simpleLength = true)().
+        createResults(queryState).toList
+
+    // then
+    result should beEquivalentTo(List(
+      Map("r" -> null)
+    ))
+  }
+
+  test("projected endpoints of simple null relationship with type") {
+    // given
+    val left = newMockedPipe("r", row("r" -> Seq(null)))
+
+    // when
+    val result =
+      ProjectEndpointsPipe(left, "r", "a", startInScope = false, "b", endInScope = false, Some(new LazyTypes(Array("B"))), directed = false, simpleLength = true)().
+        createResults(queryState).toList
+
+    // then
+    result should beEquivalentTo(List(
+      Map("r" -> null)
+    ))
+  }
+
   test("projects endpoints of a directed, var length relationship") {
     // given
 
@@ -381,8 +411,8 @@ class ProjectEndpointsPipeTest extends CypherFunSuite {
 
     // then
     result should beEquivalentTo(List(
-      Map("r" -> rels, "a" -> node1, "b" -> node4),
-      Map("r" -> reversedRels, "a" -> node4, "b" -> node1)
+      Map("r" -> reversedRels, "a" -> node4, "b" -> node1),
+      Map("r" -> rels, "a" -> node1, "b" -> node4)
     ))
   }
 
@@ -420,17 +450,49 @@ class ProjectEndpointsPipeTest extends CypherFunSuite {
     result should be('isEmpty)
   }
 
+  test("projected endpoints of var length null relationship") {
+    // given
+    val left = newMockedPipe("r", row("r" -> Seq(null)))
+
+    // when
+    val result =
+      ProjectEndpointsPipe(left, "r", "a", startInScope = false, "b", endInScope = false, None, directed = false, simpleLength = false)().
+        createResults(queryState).toList
+
+    // then
+    result should beEquivalentTo(List(
+      Map("r" -> null)
+    ))
+  }
+
+  test("projected endpoints of var length null relationship with type") {
+    // given
+    val left = newMockedPipe("r", row("r" -> Seq(null)))
+
+    // when
+    val result =
+      ProjectEndpointsPipe(left, "r", "a", startInScope = false, "b", endInScope = false, Some(new LazyTypes(Array("B"))), directed = false, simpleLength = false)().
+        createResults(queryState).toList
+
+    // then
+    result should beEquivalentTo(List(
+      Map("r" -> null)
+    ))
+  }
+
   private def row(values: (String, AnyValue)*) = ExecutionContext.from(values: _*)
 
   private def newMockedNode(id: Int) = {
     val node = mock[Node]
     when(node.getId).thenReturn(id)
+    when(node.toString).thenReturn(s"MockNode($id)")
     node
   }
 
   private def newMockedRelationship(id: Int, startNode: Node, endNode: Node, relType: Option[String] = None): Relationship = {
     val relationship = mock[Relationship]
     when(relationship.getId).thenReturn(id)
+    when(relationship.toString).thenReturn(s"MockRelationship($id)")
     when(relationship.getStartNode).thenReturn(startNode)
     when(relationship.getEndNode).thenReturn(endNode)
     when(relationship.getOtherNode(startNode)).thenReturn(endNode)

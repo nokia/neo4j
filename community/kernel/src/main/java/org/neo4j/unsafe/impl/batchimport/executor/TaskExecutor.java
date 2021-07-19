@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -46,11 +46,6 @@ public interface TaskExecutor<LOCAL> extends Parallelizable, AutoCloseable, Pani
      */
     @Override
     void close();
-
-    /**
-     * @return {@code true} if {@link #close()} has been called, otherwise {@code false}.
-     */
-    boolean isClosed();
 
     /**
      * Asserts that this {@link TaskExecutor} is healthy. Useful to call when deciding to wait on a condition

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,11 +19,11 @@
  */
 package org.neo4j.server.rest.transactional;
 
-import org.codehaus.jackson.JsonGenerator;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.map.SerializationConfig;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -45,6 +45,7 @@ import org.neo4j.graphdb.spatial.Coordinate;
 import org.neo4j.graphdb.spatial.Geometry;
 import org.neo4j.graphdb.spatial.Point;
 
+import static com.fasterxml.jackson.databind.SerializationFeature.FLUSH_AFTER_WRITE_VALUE;
 import static java.util.Objects.requireNonNull;
 import static org.neo4j.helpers.collection.MapUtil.genericMap;
 
@@ -85,7 +86,7 @@ public class Neo4jJsonCodec extends ObjectMapper
 
     public Neo4jJsonCodec()
     {
-        getSerializationConfig().without( SerializationConfig.Feature.FLUSH_AFTER_WRITE_VALUE );
+        disable( FLUSH_AFTER_WRITE_VALUE );
     }
 
     @Override
@@ -131,16 +132,43 @@ public class Neo4jJsonCodec extends ObjectMapper
         else if ( value instanceof CRS )
         {
             CRS crs = (CRS) value;
-            writeMap( out, genericMap( new LinkedHashMap<>(), "name", crs.getType(), "type", "link", "properties",
+            writeMap( out, genericMap( new LinkedHashMap<>(), "srid", crs.getCode(), "name", crs.getType(), "type", "link", "properties",
                     genericMap( new LinkedHashMap<>(), "href", crs.getHref() + "ogcwkt/", "type", "ogcwkt" ) ) );
         }
         else if ( value instanceof Temporal || value instanceof TemporalAmount )
         {
             super.writeValue( out, value.toString() );
         }
+        else if ( value != null && value.getClass().isArray() && supportedArrayType( value.getClass().getComponentType() ) )
+        {
+            writeReflectiveArray( out, value );
+        }
         else
         {
             super.writeValue( out, value );
+        }
+    }
+
+    private boolean supportedArrayType( Class<?> valueClass )
+    {
+        return Geometry.class.isAssignableFrom( valueClass ) || CRS.class.isAssignableFrom( valueClass ) ||
+               Temporal.class.isAssignableFrom( valueClass ) || TemporalAmount.class.isAssignableFrom( valueClass );
+    }
+
+    private void writeReflectiveArray( JsonGenerator out, Object array ) throws IOException
+    {
+        out.writeStartArray();
+        try
+        {
+            int length = Array.getLength( array );
+            for ( int i = 0; i < length; i++ )
+            {
+                writeValue( out, Array.get( array, i )  );
+            }
+        }
+        finally
+        {
+            out.writeEndArray();
         }
     }
 

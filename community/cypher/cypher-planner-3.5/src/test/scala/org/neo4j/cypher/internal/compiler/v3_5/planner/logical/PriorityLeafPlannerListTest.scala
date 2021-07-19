@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -22,9 +22,9 @@ package org.neo4j.cypher.internal.compiler.v3_5.planner.logical
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{verify, verifyZeroInteractions, when}
 import org.neo4j.cypher.internal.compiler.v3_5.planner.LogicalPlanningTestSupport2
-import org.neo4j.cypher.internal.ir.v3_5.QueryGraph
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
+import org.neo4j.cypher.internal.ir.v3_5.{QueryGraph, InterestingOrder}
 import org.neo4j.cypher.internal.v3_5.logical.plans.Argument
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
 
 class PriorityLeafPlannerListTest extends CypherFunSuite with LogicalPlanningTestSupport2 {
   private val queryGraph = QueryGraph.empty
@@ -35,15 +35,15 @@ class PriorityLeafPlannerListTest extends CypherFunSuite with LogicalPlanningTes
     // GIVEN
     val priority = mock[LeafPlannerIterable]
     val fallback = mock[LeafPlannerIterable]
-    when(priority.candidates(any(), any(), any(), any(), any())).thenReturn(candidates)
+    when(priority.candidates(any(), any(), any(), any())).thenReturn(candidates)
     val list = PriorityLeafPlannerList(priority, fallback)
 
     // WHEN
-    val result = list.candidates(queryGraph, context = context, solveds = new StubSolveds, cardinalities = new StubCardinalities)
+    val result = list.candidates(queryGraph, interestingOrder = InterestingOrder.empty, context = context)
 
     // THEN
     result should equal(candidates)
-    verify(priority).candidates(any(), any(), any(), any(), any())
+    verify(priority).candidates(any(), any(), any(), any())
     verifyZeroInteractions(fallback)
   }
 
@@ -51,16 +51,16 @@ class PriorityLeafPlannerListTest extends CypherFunSuite with LogicalPlanningTes
     // GIVEN
     val priority = mock[LeafPlannerIterable]
     val fallback = mock[LeafPlannerIterable]
-    when(priority.candidates(any(), any(), any(), any(), any())).thenReturn(Seq.empty)
-    when(fallback.candidates(any(), any(), any(), any(), any())).thenReturn(candidates)
+    when(priority.candidates(any(), any(), any(), any())).thenReturn(Seq.empty)
+    when(fallback.candidates(any(), any(), any(), any())).thenReturn(candidates)
     val list = PriorityLeafPlannerList(priority, fallback)
 
     // WHEN
-    val result = list.candidates(queryGraph, context = context, solveds = new StubSolveds, cardinalities = new StubCardinalities)
+    val result = list.candidates(queryGraph, interestingOrder = InterestingOrder.empty, context = context)
 
     // THEN
     result should equal(candidates)
-    verify(priority).candidates(any(), any(), any(), any(), any())
-    verify(fallback).candidates(any(), any(), any(), any(), any())
+    verify(priority).candidates(any(), any(), any(), any())
+    verify(fallback).candidates(any(), any(), any(), any())
   }
 }

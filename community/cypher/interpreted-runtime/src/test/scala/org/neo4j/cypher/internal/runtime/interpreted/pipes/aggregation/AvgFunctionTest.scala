@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,8 +20,10 @@
 package org.neo4j.cypher.internal.runtime.interpreted.pipes.aggregation
 
 import org.neo4j.cypher.internal.runtime.interpreted.commands.expressions.Expression
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
+import org.neo4j.values.storable.DurationValue
 import org.neo4j.values.storable.Values.{NO_VALUE, doubleValue, intValue, longValue}
+import org.neo4j.cypher.internal.v3_5.util.CypherTypeException
 
 class AvgFunctionTest extends CypherFunSuite with AggregateTest {
   def createAggregator(inner: Expression) = new AvgFunction(inner)
@@ -30,6 +32,29 @@ class AvgFunctionTest extends CypherFunSuite with AggregateTest {
     val result = aggregateOn(intValue(1))
 
     result should equal(doubleValue(1.0))
+  }
+
+  test("singleDur") {
+    val durationValue = DurationValue.duration(0, 0, 1, 0)
+    val result = aggregateOn(durationValue)
+
+    result should equal(durationValue)
+  }
+
+  test("correctDurAvg") {
+    val durationValue = DurationValue.duration(0, 3, 0, 1)
+    val durationValue2 = DurationValue.duration(0, 2, 2, 1)
+    val result = aggregateOn(durationValue, durationValue2)
+
+    result should equal(DurationValue.duration(0,2,12 * 3600 + 1, 1 ))
+  }
+
+  test("cantMixDurationAndNumber") {
+    val durationValue = DurationValue.duration(0, 0, 0, 1)
+    val numberValue = longValue(1)
+    a[CypherTypeException] shouldBe thrownBy{
+      aggregateOn(durationValue, numberValue)
+    }
   }
 
   test("allOnesAvgIsOne") {

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,7 +20,6 @@
 package org.neo4j.kernel.impl.util;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -44,16 +43,15 @@ import org.neo4j.values.storable.PointValue;
 import org.neo4j.values.storable.TextValue;
 import org.neo4j.values.storable.Value;
 import org.neo4j.values.storable.Values;
-import org.neo4j.values.virtual.RelationshipValue;
 import org.neo4j.values.virtual.ListValue;
 import org.neo4j.values.virtual.MapValue;
+import org.neo4j.values.virtual.MapValueBuilder;
 import org.neo4j.values.virtual.NodeValue;
 import org.neo4j.values.virtual.PathValue;
+import org.neo4j.values.virtual.RelationshipValue;
 import org.neo4j.values.virtual.VirtualNodeValue;
 import org.neo4j.values.virtual.VirtualRelationshipValue;
 import org.neo4j.values.virtual.VirtualValues;
-
-import static org.neo4j.values.virtual.VirtualValues.map;
 
 public final class ValueUtils
 {
@@ -128,7 +126,7 @@ public final class ValueUtils
                 AnyValue[] anyValues = new AnyValue[array.length];
                 for ( int i = 0; i < array.length; i++ )
                 {
-                    anyValues[i] = of( array[i] );
+                    anyValues[i] = ValueUtils.of( array[i] );
                 }
                 return VirtualValues.list( anyValues );
             }
@@ -183,7 +181,7 @@ public final class ValueUtils
         ArrayList<AnyValue> values = new ArrayList<>( collection.size() );
         for ( Object o : collection )
         {
-            values.add( of( o ) );
+            values.add( ValueUtils.of( o ) );
         }
         return VirtualValues.fromList( values );
     }
@@ -193,7 +191,7 @@ public final class ValueUtils
         ArrayList<AnyValue> values = new ArrayList<>();
         for ( Object o : collection )
         {
-            values.add( of( o ) );
+            values.add( ValueUtils.of( o ) );
         }
         return VirtualValues.fromList( values );
     }
@@ -233,18 +231,30 @@ public final class ValueUtils
 
     public static MapValue asMapValue( Map<String,Object> map )
     {
-        return map( mapValues( map ) );
-    }
-
-    private static Map<String,AnyValue> mapValues( Map<String,Object> map )
-    {
-        HashMap<String,AnyValue> newMap = new HashMap<>( map.size() );
+        MapValueBuilder builder = new MapValueBuilder( map.size() );
         for ( Map.Entry<String,Object> entry : map.entrySet() )
         {
-            newMap.put( entry.getKey(), of( entry.getValue() ) );
+            builder.add( entry.getKey(), ValueUtils.of( entry.getValue() ) );
+        }
+        return builder.build();
+    }
+
+    public static MapValue asParameterMapValue( Map<String,Object> map )
+    {
+        MapValueBuilder builder = new MapValueBuilder( map.size() );
+        for ( Map.Entry<String,Object> entry : map.entrySet() )
+        {
+            try
+            {
+                builder.add( entry.getKey(), ValueUtils.of( entry.getValue() ) );
+            }
+            catch ( IllegalArgumentException e )
+            {
+                builder.add( entry.getKey(), VirtualValues.error( e ) );
+            }
         }
 
-        return newMap;
+        return builder.build();
     }
 
     public static NodeValue fromNodeProxy( Node node )
@@ -289,7 +299,7 @@ public final class ValueUtils
         {
             return (AnyValue) value;
         }
-        return of( value );
+        return ValueUtils.of( value );
     }
 
     public static NodeValue asNodeValue( Object object )

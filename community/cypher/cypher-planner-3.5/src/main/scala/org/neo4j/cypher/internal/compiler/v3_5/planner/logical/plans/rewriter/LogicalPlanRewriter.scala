@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,16 +19,15 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.plans.rewriter
 
-import org.neo4j.cypher.internal.compiler.v3_5.phases.{CompilerContext, LogicalPlanState}
-import org.neo4j.cypher.internal.frontend.v3_5.helpers.fixedPoint
-import org.neo4j.cypher.internal.frontend.v3_5.helpers.rewriting.RewriterStepSequencer
-import org.neo4j.cypher.internal.frontend.v3_5.phases.CompilationPhaseTracer.CompilationPhase
-import org.neo4j.cypher.internal.frontend.v3_5.phases.CompilationPhaseTracer.CompilationPhase.LOGICAL_PLANNING
-import org.neo4j.cypher.internal.frontend.v3_5.phases.{Condition, Phase}
+import org.neo4j.cypher.internal.compiler.v3_5.phases.{LogicalPlanState, PlannerContext}
 import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.{Cardinalities, Solveds}
-import org.neo4j.cypher.internal.util.v3_5.Rewriter
-import org.neo4j.cypher.internal.util.v3_5.attribution.Attributes
-
+import org.neo4j.cypher.internal.v3_5.frontend.phases.CompilationPhaseTracer.CompilationPhase
+import org.neo4j.cypher.internal.v3_5.frontend.phases.CompilationPhaseTracer.CompilationPhase.LOGICAL_PLANNING
+import org.neo4j.cypher.internal.v3_5.frontend.phases.{Condition, Phase}
+import org.neo4j.cypher.internal.v3_5.rewriting.RewriterStepSequencer
+import org.neo4j.cypher.internal.v3_5.util.Rewriter
+import org.neo4j.cypher.internal.v3_5.util.attribution.Attributes
+import org.neo4j.cypher.internal.v3_5.util.helpers.fixedPoint
 /*
  * Rewriters that live here are required to adhere to the contract of
  * receiving a valid plan and producing a valid plan. It should be possible
@@ -39,7 +38,7 @@ case class PlanRewriter(rewriterSequencer: String => RewriterStepSequencer) exte
 
   override def postConditions: Set[Condition] = Set.empty
 
-  override def instance(context: CompilerContext, solveds: Solveds, cardinalities: Cardinalities, otherAttributes: Attributes) = fixedPoint(rewriterSequencer("LogicalPlanRewriter")(
+  override def instance(context: PlannerContext, solveds: Solveds, cardinalities: Cardinalities, otherAttributes: Attributes) = fixedPoint(rewriterSequencer("LogicalPlanRewriter")(
     fuseSelections,
     unnestApply(solveds, otherAttributes.withAlso(cardinalities)),
     cleanUpEager(solveds, otherAttributes.withAlso(cardinalities)),
@@ -49,19 +48,20 @@ case class PlanRewriter(rewriterSequencer: String => RewriterStepSequencer) exte
     removeIdenticalPlans(otherAttributes.withAlso(cardinalities, solveds)),
     pruningVarExpander,
     useTop,
-    simplifySelections
+    simplifySelections,
+    limitNestedPlanExpressions(context.logicalPlanIdGen)
   ).rewriter)
 }
 
-trait LogicalPlanRewriter extends Phase[CompilerContext, LogicalPlanState, LogicalPlanState] {
+trait LogicalPlanRewriter extends Phase[PlannerContext, LogicalPlanState, LogicalPlanState] {
   override def phase: CompilationPhase = LOGICAL_PLANNING
 
-  def instance(context: CompilerContext, solveds: Solveds, cardinalities: Cardinalities, otherAttributes: Attributes): Rewriter
+  def instance(context: PlannerContext, solveds: Solveds, cardinalities: Cardinalities, otherAttributes: Attributes): Rewriter
 
-  override def process(from: LogicalPlanState, context: CompilerContext): LogicalPlanState = {
+  override def process(from: LogicalPlanState, context: PlannerContext): LogicalPlanState = {
     val idGen = context.logicalPlanIdGen
     val otherAttributes = Attributes(idGen)
-    val rewritten = from.logicalPlan.endoRewrite(instance(context, from.solveds, from.cardinalities, otherAttributes))
+    val rewritten = from.logicalPlan.endoRewrite(instance(context, from.planningAttributes.solveds, from.planningAttributes.cardinalities, otherAttributes))
     from.copy(maybeLogicalPlan = Some(rewritten))
   }
 }

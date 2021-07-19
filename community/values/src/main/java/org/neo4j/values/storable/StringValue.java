@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.neo4j.hashing.HashFunction;
 import org.neo4j.values.AnyValue;
 import org.neo4j.values.ValueMapper;
 import org.neo4j.values.virtual.ListValue;
@@ -140,7 +141,13 @@ public abstract class StringValue extends TextValue
     @Override
     public String toString()
     {
-        return format( "String(\"%s\")", value() );
+        return format( "%s(\"%s\")", getTypeName(), value() );
+    }
+
+    @Override
+    public String getTypeName()
+    {
+        return "String";
     }
 
     @Override
@@ -161,6 +168,7 @@ public abstract class StringValue extends TextValue
         return mapper.mapString( this );
     }
 
+    //NOTE: this doesn't respect code point order for code points that doesn't fit 16bits
     @Override
     public int compareTo( TextValue other )
     {
@@ -169,12 +177,18 @@ public abstract class StringValue extends TextValue
         return thisString.compareTo( thatString );
     }
 
-    static TextValue EMTPY = new StringValue()
+    static TextValue EMPTY = new StringValue()
     {
         @Override
         protected int computeHash()
         {
             return 0;
+        }
+
+        @Override
+        public long updateHash( HashFunction hashFunction, long hash )
+        {
+            return hashFunction.update( hash, 0 ); // Mix in our length; a single zero.
         }
 
         @Override
@@ -211,6 +225,30 @@ public abstract class StringValue extends TextValue
         public TextValue reverse()
         {
             return this;
+        }
+
+        @Override
+        public TextValue plus( TextValue other )
+        {
+            return other;
+        }
+
+        @Override
+        public boolean startsWith( TextValue other )
+        {
+            return other.length() == 0;
+        }
+
+        @Override
+        public boolean endsWith( TextValue other )
+        {
+            return other.length() == 0;
+        }
+
+        @Override
+        public boolean contains( TextValue other )
+        {
+            return other.length() == 0;
         }
 
         @Override

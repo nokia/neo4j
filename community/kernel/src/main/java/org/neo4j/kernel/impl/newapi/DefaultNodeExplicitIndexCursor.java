@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,11 +20,12 @@
 package org.neo4j.kernel.impl.newapi;
 
 import org.neo4j.internal.kernel.api.NodeCursor;
+import org.neo4j.storageengine.api.schema.IndexProgressor;
 import org.neo4j.storageengine.api.schema.IndexProgressor.ExplicitClient;
 
 import static org.neo4j.kernel.impl.store.record.AbstractBaseRecord.NO_ID;
 
-class DefaultNodeExplicitIndexCursor extends IndexCursor<ExplicitIndexProgressor>
+class DefaultNodeExplicitIndexCursor extends IndexCursor<IndexProgressor>
         implements org.neo4j.internal.kernel.api.NodeExplicitIndexCursor, ExplicitClient
 {
     private Read read;
@@ -41,7 +42,7 @@ class DefaultNodeExplicitIndexCursor extends IndexCursor<ExplicitIndexProgressor
     }
 
     @Override
-    public void initialize( ExplicitIndexProgressor progressor, int expectedSize )
+    public void initialize( IndexProgressor progressor, int expectedSize )
     {
         super.initialize( progressor );
         this.expectedSize = expectedSize;
@@ -121,7 +122,7 @@ class DefaultNodeExplicitIndexCursor extends IndexCursor<ExplicitIndexProgressor
         else
         {
             return "NodeExplicitIndexCursor[node=" + node + ", expectedSize=" + expectedSize + ", score=" + score +
-                    ", underlying record=" + super.toString() + " ]";
+                    ", underlying record=" + super.toString() + "]";
         }
     }
 

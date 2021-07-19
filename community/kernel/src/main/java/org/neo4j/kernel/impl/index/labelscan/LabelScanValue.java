@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -37,10 +37,11 @@ class LabelScanValue
      *
      * @param index index into the bit set of the bit to set.
      */
-    void set( int index )
+    LabelScanValue set( int index )
     {
         long mask = 1L << index;
         bits |= mask;
+        return this;
     }
 
     /**
@@ -76,6 +77,14 @@ class LabelScanValue
     void clear()
     {
         bits = 0;
+    }
+
+    /**
+     * @return whether or not all bits in this range are cleared, i.e. the whole range is empty.
+     */
+    boolean isEmpty()
+    {
+        return bits == 0;
     }
 
     @Override

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -94,17 +94,6 @@ public interface Transaction extends AutoCloseable
      * @return The Read operations of the graph. The returned instance targets the active transaction state layer.
      */
     Read dataRead();
-
-    /**
-     * @return The Read operations of the graph. The returned instance targets the stable transaction state layer.
-     */
-    Read stableDataRead();
-
-    /**
-     * Stabilize the active transaction state. This moves all changes up until this point to the stable
-     * transaction state layer. Any further changes will be added to the (now empty) active transaction state.
-     */
-    void markAsStable();
 
     /**
      * @return The Write operations of the graph. The returned instance writes to the active transaction state layer.

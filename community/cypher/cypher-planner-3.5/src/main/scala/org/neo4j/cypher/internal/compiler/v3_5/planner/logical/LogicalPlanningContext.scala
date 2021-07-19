@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,17 +19,17 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical
 
+import org.neo4j.csv.reader.Configuration
 import org.neo4j.csv.reader.Configuration.DEFAULT_LEGACY_STYLE_QUOTING
-import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.Metrics.QueryGraphSolverInput
-import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.steps.LogicalPlanProducer
-import org.neo4j.cypher.internal.frontend.v3_5.phases.InternalNotificationLogger
-import org.neo4j.cypher.internal.frontend.v3_5.semantics.SemanticTable
+import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.Metrics.{CardinalityModel, CostModel, QueryGraphSolverInput}
+import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.steps.{CostComparisonListener, LogicalPlanProducer}
 import org.neo4j.cypher.internal.ir.v3_5.StrictnessMode
-import org.neo4j.cypher.internal.planner.v3_5.spi.PlanContext
-import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.{Cardinalities, Solveds}
-import org.neo4j.cypher.internal.util.v3_5.Cardinality
+import org.neo4j.cypher.internal.planner.v3_5.spi.{GraphStatistics, PlanContext, PlanningAttributes}
 import org.neo4j.cypher.internal.v3_5.logical.plans.LogicalPlan
+import org.neo4j.cypher.internal.v3_5.ast.semantics.SemanticTable
 import org.neo4j.cypher.internal.v3_5.expressions.Variable
+import org.neo4j.cypher.internal.v3_5.frontend.phases.InternalNotificationLogger
+import org.neo4j.cypher.internal.v3_5.util.Cardinality
 
 case class LogicalPlanningContext(planContext: PlanContext,
                                   logicalPlanProducer: LogicalPlanProducer,
@@ -42,11 +42,19 @@ case class LogicalPlanningContext(planContext: PlanContext,
                                   errorIfShortestPathFallbackUsedAtRuntime: Boolean = false,
                                   errorIfShortestPathHasCommonNodesAtRuntime: Boolean = true,
                                   legacyCsvQuoteEscaping: Boolean = DEFAULT_LEGACY_STYLE_QUOTING,
+                                  csvBufferSize: Int = 2 * Configuration.MB,
                                   config: QueryPlannerConfiguration = QueryPlannerConfiguration.default,
-                                  leafPlanUpdater: LogicalPlan => LogicalPlan = identity) {
-  def withStrictness(strictness: StrictnessMode) = copy(input = input.withPreferredStrictness(strictness))
+                                  leafPlanUpdater: LeafPlanUpdater = EmptyUpdater,
+                                  costComparisonListener: CostComparisonListener,
+                                  planningAttributes: PlanningAttributes) {
+  def withStrictness(strictness: StrictnessMode): LogicalPlanningContext =
+    copy(input = input.withPreferredStrictness(strictness))
 
-  def withUpdatedCardinalityInformation(plan: LogicalPlan, solveds: Solveds, cardinalities: Cardinalities) = copy(input = input.recurse(plan, solveds, cardinalities))
+  def withUpdatedCardinalityInformation(plan: LogicalPlan): LogicalPlanningContext =
+    copy(input = input.recurse(plan, planningAttributes.solveds, planningAttributes.cardinalities))
+
+  def withUpdatedSemanticTable(semanticTable: SemanticTable): LogicalPlanningContext =
+    if(semanticTable == this.semanticTable) this else copy(semanticTable = semanticTable)
 
   def forExpressionPlanning(nodes: Iterable[Variable], rels: Iterable[Variable]): LogicalPlanningContext = {
     val tableWithNodes = nodes.foldLeft(semanticTable) { case (table, node) => table.addNode(node) }
@@ -57,11 +65,19 @@ case class LogicalPlanningContext(planContext: PlanContext,
     )
   }
 
-  def statistics = planContext.statistics
+  def withAddedLeafPlanUpdater(newUpdater: LeafPlanUpdater): LogicalPlanningContext = {
+    copy(leafPlanUpdater = ChainedUpdater(leafPlanUpdater, newUpdater))
+  }
 
-  def cost = metrics.cost
+  def withLeafPlanUpdater(newUpdater: LeafPlanUpdater): LogicalPlanningContext = {
+    copy(leafPlanUpdater = newUpdater)
+  }
 
-  def cardinality = metrics.cardinality
+  def statistics: GraphStatistics = planContext.statistics
+
+  def cost: CostModel = metrics.cost
+
+  def cardinality: CardinalityModel = metrics.cardinality
 }
 
 object NodeIdName {

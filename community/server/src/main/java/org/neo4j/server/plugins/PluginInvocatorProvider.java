@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -26,17 +26,23 @@ import org.neo4j.server.database.InjectableProvider;
 
 import com.sun.jersey.api.core.HttpContext;
 
+/**
+ * @deprecated Server plugins are deprecated for removal in the next major release. Please use unmanaged extensions instead.
+ */
+@Deprecated
 @Provider
 public class PluginInvocatorProvider extends InjectableProvider<PluginInvocator>
 {
     private final AbstractNeoServer neoServer;
 
+    @Deprecated
     public PluginInvocatorProvider( AbstractNeoServer neoServer )
     {
         super( PluginInvocator.class );
         this.neoServer = neoServer;
     }
 
+    @Deprecated
     @Override
     public PluginInvocator getValue( HttpContext c )
     {

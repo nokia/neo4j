@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -221,7 +221,7 @@ public class PartitionedIndexStorage
      * since we cleanup the folder using {@link FileSystemAbstraction file system} but in fact for testing we often use
      * in-memory directories whose content can't be removed via the file system.
      * <p>
-     * Uses {@link FileUtils#windowsSafeIOOperation(FileUtils.FileOperation)} underneath.
+     * Uses {@link FileUtils#windowsSafeIOOperation(FileUtils.Operation)} underneath.
      *
      * @param folder the path to the directory to cleanup.
      * @throws IOException if removal operation fails.

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,15 +19,15 @@
  */
 package org.neo4j.index.internal.gbptree;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
-public class LayoutTest
+class LayoutTest
 {
     @Test
-    public void shouldCreateDifferentIdentifierWithDifferentName()
+    void shouldCreateDifferentIdentifierWithDifferentName()
     {
         // GIVEN
         String firstName = "one";
@@ -43,7 +43,7 @@ public class LayoutTest
     }
 
     @Test
-    public void shouldCreateDifferentIdentifierWithDifferentChecksums()
+    void shouldCreateDifferentIdentifierWithDifferentChecksums()
     {
         // GIVEN
         String name = "name";
@@ -59,17 +59,8 @@ public class LayoutTest
     }
 
     @Test
-    public void shouldFailOnTooLongName()
+    void shouldFailOnTooLongName()
     {
-        // WHEN
-        try
-        {
-            Layout.namedIdentifier( "too-long", 12 );
-            fail( "Should have failed" );
-        }
-        catch ( IllegalArgumentException e )
-        {
-            // THEN good
-        }
+        assertThrows( IllegalArgumentException.class, () -> Layout.namedIdentifier( "too-long", 12 ) );
     }
 }

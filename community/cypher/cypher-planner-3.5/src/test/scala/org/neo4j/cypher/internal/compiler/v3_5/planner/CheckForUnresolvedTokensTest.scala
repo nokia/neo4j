@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,13 +21,15 @@ package org.neo4j.cypher.internal.compiler.v3_5.planner
 
 import org.neo4j.cypher.internal.compiler.v3_5.phases.LogicalPlanState
 import org.neo4j.cypher.internal.compiler.v3_5.test_helpers.ContextHelper
-import org.neo4j.cypher.internal.frontend.v3_5.ast.Query
-import org.neo4j.cypher.internal.frontend.v3_5.notification.{InternalNotification, MissingLabelNotification, MissingPropertyNameNotification, MissingRelTypeNotification}
-import org.neo4j.cypher.internal.frontend.v3_5.phases.RecordingNotificationLogger
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
-import org.neo4j.cypher.internal.frontend.v3_5.semantics.SemanticTable
-import org.neo4j.cypher.internal.planner.v3_5.spi.IDPPlannerName
-import org.neo4j.cypher.internal.util.v3_5.{InputPosition, LabelId, PropertyKeyId, RelTypeId}
+import org.neo4j.cypher.internal.compiler.v3_5.{MissingLabelNotification, MissingPropertyNameNotification, MissingRelTypeNotification}
+import org.neo4j.cypher.internal.planner.v3_5.spi.{IDPPlannerName, PlanningAttributes}
+import org.neo4j.values.storable.TemporalValue.TemporalFields
+import org.neo4j.values.storable.{DurationFields, PointFields}
+import org.neo4j.cypher.internal.v3_5.ast.Query
+import org.neo4j.cypher.internal.v3_5.ast.semantics.SemanticTable
+import org.neo4j.cypher.internal.v3_5.frontend.phases.RecordingNotificationLogger
+import org.neo4j.cypher.internal.v3_5.util._
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
 
 class CheckForUnresolvedTokensTest extends CypherFunSuite with AstRewritingTestSupport with LogicalPlanConstructionTestSupport {
 
@@ -124,9 +126,65 @@ class CheckForUnresolvedTokensTest extends CypherFunSuite with AstRewritingTestS
     checkForTokens(ast, semanticTable) shouldBe empty
   }
 
+  test("don't warn when using point properties") {
+    //given
+    val semanticTable = new SemanticTable
+    semanticTable.resolvedPropertyKeyNames.put("prop", PropertyKeyId(42))
+
+    PointFields.values().foreach { property =>
+      //when
+      val ast = parse(s"MATCH (a) WHERE point(a.prop).${property.propertyKey} = 42 RETURN a")
+
+      //then
+      checkForTokens(ast, semanticTable) shouldBe empty
+    }
+  }
+
+  test("don't warn when using temporal properties") {
+    //given
+    val semanticTable = new SemanticTable
+    semanticTable.resolvedPropertyKeyNames.put("prop", PropertyKeyId(42))
+
+    import scala.collection.JavaConverters._
+    TemporalFields.allFields().asScala.foreach { property =>
+      //when
+      val ast = parse(s"MATCH (a) WHERE date(a.prop).$property = 42 RETURN a")
+
+      //then
+      checkForTokens(ast, semanticTable) shouldBe empty
+    }
+  }
+
+  test("don't warn when using duration properties") {
+    //given
+    val semanticTable = new SemanticTable
+    semanticTable.resolvedPropertyKeyNames.put("prop", PropertyKeyId(42))
+
+    DurationFields.values().foreach { property =>
+      //when
+      val ast = parse(s"MATCH (a) WHERE duration(a.prop).${property.propertyKey} = 42 RETURN a")
+
+      //then
+      checkForTokens(ast, semanticTable) shouldBe empty
+    }
+  }
+
+  test("don't warn when using special property keys, independent of case") {
+    //given
+    val semanticTable = new SemanticTable
+    semanticTable.resolvedPropertyKeyNames.put("prop", PropertyKeyId(42))
+
+    Seq("X", "yEaRs", "DAY", "epochMillis").foreach { property =>
+      //when
+      val ast = parse(s"MATCH (a) WHERE a.prop.$property = 42 RETURN a")
+      //then
+      checkForTokens(ast, semanticTable) shouldBe empty
+    }
+  }
+
   private def checkForTokens(ast: Query, semanticTable: SemanticTable): Set[InternalNotification] = {
     val notificationLogger = new RecordingNotificationLogger
-    val compilationState = LogicalPlanState(queryText = "apa", startPosition = None, plannerName = IDPPlannerName, new StubSolveds, new StubCardinalities, maybeStatement = Some(ast), maybeSemanticTable = Some(semanticTable))
+    val compilationState = LogicalPlanState(queryText = "apa", startPosition = None, plannerName = IDPPlannerName, PlanningAttributes(new StubSolveds, new StubCardinalities, new StubProvidedOrders), maybeStatement = Some(ast), maybeSemanticTable = Some(semanticTable))
     val context = ContextHelper.create(notificationLogger = notificationLogger)
     CheckForUnresolvedTokens.transform(compilationState, context)
     notificationLogger.notifications

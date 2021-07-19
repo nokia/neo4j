@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -51,8 +51,9 @@ public class ConfigurablePageCacheRule extends PageCacheRule
                 pageCacheConfig.pageCursorTracerSupplier, PageCursorTracerSupplier.NULL );
         config.augmentDefaults( GraphDatabaseSettings.pagecache_memory, "8M" );
         FormattedLogProvider logProvider = FormattedLogProvider.toOutputStream( System.err );
+        initializeJobScheduler();
         ConfiguringPageCacheFactory pageCacheFactory = new ConfiguringPageCacheFactory( fs, config, tracer, cursorTracerSupplier,
-                        logProvider.getLog( PageCache.class ), EmptyVersionContextSupplier.EMPTY );
+                        logProvider.getLog( PageCache.class ), EmptyVersionContextSupplier.EMPTY, jobScheduler );
         return pageCacheFactory.getOrCreatePageCache();
     }
 }

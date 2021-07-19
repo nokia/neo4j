@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -66,8 +66,8 @@ import org.neo4j.helpers.collection.PrefetchingResourceIterator;
 import org.neo4j.internal.kernel.api.exceptions.explicitindex.ExplicitIndexNotFoundKernelException;
 import org.neo4j.io.fs.FileSystemAbstraction;
 import org.neo4j.io.fs.FileUtils;
+import org.neo4j.io.layout.DatabaseLayout;
 import org.neo4j.kernel.configuration.Config;
-import org.neo4j.kernel.impl.factory.GraphDatabaseFacadeFactory;
 import org.neo4j.kernel.impl.factory.OperationalMode;
 import org.neo4j.kernel.impl.index.IndexConfigStore;
 import org.neo4j.kernel.impl.index.IndexEntityType;
@@ -82,7 +82,7 @@ public class LuceneDataSource extends LifecycleAdapter
     public abstract static class Configuration
     {
         public static final Setting<Integer> lucene_searcher_cache_size = GraphDatabaseSettings.lucene_searcher_cache_size;
-        public static final Setting<Boolean> ephemeral = GraphDatabaseFacadeFactory.Configuration.ephemeral;
+        public static final Setting<Boolean> ephemeral = GraphDatabaseSettings.ephemeral;
     }
 
     /**
@@ -107,7 +107,7 @@ public class LuceneDataSource extends LifecycleAdapter
 
     public static final Analyzer WHITESPACE_ANALYZER = new WhitespaceAnalyzer();
     public static final Analyzer KEYWORD_ANALYZER = new KeywordAnalyzer();
-    private final File storeDir;
+    private final DatabaseLayout directoryStructure;
     private final Config config;
     private final FileSystemAbstraction fileSystemAbstraction;
     private final OperationalMode operationalMode;
@@ -124,10 +124,10 @@ public class LuceneDataSource extends LifecycleAdapter
     /**
      * Constructs this data source.
      */
-    public LuceneDataSource( File storeDir, Config config, IndexConfigStore indexStore,
+    public LuceneDataSource( DatabaseLayout directoryStructure, Config config, IndexConfigStore indexStore,
             FileSystemAbstraction fileSystemAbstraction, OperationalMode operationalMode )
     {
-        this.storeDir = storeDir;
+        this.directoryStructure = directoryStructure;
         this.config = config;
         this.indexStore = indexStore;
         this.typeCache = new IndexTypeCache( indexStore );
@@ -143,7 +143,7 @@ public class LuceneDataSource extends LifecycleAdapter
         readOnly = isReadOnly( config, operationalMode );
         indexSearchers = new IndexClockCache( config.get( Configuration.lucene_searcher_cache_size ) );
         this.baseStorePath = filesystemFacade.ensureDirectoryExists( fileSystemAbstraction,
-                getLuceneIndexStoreDirectory( storeDir ) );
+                getLuceneIndexStoreDirectory( directoryStructure ) );
         filesystemFacade.cleanWriteLocks( baseStorePath );
         this.typeCache = new IndexTypeCache( indexStore );
         this.indexReferenceFactory = readOnly ?
@@ -193,9 +193,9 @@ public class LuceneDataSource extends LifecycleAdapter
         }
     }
 
-    public static File getLuceneIndexStoreDirectory( File storeDir )
+    public static File getLuceneIndexStoreDirectory( DatabaseLayout directoryStructure )
     {
-        return new File( storeDir, "index" );
+        return directoryStructure.file( "index" );
     }
 
     IndexType getType( IndexIdentifier identifier, boolean recovery ) throws ExplicitIndexNotFoundKernelException

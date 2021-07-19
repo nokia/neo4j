@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -23,6 +23,8 @@ import org.junit.Test;
 
 import java.util.Optional;
 
+import org.neo4j.io.layout.DatabaseFile;
+
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -32,21 +34,20 @@ public class StoreTypeTest
     @Test
     public void storeTypeOfValidStoreFile()
     {
-        //noinspection OptionalGetWithoutIsPresent
-        assertEquals( StoreType.NODE, StoreType.typeOf( "neostore.nodestore.db" ).get() );
+        StoreType matchedType = StoreType.typeOf( DatabaseFile.NODE_STORE ).orElseThrow( () -> new IllegalStateException( "Store type not found" ) );
+        assertEquals( StoreType.NODE, matchedType );
     }
 
     @Test
     public void storeTypeOfMetaDataStoreFile()
     {
-        //noinspection OptionalGetWithoutIsPresent
-        String fileName = MetaDataStore.DEFAULT_NAME;
-        assertEquals( StoreType.META_DATA, StoreType.typeOf( fileName ).get() );
+        StoreType matchedType = StoreType.typeOf( DatabaseFile.METADATA_STORE ).orElseThrow( () -> new IllegalStateException( "Store type not found" ) );
+        assertEquals( StoreType.META_DATA, matchedType );
     }
 
     @Test
     public void storeTypeofSomeInvalidFile()
     {
-        assertThat( StoreType.typeOf( "test.txt" ), is( Optional.empty() ) );
+        assertThat( StoreType.typeOf( DatabaseFile.LABEL_SCAN_STORE ), is( Optional.empty() ) );
     }
 }

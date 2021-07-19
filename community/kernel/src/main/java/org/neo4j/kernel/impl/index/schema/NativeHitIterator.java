@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -34,10 +34,10 @@ import org.neo4j.values.storable.Value;
 /**
  * Wraps number key/value results in a {@link LongIterator}.
  *
- * @param <KEY> type of {@link NumberSchemaKey}.
- * @param <VALUE> type of {@link NativeSchemaValue}.
+ * @param <KEY> type of {@link NumberIndexKey}.
+ * @param <VALUE> type of {@link NativeIndexValue}.
  */
-public class NativeHitIterator<KEY extends NativeSchemaKey<KEY>, VALUE extends NativeSchemaValue>
+public class NativeHitIterator<KEY extends NativeIndexKey<KEY>, VALUE extends NativeIndexValue>
         extends PrimitiveLongCollections.PrimitiveLongBaseIterator
         implements PrimitiveLongResourceIterator
 {
@@ -60,7 +60,7 @@ public class NativeHitIterator<KEY extends NativeSchemaKey<KEY>, VALUE extends N
             while ( seeker.next() )
             {
                 KEY key = seeker.get().key();
-                if ( acceptValue( key.asValue() ) )
+                if ( acceptValues( key.asValues() ) )
                 {
                     return next( key.getEntityId() );
                 }
@@ -73,7 +73,7 @@ public class NativeHitIterator<KEY extends NativeSchemaKey<KEY>, VALUE extends N
         }
     }
 
-    boolean acceptValue( Value value )
+    boolean acceptValues( Value[] value )
     {
         return true;
     }

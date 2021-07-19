@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -32,7 +32,7 @@ public class AlreadyConstrainedException extends SchemaKernelException
 
     private static final String ALREADY_CONSTRAINED_MESSAGE_PREFIX = "Constraint already exists: ";
 
-    private static final String INDEX_CONTEXT_FORMAT = "Label '%s' and %s have a unique constraint defined on them, so an index is " +
+    private static final String INDEX_CONTEXT_FORMAT = "There is a uniqueness constraint on %s, so an index is " +
                                                        "already created that matches this.";
 
     private final ConstraintDescriptor constraint;

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -22,26 +22,20 @@ package org.neo4j.kernel.impl.index.schema;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.junit.Test;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.neo4j.helpers.collection.Iterables;
 import org.neo4j.test.Race;
-import org.neo4j.values.storable.CoordinateReferenceSystem;
 import org.neo4j.values.storable.ValueGroup;
 
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 import static org.neo4j.helpers.collection.Iterables.count;
@@ -132,7 +126,7 @@ public class TemporalIndexCacheTest
         }, 1 );
         race.addContestant( () ->
         {
-            cache.shutInstantiateCloseLock();
+            cache.closeInstantiateCloseLock();
             instantiatedAtClose.setValue( count( cache ) );
         }, 1 );
 
@@ -177,15 +171,9 @@ public class TemporalIndexCacheTest
 
         private void stress()
         {
-            try
-            {
-                // select
-                cache.select( valueGroups[r.nextInt( valueGroups.length )] );
-            }
-            catch ( IOException e )
-            {
-                throw new UncheckedIOException( e );
-            }
+            // select
+            cache.select( valueGroups[r.nextInt( valueGroups.length )] );
+
             // iterate
             for ( String s : cache )
             {

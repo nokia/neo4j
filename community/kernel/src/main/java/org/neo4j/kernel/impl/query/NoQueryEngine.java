@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,8 +19,6 @@
  */
 package org.neo4j.kernel.impl.query;
 
-import java.util.Map;
-
 import org.neo4j.graphdb.Result;
 import org.neo4j.values.virtual.MapValue;
 
@@ -35,26 +33,7 @@ enum NoQueryEngine implements QueryExecutionEngine
     }
 
     @Override
-    public QueryExecution executeQuery( String query, MapValue parameters, TransactionalContext context,
-                                        ResultBuffer resultBuffer )
-    {
-        throw noQueryEngine();
-    }
-
-    @Override
-    public Result executeQuery( String query, Map<String,Object> parameters, TransactionalContext context )
-    {
-        throw noQueryEngine();
-    }
-
-    @Override
-    public String prettify( String query )
-    {
-        throw noQueryEngine();
-    }
-
-    @Override
-    public Result profileQuery( String query, Map<String,Object> parameter, TransactionalContext context )
+    public Result profileQuery( String query, MapValue parameter, TransactionalContext context )
     {
         throw noQueryEngine();
     }

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -25,8 +25,8 @@ import org.neo4j.cypher.internal.runtime.interpreted.ValueComparisonHelper.beEqu
 import org.neo4j.cypher.internal.runtime.interpreted.commands.expressions.Variable
 import org.neo4j.cypher.internal.runtime.interpreted.symbols.SymbolTable
 import org.neo4j.cypher.internal.runtime.interpreted.{ExecutionContext, QueryStateHelper, TestableIterator}
-import org.neo4j.cypher.internal.util.v3_5.symbols._
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
+import org.neo4j.cypher.internal.v3_5.util.symbols._
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
 import org.neo4j.values.AnyValue
 import org.neo4j.values.storable.Values.{doubleArray, intArray, intValue}
 

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,13 +19,13 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.plans
 
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
 import org.neo4j.cypher.internal.compiler.v3_5.planner.LogicalPlanningTestSupport
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.ExpressionEvaluator
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.steps.allNodesLeafPlanner
-import org.neo4j.cypher.internal.ir.v3_5.QueryGraph
-import org.neo4j.cypher.internal.v3_5.logical.plans.AllNodesScan
+import org.neo4j.cypher.internal.ir.v3_5.{InterestingOrder, QueryGraph}
 import org.neo4j.cypher.internal.v3_5.expressions.PatternExpression
+import org.neo4j.cypher.internal.v3_5.logical.plans.AllNodesScan
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
 
 class AllNodesLeafPlannerTest extends CypherFunSuite with LogicalPlanningTestSupport {
 
@@ -35,13 +35,11 @@ class AllNodesLeafPlannerTest extends CypherFunSuite with LogicalPlanningTestSup
     // given
     val queryGraph = QueryGraph(patternNodes = Set("n"))
 
-    implicit val planContext = newMockedPlanContext
-    val (context, solveds, cardinalities) = newMockedLogicalPlanningContext(
-      planContext = planContext,
-      metrics = newMockedMetricsFactory.newMetrics(hardcodedStatistics, mock[ExpressionEvaluator], config))
+    val planContext = newMockedPlanContext()
+    val context = newMockedLogicalPlanningContext(planContext = planContext, metrics = newMockedMetricsFactory.newMetrics(hardcodedStatistics, mock[ExpressionEvaluator], config))
 
     // when
-    val resultPlans = allNodesLeafPlanner(queryGraph, context, solveds, cardinalities)
+    val resultPlans = allNodesLeafPlanner(queryGraph, InterestingOrder.empty, context)
 
     // then
     resultPlans should equal(Seq(AllNodesScan("n", Set.empty)))

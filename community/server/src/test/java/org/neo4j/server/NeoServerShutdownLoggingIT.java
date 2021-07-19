@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,11 +19,11 @@
  */
 package org.neo4j.server;
 
-import java.io.IOException;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.io.IOException;
 
 import org.neo4j.logging.AssertableLogProvider;
 import org.neo4j.server.helpers.ServerHelper;
@@ -55,6 +55,6 @@ public class NeoServerShutdownLoggingIT extends ExclusiveServerTestBase
     public void shouldLogShutdown()
     {
         server.stop();
-        logProvider.assertContainsMessageContaining( "Stopped." );
+        logProvider.rawMessageMatcher().assertContains( "Stopped." );
     }
 }

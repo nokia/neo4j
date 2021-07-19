@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -87,9 +87,13 @@ public class CypherResultSubGraph implements SubGraph
         }
         for ( IndexDefinition def : gds.schema().getIndexes() )
         {
-            if ( graph.getLabels().contains( def.getLabel() ) )
+            for ( Label label : def.getLabels() )
             {
-                graph.addIndex( def );
+                if ( graph.getLabels().contains( label ) )
+                {
+                    graph.addIndex( def );
+                    break;
+                }
             }
         }
         for ( ConstraintDefinition def : gds.schema().getConstraints() )

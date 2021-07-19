@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -44,7 +44,7 @@ abstract class TransactionBoundTokenContext(transaction: => KernelTransaction) e
   def getLabelId(labelName: String): Int = {
     val labelId: Int = transaction.tokenRead().nodeLabel(labelName)
     if (labelId == TokenRead.NO_TOKEN)
-      throw new LabelNotFoundKernelException("No such label", null)
+      throw new LabelNotFoundKernelException(labelId, null)
     labelId
   }
 

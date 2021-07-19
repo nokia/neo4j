@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -106,7 +106,7 @@ public class RESTRequestGenerator
      * Set the expected media type of the response. The test will fail if the
      * response has a different media type. Defaults to application/json.
      *
-     * @param expectedMediaType the expected media tyupe
+     * @param expectedMediaType the expected media type
      */
     public RESTRequestGenerator expectedType( final MediaType expectedMediaType )
     {

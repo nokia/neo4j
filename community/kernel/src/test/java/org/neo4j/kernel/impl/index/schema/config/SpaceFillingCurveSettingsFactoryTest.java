@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -151,9 +151,8 @@ public class SpaceFillingCurveSettingsFactoryTest
 
     private void shouldGetSettingsFor( Config config, CoordinateReferenceSystem crs, int dimensions, int maxBits, Envelope envelope )
     {
-        SpaceFillingCurveSettingsFactory factory = new SpaceFillingCurveSettingsFactory( config );
-        SpaceFillingCurveSettings settings = factory.settingsFor( crs );
-        assertThat( "Should not get error when getting valid settings", settings.getFailureMessage(), is( nullValue() ) );
+        ConfiguredSpaceFillingCurveSettingsCache configuredSettings = new ConfiguredSpaceFillingCurveSettingsCache( config );
+        SpaceFillingCurveSettings settings = configuredSettings.forCRS( crs );
         assertThat( "Expected " + dimensions + "D for " + crs.getName(), settings.getDimensions(), equalTo( dimensions ) );
         int maxLevels = maxBits / dimensions;
         assertThat( "Expected maxLevels=" + maxLevels + " for " + crs.getName(), settings.getMaxLevels(), equalTo( maxLevels ) );

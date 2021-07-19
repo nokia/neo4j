@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -69,7 +69,7 @@ public abstract class BestFirstSelectorFactory<P extends Comparable<P>, D>
 
     public final class BestFirstSelector implements BranchSelector
     {
-        private final PriorityMap<TraversalBranch, Node, P> queue = new PriorityMap( CONVERTER, interest.comparator(),
+        private final PriorityMap<TraversalBranch, Node, P> queue = new PriorityMap<>( CONVERTER, interest.comparator(),
                 interest.stopAfterLowestCost() );
         private TraversalBranch current;
         private P currentAggregatedValue;

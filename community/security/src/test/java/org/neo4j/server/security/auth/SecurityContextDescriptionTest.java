@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -23,6 +23,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import org.neo4j.graphdb.factory.GraphDatabaseSettings;
 import org.neo4j.internal.kernel.api.security.AccessMode;
 import org.neo4j.internal.kernel.api.security.SecurityContext;
 import org.neo4j.kernel.configuration.Config;
@@ -32,6 +33,7 @@ import org.neo4j.time.Clocks;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
+import static org.neo4j.server.security.auth.BasicAuthManagerTest.password;
 import static org.neo4j.server.security.auth.SecurityTestUtils.authToken;
 
 public class SecurityContextDescriptionTest
@@ -51,8 +53,8 @@ public class SecurityContextDescriptionTest
                     Config.defaults() );
         manager.init();
         manager.start();
-        manager.newUser( "johan", "bar", false );
-        context = manager.login( authToken( "johan", "bar" ) ).authorize( s -> -1 );
+        manager.newUser( "johan", password( "bar" ), false );
+        context = manager.login( authToken( "johan", "bar" ) ).authorize( s -> -1, GraphDatabaseSettings.DEFAULT_DATABASE_NAME );
     }
 
     @After

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -18,8 +18,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 package org.neo4j.kernel.impl.api.index.updater;
-
-import java.io.IOException;
 
 import org.neo4j.kernel.api.exceptions.index.IndexEntryConflictException;
 import org.neo4j.kernel.api.index.IndexEntryUpdate;
@@ -41,14 +39,14 @@ public class UpdateCountingIndexUpdater implements IndexUpdater
     }
 
     @Override
-    public void process( IndexEntryUpdate<?> update ) throws IOException, IndexEntryConflictException
+    public void process( IndexEntryUpdate<?> update ) throws IndexEntryConflictException
     {
         delegate.process( update );
         updates++;
     }
 
     @Override
-    public void close() throws IOException, IndexEntryConflictException
+    public void close() throws IndexEntryConflictException
     {
         delegate.close();
         storeView.incrementIndexUpdates( indexId, updates );

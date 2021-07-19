@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -62,7 +62,7 @@ public interface CharReadable extends Closeable, SourceTraceability
      * Similar to {@link Reader#read(char[], int, int)}
      * @param into char[] to read the data into.
      * @param offset offset to start reading into the char[].
-     * @param length number of bytes to read maxuimum.
+     * @param length number of bytes to read maximum.
      * @return number of bytes read, or 0 if there were no bytes read and end of readable is reached.
      * @throws IOException on read error.
      */

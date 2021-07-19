@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -22,12 +22,13 @@ package org.neo4j.kernel.impl.util;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.NotFoundException;
 import org.neo4j.graphdb.Relationship;
+import org.neo4j.kernel.impl.core.RelationshipProxy;
 import org.neo4j.values.AnyValueWriter;
 import org.neo4j.values.storable.TextValue;
 import org.neo4j.values.storable.Values;
-import org.neo4j.values.virtual.RelationshipValue;
 import org.neo4j.values.virtual.MapValue;
 import org.neo4j.values.virtual.NodeValue;
+import org.neo4j.values.virtual.RelationshipValue;
 import org.neo4j.values.virtual.VirtualNodeValue;
 import org.neo4j.values.virtual.VirtualValues;
 
@@ -53,15 +54,30 @@ public class RelationshipProxyWrappingValue extends RelationshipValue
     @Override
     public <E extends Exception> void writeTo( AnyValueWriter<E> writer ) throws E
     {
+        if ( relationship instanceof RelationshipProxy )
+        {
+            RelationshipProxy proxy = (RelationshipProxy) relationship;
+            if ( !proxy.initializeData() )
+            {
+                // If the relationship has been deleted since it was found by the query, then we'll have to tell the client that their transaction conflicted,
+                // and that they need to retry it.
+                throw new ReadAndDeleteTransactionConflictException( RelationshipProxy.isDeletedInCurrentTransaction( relationship ) );
+            }
+        }
+
         MapValue p;
         try
         {
             p = properties();
         }
-        catch ( NotFoundException e )
+        catch ( ReadAndDeleteTransactionConflictException e )
         {
+            if ( !e.wasDeletedInThisTransaction() )
+            {
+                throw e;
+            }
+            // If it isn't a transient error then the relationship was deleted in the current transaction and we should write an 'empty' relationship.
             p = VirtualValues.EMPTY_MAP;
-
         }
 
         if ( id() < 0 )
@@ -134,13 +150,20 @@ public class RelationshipProxyWrappingValue extends RelationshipValue
         TextValue t = type;
         if ( t == null )
         {
-            synchronized ( this )
+            try
             {
-                t = type;
-                if ( t == null )
+                synchronized ( this )
                 {
-                    t = type = Values.stringValue( relationship.getType().name() );
+                    t = type;
+                    if ( t == null )
+                    {
+                        t = type = Values.stringValue( relationship.getType().name() );
+                    }
                 }
+            }
+            catch ( IllegalStateException e )
+            {
+                throw new ReadAndDeleteTransactionConflictException( RelationshipProxy.isDeletedInCurrentTransaction( relationship ), e );
             }
         }
         return t;
@@ -152,13 +175,20 @@ public class RelationshipProxyWrappingValue extends RelationshipValue
         MapValue m = properties;
         if ( m == null )
         {
-            synchronized ( this )
+            try
             {
-                m = properties;
-                if ( m == null )
+                synchronized ( this )
                 {
-                    m = properties = ValueUtils.asMapValue( relationship.getAllProperties() );
+                    m = properties;
+                    if ( m == null )
+                    {
+                        m = properties = ValueUtils.asMapValue( relationship.getAllProperties() );
+                    }
                 }
+            }
+            catch ( NotFoundException | IllegalStateException e )
+            {
+                throw new ReadAndDeleteTransactionConflictException( RelationshipProxy.isDeletedInCurrentTransaction( relationship ), e );
             }
         }
         return m;

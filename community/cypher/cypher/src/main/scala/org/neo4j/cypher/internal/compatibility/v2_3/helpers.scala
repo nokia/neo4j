@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,14 +20,14 @@
 package org.neo4j.cypher.internal.compatibility.v2_3
 
 import org.neo4j.cypher.InternalException
-import org.neo4j.cypher.internal.util.v3_5.InputPosition
+import org.neo4j.cypher.internal.v3_5.util.InputPosition
 import org.neo4j.cypher.internal.compiler.v2_3
 import org.neo4j.cypher.internal.compiler.v2_3.CompilationPhaseTracer.CompilationPhaseEvent
 import org.neo4j.cypher.internal.compiler.v2_3.{CypherCompilerConfiguration => CypherCompilerConfiguration2_3}
-import org.neo4j.cypher.internal.compiler.v3_5.CypherCompilerConfiguration
+import org.neo4j.cypher.internal.compiler.v3_5.CypherPlannerConfiguration
 import org.neo4j.cypher.internal.frontend.v2_3.{InputPosition => InputPosition2_3}
-import org.neo4j.cypher.internal.frontend.v3_5.phases.CompilationPhaseTracer
-import org.neo4j.cypher.internal.frontend.v3_5.phases
+import org.neo4j.cypher.internal.v3_5.frontend.phases.CompilationPhaseTracer
+import org.neo4j.cypher.internal.v3_5.frontend.phases
 import org.neo4j.kernel.impl.query.{QueryExecutionMonitor, TransactionalContext}
 
 object helpers {
@@ -35,7 +35,7 @@ object helpers {
     monitor.endFailure(tc.executingQuery(), t)
   }
 
-  def as2_3(config: CypherCompilerConfiguration) = CypherCompilerConfiguration2_3(config.queryCacheSize,
+  def as2_3(config: CypherPlannerConfiguration) = CypherCompilerConfiguration2_3(config.queryCacheSize,
     config.statsDivergenceCalculator.initialThreshold, config.statsDivergenceCalculator.initialMillis,
     config.useErrorsOverWarnings, config.idpMaxTableSize, config.idpIterationDuration,
     config.nonIndexedLabelWarningThreshold)

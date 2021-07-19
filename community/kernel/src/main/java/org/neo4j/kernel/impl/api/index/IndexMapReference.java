@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,11 +19,14 @@
  */
 package org.neo4j.kernel.impl.api.index;
 
-import org.eclipse.collections.api.set.primitive.IntSet;
+import java.util.Collection;
+import java.util.function.Function;
 
 import org.neo4j.function.ThrowingFunction;
+import org.neo4j.internal.kernel.api.exceptions.schema.IndexNotFoundKernelException;
 import org.neo4j.internal.kernel.api.schema.SchemaDescriptor;
-import org.neo4j.kernel.api.exceptions.index.IndexNotFoundKernelException;
+import org.neo4j.kernel.api.schema.constraints.IndexBackedConstraintDescriptor;
+import org.neo4j.storageengine.api.EntityType;
 import org.neo4j.values.storable.Value;
 
 public class IndexMapReference implements IndexMapSnapshotProvider
@@ -47,7 +50,7 @@ public class IndexMapReference implements IndexMapSnapshotProvider
      * @param modifier the function modifying the snapshot.
      * @throws E exception thrown by the function.
      */
-    public synchronized <E extends Exception> void modify( ThrowingFunction<IndexMap,IndexMap,E> modifier ) throws E
+    public synchronized <E extends Exception> void modify( Function<IndexMap,IndexMap> modifier ) throws E
     {
         IndexMap snapshot = indexMapSnapshot();
         indexMap = modifier.apply( snapshot );
@@ -101,10 +104,26 @@ public class IndexMapReference implements IndexMapSnapshotProvider
         return indexMap.getAllIndexProxies();
     }
 
-    public Iterable<SchemaDescriptor> getRelatedIndexes(
-            long[] changedLabels, long[] unchangedLabels, IntSet properties )
+    public Collection<SchemaDescriptor> getRelatedIndexes( long[] changedEntityTokens, long[] unchangedEntityTokens, int[] sortedProperties,
+            boolean propertyListIsComplete, EntityType entityType )
     {
-        return indexMap.getRelatedIndexes( changedLabels, unchangedLabels, properties );
+        return indexMap.getRelatedIndexes( changedEntityTokens, unchangedEntityTokens, sortedProperties, propertyListIsComplete, entityType );
+    }
+
+    public Collection<IndexBackedConstraintDescriptor> getRelatedConstraints( long[] changedLabels, long[] unchangedLabels, int[] sortedProperties,
+            boolean propertyListIsComplete, EntityType entityType )
+    {
+        return indexMap.getRelatedConstraints( changedLabels, unchangedLabels, sortedProperties, propertyListIsComplete, entityType );
+    }
+
+    public boolean hasRelatedSchema( long[] labels, int propertyKey, EntityType entityType )
+    {
+        return indexMap.hasRelatedSchema( labels, propertyKey, entityType );
+    }
+
+    public boolean hasRelatedSchema( int label, EntityType entityType )
+    {
+        return indexMap.hasRelatedSchema( label, entityType );
     }
 
     public IndexUpdaterMap createIndexUpdaterMap( IndexUpdateMode mode )

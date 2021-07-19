@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,8 +20,8 @@
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.plans.rewriter
 
 import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.Solveds
-import org.neo4j.cypher.internal.util.v3_5.attribution.{Attributes, SameId}
-import org.neo4j.cypher.internal.util.v3_5.{Rewriter, bottomUp}
+import org.neo4j.cypher.internal.v3_5.util.attribution.{Attributes, SameId}
+import org.neo4j.cypher.internal.v3_5.util.{Rewriter, bottomUp}
 import org.neo4j.cypher.internal.v3_5.logical.plans.{Eager, Limit, LoadCSV, UnwindCollection}
 
 case class cleanUpEager(solveds: Solveds, attributes: Attributes) extends Rewriter {
@@ -39,7 +39,7 @@ case class cleanUpEager(solveds: Solveds, attributes: Attributes) extends Rewrit
       res
 
     // E LCSV => LCSV E
-    case eager@Eager(loadCSV@LoadCSV(source, _, _, _, _, _)) =>
+    case eager@Eager(loadCSV@LoadCSV(source, _, _, _, _, _,_)) =>
       val res = loadCSV.copy(source = eager.copy(source = source)(SameId(eager.id)))(attributes.copy(loadCSV.id))
       solveds.copy(eager.id, res.id)
       res

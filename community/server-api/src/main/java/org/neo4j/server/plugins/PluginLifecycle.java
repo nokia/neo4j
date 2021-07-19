@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -33,19 +33,23 @@ import org.neo4j.graphdb.GraphDatabaseService;
  *  has to be supplied with the plugin jar to the Neo4j server.<br>
  *  The plugin might return a collection of {@link Injectable}s that can later be used with
  *  {@literal @Context} injections.
+ *  @deprecated Server plugins are deprecated for removal in the next major release. Please use unmanaged extensions instead.
  */
+@Deprecated
 public interface PluginLifecycle
 {
     /**
-     * Called at initialization time, before the plugin ressources are acutally loaded.
+     * Called at initialization time, before the plugin resources are actually loaded.
      * @param graphDatabaseService of the Neo4j service, use it to integrate it with custom configuration mechanisms
      * @param config server configuration
      * @return A list of {@link Injectable}s that will be available to resource dependency injection later
      */
+    @Deprecated
     Collection<Injectable<?>> start( GraphDatabaseService graphDatabaseService, Configuration config );
 
     /**
      * called to shutdown individual external resources or configurations
      */
+    @Deprecated
     void stop();
 }

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,10 +20,8 @@
 package org.neo4j.kernel.impl.newapi;
 
 import org.eclipse.collections.api.iterator.LongIterator;
+import org.eclipse.collections.api.set.primitive.LongSet;
 import org.eclipse.collections.impl.iterator.ImmutableEmptyLongIterator;
-
-import java.util.HashSet;
-import java.util.Set;
 
 import org.neo4j.internal.kernel.api.LabelSet;
 import org.neo4j.internal.kernel.api.NodeCursor;
@@ -31,18 +29,19 @@ import org.neo4j.internal.kernel.api.NodeLabelIndexCursor;
 import org.neo4j.kernel.impl.index.labelscan.LabelScanValueIndexProgressor;
 import org.neo4j.storageengine.api.schema.IndexProgressor;
 import org.neo4j.storageengine.api.schema.IndexProgressor.NodeLabelClient;
-import org.neo4j.storageengine.api.txstate.ReadableDiffSets;
+import org.neo4j.storageengine.api.txstate.LongDiffSets;
 
+import static org.neo4j.collection.PrimitiveLongCollections.mergeToSet;
 import static org.neo4j.kernel.impl.store.record.AbstractBaseRecord.NO_ID;
 
-class DefaultNodeLabelIndexCursor extends IndexCursor<LabelScanValueIndexProgressor>
+class DefaultNodeLabelIndexCursor extends IndexCursor<IndexProgressor>
         implements NodeLabelIndexCursor, NodeLabelClient
 {
     private Read read;
     private long node;
     private LabelSet labels;
     private LongIterator added;
-    private Set<Long> removed;
+    private LongSet removed;
 
     private final DefaultCursors pool;
 
@@ -53,16 +52,14 @@ class DefaultNodeLabelIndexCursor extends IndexCursor<LabelScanValueIndexProgres
     }
 
     @Override
-    public void scan( LabelScanValueIndexProgressor progressor, boolean providesLabels, int label )
+    public void scan( IndexProgressor progressor, boolean providesLabels, int label )
     {
         super.initialize( progressor );
         if ( read.hasTxStateWithChanges() )
         {
-            ReadableDiffSets<Long> changes =
-                    read.txState().nodesWithLabelChanged( label );
+            final LongDiffSets changes = read.txState().nodesWithLabelChanged( label );
             added = changes.augment( ImmutableEmptyLongIterator.INSTANCE );
-            removed = new HashSet<>( read.txState().addedAndRemovedNodes().getRemoved() );
-            removed.addAll( changes.getRemoved() );
+            removed = mergeToSet( read.txState().addedAndRemovedNodes().getRemoved(), changes.getRemoved() );
         }
     }
 
@@ -172,7 +169,7 @@ class DefaultNodeLabelIndexCursor extends IndexCursor<LabelScanValueIndexProgres
         else
         {
             return "NodeLabelIndexCursor[node=" + node + ", labels= " + labels +
-                    ", underlying record=" + super.toString() + " ]";
+                    ", underlying record=" + super.toString() + "]";
         }
     }
 

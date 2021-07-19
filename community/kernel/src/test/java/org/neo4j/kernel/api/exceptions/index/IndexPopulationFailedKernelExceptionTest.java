@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -22,35 +22,31 @@ package org.neo4j.kernel.api.exceptions.index;
 import org.junit.Test;
 
 import org.neo4j.internal.kernel.api.TokenNameLookup;
+import org.neo4j.internal.kernel.api.schema.SchemaUtil;
 import org.neo4j.kernel.api.schema.LabelSchemaDescriptor;
 import org.neo4j.kernel.api.schema.SchemaDescriptorFactory;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class IndexPopulationFailedKernelExceptionTest
 {
+
+    private static final TokenNameLookup TOKEN_NAME_LOOKUP = SchemaUtil.idTokenNameLookup;
 
     @Test
     public void shouldHandleMultiplePropertiesInConstructor1()
     {
         // Given
         LabelSchemaDescriptor descriptor = SchemaDescriptorFactory.forLabel( 0, 42, 43, 44 );
-        TokenNameLookup lookup = mock( TokenNameLookup.class );
-        when( lookup.labelGetName( 0 ) ).thenReturn( "L" );
-        when( lookup.propertyKeyGetName( 42 ) ).thenReturn( "FOO" );
-        when( lookup.propertyKeyGetName( 43 ) ).thenReturn( "BAR" );
-        when( lookup.propertyKeyGetName( 44 ) ).thenReturn( "BAZ" );
 
         // When
-        IndexPopulationFailedKernelException index =
-                new IndexPopulationFailedKernelException( descriptor, "INDEX", new RuntimeException() );
+        IndexPopulationFailedKernelException index = new IndexPopulationFailedKernelException(
+                descriptor.userDescription( TOKEN_NAME_LOOKUP ), new RuntimeException() );
 
         // Then
-        assertThat(index.getUserMessage( lookup ), equalTo(
-                "Failed to populate index for INDEX [labelId: 0, properties [42, 43, 44]]"));
+        assertThat( index.getUserMessage( TOKEN_NAME_LOOKUP ), equalTo(
+                "Failed to populate index :label[0](property[42], property[43], property[44])"));
     }
 
     @Test
@@ -58,18 +54,13 @@ public class IndexPopulationFailedKernelExceptionTest
     {
         // Given
         LabelSchemaDescriptor descriptor = SchemaDescriptorFactory.forLabel( 0, 42, 43, 44 );
-        TokenNameLookup lookup = mock( TokenNameLookup.class );
-        when( lookup.labelGetName( 0 ) ).thenReturn( "L" );
-        when( lookup.propertyKeyGetName( 42 ) ).thenReturn( "FOO" );
-        when( lookup.propertyKeyGetName( 43 ) ).thenReturn( "BAR" );
-        when( lookup.propertyKeyGetName( 44 ) ).thenReturn( "BAZ" );
 
         // When
-        IndexPopulationFailedKernelException index =
-                new IndexPopulationFailedKernelException( descriptor, "INDEX", "an act of pure evil occurred" );
+        IndexPopulationFailedKernelException index = new IndexPopulationFailedKernelException(
+                descriptor.userDescription( TOKEN_NAME_LOOKUP ), "an act of pure evil occurred" );
 
         // Then
-        assertThat(index.getUserMessage( lookup ), equalTo(
-                "Failed to populate index for INDEX [labelId: 0, properties [42, 43, 44]], due to an act of pure evil occurred"));
+        assertThat(index.getUserMessage( TOKEN_NAME_LOOKUP ), equalTo(
+                "Failed to populate index :label[0](property[42], property[43], property[44]), due to an act of pure evil occurred"));
     }
 }

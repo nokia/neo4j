@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,18 +21,11 @@ package org.neo4j.server.database;
 
 import java.io.File;
 
-import org.neo4j.kernel.configuration.Config;
 import org.neo4j.kernel.impl.factory.GraphDatabaseFacade;
-import org.neo4j.kernel.impl.factory.GraphDatabaseFacadeFactory;
 import org.neo4j.kernel.lifecycle.Lifecycle;
 
 public interface Database extends Lifecycle
 {
-    interface Factory
-    {
-        Database newDatabase( Config config, GraphDatabaseFacadeFactory.Dependencies dependencies );
-    }
-
     File getLocation();
 
     GraphDatabaseFacade getGraph();

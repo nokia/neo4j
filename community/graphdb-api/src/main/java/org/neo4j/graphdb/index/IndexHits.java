@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -61,7 +61,9 @@ import org.neo4j.helpers.collection.Iterators;
  * </pre>
  *
  * @param <T> the type of items in the Iterator.
+ * @deprecated This API will be removed in the next major release. Please consider using schema indexes instead.
  */
+@Deprecated
 public interface IndexHits<T> extends ResourceIterator<T>, ResourceIterable<T>
 {
     /**
@@ -76,6 +78,7 @@ public interface IndexHits<T> extends ResourceIterator<T>, ResourceIterable<T>
      *
      * @return the near-accurate size if this iterable.
      */
+    @Deprecated
     int size();
 
     /**
@@ -89,12 +92,14 @@ public interface IndexHits<T> extends ResourceIterator<T>, ResourceIterable<T>
      * through the entire result and then call this method it will silently
      * ignore any consecutive call (for convenience).
      */
+    @Deprecated
     @Override
     void close();
 
     /**
      * @return these index hits in a {@link Stream}
      */
+    @Deprecated
     @Override
     default Stream<T> stream()
     {
@@ -114,6 +119,7 @@ public interface IndexHits<T> extends ResourceIterator<T>, ResourceIterable<T>
      *
      * @return the first and only item, or {@code null} if none.
      */
+    @Deprecated
     T getSingle();
 
     /**
@@ -122,5 +128,6 @@ public interface IndexHits<T> extends ResourceIterator<T>, ResourceIterable<T>
      * {@link Index} implementation to dictate.
      * @return the score of the most recently fetched item from this iterator.
      */
+    @Deprecated
     float currentScore();
 }

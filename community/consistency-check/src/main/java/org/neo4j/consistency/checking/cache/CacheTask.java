@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -72,7 +72,7 @@ public abstract class CacheTask extends ConsistencyCheckerTask
         protected void processCache()
         {
             cacheAccess.clearCache();
-            long[] fields = new long[] {1, 0, -1};
+            long[] fields = new long[] {-1, 1, 0};
             CacheAccess.Client client = cacheAccess.client();
             try ( ResourceIterator<NodeRecord> nodeRecords = nodes.iterator() )
             {

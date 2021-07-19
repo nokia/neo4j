@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,12 +21,12 @@ package org.neo4j.kernel.impl.cache;
 
 import org.neo4j.graphdb.factory.GraphDatabaseSettings;
 import org.neo4j.kernel.configuration.Config;
-import org.neo4j.kernel.lifecycle.Lifecycle;
+import org.neo4j.kernel.lifecycle.LifecycleAdapter;
 import org.neo4j.kernel.monitoring.VmPauseMonitor;
 import org.neo4j.logging.Log;
 import org.neo4j.scheduler.JobScheduler;
 
-public class VmPauseMonitorComponent implements Lifecycle
+public class VmPauseMonitorComponent extends LifecycleAdapter
 {
     private final Config config;
     private final Log log;
@@ -41,17 +41,12 @@ public class VmPauseMonitorComponent implements Lifecycle
     }
 
     @Override
-    public void init()
-    {
-    }
-
-    @Override
     public void start()
     {
         vmPauseMonitor = new VmPauseMonitor(
                 config.get( GraphDatabaseSettings.vm_pause_monitor_measurement_duration ),
                 config.get( GraphDatabaseSettings.vm_pause_monitor_stall_alert_threshold ),
-                log, jobScheduler, vmPauseInfo -> log.debug( "Detected VM stop-the-world pause: {}", vmPauseInfo )
+                log, jobScheduler, vmPauseInfo -> log.warn( "Detected VM stop-the-world pause: %s", vmPauseInfo )
         );
         vmPauseMonitor.start();
     }
@@ -61,11 +56,6 @@ public class VmPauseMonitorComponent implements Lifecycle
     {
         vmPauseMonitor.stop();
         vmPauseMonitor = null;
-    }
-
-    @Override
-    public void shutdown()
-    {
     }
 
 }

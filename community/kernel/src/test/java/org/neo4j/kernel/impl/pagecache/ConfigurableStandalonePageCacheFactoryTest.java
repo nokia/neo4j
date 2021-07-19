@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -23,7 +23,6 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 import org.neo4j.io.fs.DefaultFileSystemAbstraction;
@@ -31,6 +30,8 @@ import org.neo4j.io.fs.FileSystemAbstraction;
 import org.neo4j.io.pagecache.PageCache;
 import org.neo4j.io.pagecache.PageCursor;
 import org.neo4j.io.pagecache.PagedFile;
+import org.neo4j.scheduler.JobScheduler;
+import org.neo4j.scheduler.ThreadPoolJobScheduler;
 import org.neo4j.test.rule.TestDirectory;
 import org.neo4j.test.rule.VerboseTimeout;
 
@@ -44,14 +45,15 @@ public class ConfigurableStandalonePageCacheFactoryTest
     public TestDirectory testDirectory = TestDirectory.testDirectory();
 
     @Test
-    public void mustAutomaticallyStartEvictionThread() throws IOException
+    public void mustAutomaticallyStartEvictionThread() throws Exception
     {
-        try ( FileSystemAbstraction fs = new DefaultFileSystemAbstraction() )
+        try ( FileSystemAbstraction fs = new DefaultFileSystemAbstraction();
+              JobScheduler jobScheduler = new ThreadPoolJobScheduler() )
         {
             File file = new File( testDirectory.directory(), "a" ).getCanonicalFile();
             fs.create( file ).close();
 
-            try ( PageCache cache = ConfigurableStandalonePageCacheFactory.createPageCache( fs );
+            try ( PageCache cache = ConfigurableStandalonePageCacheFactory.createPageCache( fs, jobScheduler );
                     PagedFile pf = cache.map( file, 4096 );
                     PageCursor cursor = pf.io( 0, PagedFile.PF_SHARED_WRITE_LOCK ) )
             {

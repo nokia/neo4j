@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -86,7 +86,7 @@ public class LogPruningTest
                 .thenReturn(  upTo -> LongStream.range( 3, upTo ) );
         when( logFiles.getHighestLogVersion() ).thenReturn( 4L );
         LogPruning pruning = new LogPruningImpl( fs, logFiles, logProvider, factory, clock, config );
-        assertTrue( pruning.mightHaveLogsToPrune() );
+        assertTrue( pruning.mightHaveLogsToPrune( logFiles.getHighestLogVersion() ) );
     }
 
     @Test
@@ -95,6 +95,6 @@ public class LogPruningTest
         when( factory.strategyFromConfigValue( eq( fs ), eq( logFiles ), eq( clock ), anyString() ) )
                 .thenReturn(  x -> LongStream.empty() );
         LogPruning pruning = new LogPruningImpl( fs, logFiles, logProvider, factory, clock, config );
-        assertFalse( pruning.mightHaveLogsToPrune() );
+        assertFalse( pruning.mightHaveLogsToPrune( logFiles.getHighestLogVersion() ) );
     }
 }

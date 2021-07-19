@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,13 +19,13 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical
 
-import org.neo4j.cypher.internal.compiler.v3_5.CypherCompilerConfiguration
+import org.neo4j.cypher.internal.compiler.v3_5.CypherPlannerConfiguration
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.Metrics._
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.cardinality.QueryGraphCardinalityModel
 import org.neo4j.cypher.internal.planner.v3_5.spi.GraphStatistics
 
 object SimpleMetricsFactory extends MetricsFactory {
-  def newCostModel(config: CypherCompilerConfiguration): CostModel = CardinalityCostModel(config)
+  def newCostModel(config: CypherPlannerConfiguration): CostModel = CardinalityCostModel(config)
 
   def newCardinalityEstimator(queryGraphCardinalityModel: QueryGraphCardinalityModel, expressionEvaluator: ExpressionEvaluator): CardinalityModel =
     new StatisticsBackedCardinalityModel(queryGraphCardinalityModel, expressionEvaluator)

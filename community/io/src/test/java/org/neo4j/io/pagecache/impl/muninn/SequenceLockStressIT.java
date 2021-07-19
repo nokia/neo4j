@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,10 +19,11 @@
  */
 package org.neo4j.io.pagecache.impl.muninn;
 
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.RepeatedTest;
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,34 +36,37 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.neo4j.test.rule.RepeatRule;
+import org.neo4j.memory.GlobalMemoryTracker;
+import org.neo4j.scheduler.DaemonThreadFactory;
 import org.neo4j.unsafe.impl.internal.dragons.UnsafeUtil;
 
-public class SequenceLockStressIT
+class SequenceLockStressIT
 {
-    private static final ExecutorService executor = Executors.newCachedThreadPool( new DaemonThreadFactory() );
+    private static ExecutorService executor;
+    private static long lockAddr;
 
-    @AfterClass
-    public static void shutDownExecutor()
-    {
-        executor.shutdown();
-    }
-
-    @Rule
-    public RepeatRule repeatRule = new RepeatRule();
-
-    private long lockAddr;
-
-    @Before
-    public void allocateLock()
+    @BeforeAll
+    static void initialise()
     {
         lockAddr = UnsafeUtil.allocateMemory( Long.BYTES );
+        executor = Executors.newCachedThreadPool( new DaemonThreadFactory() );
+    }
+
+    @AfterAll
+    static void cleanup()
+    {
+        executor.shutdown();
+        UnsafeUtil.free( lockAddr, Long.BYTES, GlobalMemoryTracker.INSTANCE );
+    }
+
+    @BeforeEach
+    void allocateLock()
+    {
         UnsafeUtil.putLong( lockAddr, 0 );
     }
 
-    @RepeatRule.Repeat( times = 2 )
-    @Test
-    public void stressTest() throws Exception
+    @RepeatedTest( 2 )
+    void stressTest() throws Exception
     {
         int[][] data = new int[10][10];
         AtomicBoolean stop = new AtomicBoolean();
@@ -224,7 +228,7 @@ public class SequenceLockStressIT
     }
 
     @Test
-    public void thoroughlyEnsureAtomicityOfUnlockExclusiveAndTakeWriteLock() throws Exception
+    void thoroughlyEnsureAtomicityOfUnlockExclusiveAndTakeWriteLock() throws Exception
     {
         for ( int i = 0; i < 30000; i++ )
         {
@@ -233,7 +237,7 @@ public class SequenceLockStressIT
         }
     }
 
-    public void unlockExclusiveAndTakeWriteLockMustBeAtomic() throws Exception
+    private void unlockExclusiveAndTakeWriteLockMustBeAtomic() throws Exception
     {
         int threads = Runtime.getRuntime().availableProcessors() - 1;
         CountDownLatch start = new CountDownLatch( threads );

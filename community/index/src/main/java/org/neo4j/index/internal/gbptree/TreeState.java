@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -39,6 +39,25 @@ import org.neo4j.io.pagecache.PageCursor;
  */
 class TreeState
 {
+    /**
+     * Size of one set of tree-state fields.
+     */
+    private static final int TREE_STATE_FIELDS_SIZE =
+            Integer.BYTES * 2 + // stable/unstable gen
+            Long.BYTES +        // rootId
+            Long.BYTES +        // rootGeneration
+            Long.BYTES +        // lastId
+            Long.BYTES +        // freeListWritePageId
+            Long.BYTES +        // freeListReadPageId
+            Long.BYTES +        // freeListWritePos
+            Long.BYTES +        // freeListReadPos
+            Byte.BYTES;         // clean
+
+    /**
+     * Size of a tree-state altogether, which consists of two sets of tree-state fields.
+     */
+    static final int SIZE = TREE_STATE_FIELDS_SIZE * 2;
+
     private static final byte CLEAN_BYTE = 0x01;
     private static final byte DIRTY_BYTE = 0x00;
 

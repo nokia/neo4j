@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -30,6 +30,12 @@ object PrimitiveLongHelper {
   }
 
   def mapPrimitive(in: LongIterator, f: Long => Long): LongIterator = new LongIterator {
+    override def hasNext: Boolean = in.hasNext
+
+    override def next(): Long = f(in.next())
+  }
+
+  def mapToPrimitive[T](in: Iterator[T], f: T => Long): LongIterator = new LongIterator {
     override def hasNext: Boolean = in.hasNext
 
     override def next(): Long = f(in.next())

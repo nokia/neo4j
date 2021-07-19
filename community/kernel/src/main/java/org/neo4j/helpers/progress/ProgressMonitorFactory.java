@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -27,8 +27,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Set;
 
+@Deprecated
 public abstract class ProgressMonitorFactory
 {
+    @Deprecated
     public static final ProgressMonitorFactory NONE = new ProgressMonitorFactory()
     {
         @Override
@@ -38,11 +40,13 @@ public abstract class ProgressMonitorFactory
         }
     };
 
+    @Deprecated
     public static ProgressMonitorFactory textual( final OutputStream out )
     {
         return textual( new OutputStreamWriter( out, StandardCharsets.UTF_8 ) );
     }
 
+    @Deprecated
     public static ProgressMonitorFactory textual( final Writer out )
     {
         return new ProgressMonitorFactory()
@@ -60,11 +64,13 @@ public abstract class ProgressMonitorFactory
         };
     }
 
+    @Deprecated
     public final MultiPartBuilder multipleParts( String process )
     {
         return new MultiPartBuilder( this, process );
     }
 
+    @Deprecated
     public final ProgressListener singlePart( String process, long totalCount )
     {
         return new ProgressListener.SinglePartProgressListener( newIndicator( process ), totalCount );
@@ -72,6 +78,7 @@ public abstract class ProgressMonitorFactory
 
     protected abstract Indicator newIndicator( String process );
 
+    @Deprecated
     public static class MultiPartBuilder
     {
         private Aggregator aggregator;

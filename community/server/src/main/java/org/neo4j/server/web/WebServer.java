@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Consumer;
 import javax.servlet.Filter;
 import javax.servlet.ServletException;
@@ -40,9 +39,9 @@ import org.neo4j.ssl.SslPolicy;
 
 public interface WebServer
 {
-    void setAddress( ListenSocketAddress address );
+    void setHttpAddress( ListenSocketAddress address );
 
-    void setHttpsAddress( Optional<ListenSocketAddress> address );
+    void setHttpsAddress( ListenSocketAddress address );
 
     void setSslPolicy( SslPolicy sslPolicy );
 

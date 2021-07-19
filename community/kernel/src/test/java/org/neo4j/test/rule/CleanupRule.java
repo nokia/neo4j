@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -87,19 +87,17 @@ public class CleanupRule extends ExternalResource
             }
             catch ( NoSuchMethodException e )
             {
-                // Try the next method
-                continue;
+                // ignore
             }
             catch ( SecurityException e )
             {
                 throw new RuntimeException( e );
             }
         }
-        throw new IllegalArgumentException( "No suitable close method found on " + toClose +
-                ", which is a " + cls );
+        throw new IllegalArgumentException( "No suitable close method found on " + toClose + ", which is a " + cls );
     }
 
-    private AutoCloseable closeable( final Method method, final Object target )
+    private static AutoCloseable closeable( final Method method, final Object target )
     {
         return () ->
         {

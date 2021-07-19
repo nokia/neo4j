@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -37,8 +37,6 @@ import java.time.temporal.IsoFields;
 import java.time.temporal.TemporalQueries;
 import java.time.temporal.TemporalUnit;
 import java.time.zone.ZoneRulesException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -51,7 +49,6 @@ import org.neo4j.values.utils.InvalidValuesArgumentException;
 import org.neo4j.values.utils.TemporalParseException;
 import org.neo4j.values.utils.UnsupportedTemporalUnitException;
 import org.neo4j.values.virtual.MapValue;
-import org.neo4j.values.virtual.VirtualValues;
 
 import static java.time.Instant.ofEpochMilli;
 import static java.time.Instant.ofEpochSecond;
@@ -65,11 +62,14 @@ import static org.neo4j.values.storable.LocalDateTimeValue.optTime;
 import static org.neo4j.values.storable.TimeValue.OFFSET;
 import static org.neo4j.values.storable.TimeValue.TIME_PATTERN;
 import static org.neo4j.values.storable.TimeValue.parseOffset;
+import static org.neo4j.values.storable.Values.NO_VALUE;
 
 public final class DateTimeValue extends TemporalValue<ZonedDateTime,DateTimeValue>
 {
-    public static final DateTimeValue MIN_VALUE = new DateTimeValue( ZonedDateTime.of( LocalDateTime.MIN, ZoneOffset.MIN ) );
-    public static final DateTimeValue MAX_VALUE = new DateTimeValue( ZonedDateTime.of( LocalDateTime.MAX, ZoneOffset.MAX ) );
+    public static final DateTimeValue MIN_VALUE =
+            new DateTimeValue( ZonedDateTime.of( LocalDateTime.MIN, ZoneOffset.MIN ) );
+    public static final DateTimeValue MAX_VALUE =
+            new DateTimeValue( ZonedDateTime.of( LocalDateTime.MAX, ZoneOffset.MAX ) );
 
     public static DateTimeValue datetime( DateValue date, LocalTimeValue time, ZoneId zone )
     {
@@ -91,12 +91,18 @@ public final class DateTimeValue extends TemporalValue<ZonedDateTime,DateTimeVal
     public static DateTimeValue datetime(
             int year, int month, int day, int hour, int minute, int second, int nanoOfSecond, ZoneId zone )
     {
-        return new DateTimeValue( assertValidArgument( () -> ZonedDateTime.of( year, month, day, hour, minute, second, nanoOfSecond, zone ) ) );
+        return new DateTimeValue( assertValidArgument(
+                () -> ZonedDateTime.of( year, month, day, hour, minute, second, nanoOfSecond, zone ) ) );
     }
 
     public static DateTimeValue datetime( long epochSecond, long nano, ZoneOffset zoneOffset )
     {
-        return new DateTimeValue( assertValidArgument( () -> ofInstant( ofEpochSecond( epochSecond, nano ), zoneOffset ) ) );
+        return new DateTimeValue( datetimeRaw( epochSecond, nano, zoneOffset ) );
+    }
+
+    public static ZonedDateTime datetimeRaw( long epochSecond, long nano, ZoneOffset zoneOffset )
+    {
+        return datetimeRaw( epochSecond, nano, (ZoneId) zoneOffset );
     }
 
     public static DateTimeValue datetime( ZonedDateTime datetime )
@@ -111,25 +117,32 @@ public final class DateTimeValue extends TemporalValue<ZonedDateTime,DateTimeVal
 
     public static DateTimeValue datetime( long epochSecondUTC, long nano, ZoneId zone )
     {
-        return new DateTimeValue( assertValidArgument( () -> ofInstant( ofEpochSecond( epochSecondUTC, nano ), zone ) ) );
+        return new DateTimeValue( datetimeRaw( epochSecondUTC, nano, zone ) );
+    }
+
+    public static ZonedDateTime datetimeRaw( long epochSecondUTC, long nano, ZoneId zone )
+    {
+        return assertValidArgument( () -> ofInstant( ofEpochSecond( epochSecondUTC, nano ), zone ) );
     }
 
     public static DateTimeValue ofEpoch( IntegralValue epochSecondUTC, IntegralValue nano )
     {
         long ns = safeCastIntegral( "nanosecond", nano, 0 );
-        if ( ns < 0 || ns >=  1000_000_000 )
+        if ( ns < 0 || ns >= 1000_000_000 )
         {
             throw new InvalidValuesArgumentException( "Invalid nanosecond: " + ns );
         }
-        return new DateTimeValue( assertValidArgument( () -> ofInstant( ofEpochSecond( epochSecondUTC.longValue(), ns ), UTC ) ) );
+        return new DateTimeValue( datetimeRaw( epochSecondUTC.longValue(), ns, UTC ) );
     }
 
     public static DateTimeValue ofEpochMillis( IntegralValue millisUTC )
     {
-        return new DateTimeValue( assertValidArgument( () -> ofInstant( ofEpochMilli( millisUTC.longValue() ), UTC ) ) );
+        return new DateTimeValue(
+                assertValidArgument( () -> ofInstant( ofEpochMilli( millisUTC.longValue() ), UTC ) ) );
     }
 
-    public static DateTimeValue parse( CharSequence text, Supplier<ZoneId> defaultZone, CSVHeaderInformation fieldsFromHeader )
+    public static DateTimeValue parse( CharSequence text, Supplier<ZoneId> defaultZone,
+            CSVHeaderInformation fieldsFromHeader )
     {
         if ( fieldsFromHeader != null )
         {
@@ -199,26 +212,26 @@ public final class DateTimeValue extends TemporalValue<ZonedDateTime,DateTimeVal
         else
         {
             // Timezone needs some special handling, since the builder will shift keeping the instant instead of the local time
-            Map<String, AnyValue> updatedFields = new HashMap<>( fields.size() + 1 );
-            for ( Map.Entry<String,AnyValue> entry : fields.entrySet() )
+            AnyValue timezone = fields.get( "timezone" );
+            if ( timezone != NO_VALUE )
             {
-                if ( "timezone".equals( entry.getKey() ) )
-                {
-                    truncatedZDT = truncatedZDT.withZoneSameLocal( timezoneOf( entry.getValue() ) );
-                }
-                else
-                {
-                    updatedFields.put( entry.getKey(), entry.getValue() );
-                }
+                truncatedZDT = truncatedZDT.withZoneSameLocal( timezoneOf( timezone ) );
             }
 
-            truncatedZDT = updateFieldMapWithConflictingSubseconds( updatedFields, unit, truncatedZDT );
-            if ( updatedFields.size() == 0 )
-            {
-                return datetime( truncatedZDT );
-            }
-            updatedFields.put( "datetime", datetime( truncatedZDT ) );
-            return build( VirtualValues.map( updatedFields ), defaultZone );
+            return updateFieldMapWithConflictingSubseconds( fields, unit, truncatedZDT,
+                    ( mapValue, zonedDateTime ) -> {
+
+                        if ( mapValue.size() == 0 )
+                        {
+                            return datetime( zonedDateTime );
+                        }
+                        else
+                        {
+                            return build( mapValue.updatedWith( "datetime", datetime( zonedDateTime ) ),
+                                    defaultZone );
+                        }
+
+                    } );
         }
     }
 
@@ -238,25 +251,29 @@ public final class DateTimeValue extends TemporalValue<ZonedDateTime,DateTimeVal
                 return true;
             }
 
-            private final ZonedDateTime defaulZonedDateTime =
-                    ZonedDateTime.of( Field.year.defaultValue, Field.month.defaultValue, Field.day.defaultValue, Field.hour.defaultValue,
-                            Field.minute.defaultValue, Field.second.defaultValue, Field.nanosecond.defaultValue, timezone() );
+            private final ZonedDateTime defaultZonedDateTime =
+                    ZonedDateTime.of( TemporalFields.year.defaultValue, TemporalFields.month.defaultValue,
+                            TemporalFields.day.defaultValue, TemporalFields.hour.defaultValue,
+                            TemporalFields.minute.defaultValue, TemporalFields.second.defaultValue,
+                            TemporalFields.nanosecond.defaultValue, timezone() );
 
             @Override
             public DateTimeValue buildInternal()
             {
-                boolean selectingDate = fields.containsKey( Field.date );
-                boolean selectingTime = fields.containsKey( Field.time );
-                boolean selectingDateTime = fields.containsKey( Field.datetime );
-                boolean selectingEpoch = fields.containsKey( Field.epochSeconds ) || fields.containsKey( Field.epochMillis );
+                boolean selectingDate = fields.containsKey( TemporalFields.date );
+                boolean selectingTime = fields.containsKey( TemporalFields.time );
+                boolean selectingDateTime = fields.containsKey( TemporalFields.datetime );
+                boolean selectingEpoch = fields.containsKey( TemporalFields.epochSeconds ) ||
+                                         fields.containsKey( TemporalFields.epochMillis );
                 boolean selectingTimeZone;
                 ZonedDateTime result;
                 if ( selectingDateTime )
                 {
-                    AnyValue dtField = fields.get( Field.datetime );
+                    AnyValue dtField = fields.get( TemporalFields.datetime );
                     if ( !(dtField instanceof TemporalValue) )
                     {
-                        throw new InvalidValuesArgumentException( String.format( "Cannot construct date time from: %s", dtField ) );
+                        throw new InvalidValuesArgumentException(
+                                String.format( "Cannot construct date time from: %s", dtField ) );
                     }
                     TemporalValue dt = (TemporalValue) dtField;
                     LocalTime timePart = dt.getTimePart( defaultZone ).toLocalTime();
@@ -266,25 +283,29 @@ public final class DateTimeValue extends TemporalValue<ZonedDateTime,DateTimeVal
                 }
                 else if ( selectingEpoch )
                 {
-                    if ( fields.containsKey( Field.epochSeconds ) )
+                    if ( fields.containsKey( TemporalFields.epochSeconds ) )
                     {
-                        AnyValue epochField = fields.get( Field.epochSeconds );
+                        AnyValue epochField = fields.get( TemporalFields.epochSeconds );
                         if ( !(epochField instanceof IntegralValue) )
                         {
-                            throw new InvalidValuesArgumentException( String.format( "Cannot construct date time from: %s", epochField ) );
+                            throw new InvalidValuesArgumentException(
+                                    String.format( "Cannot construct date time from: %s", epochField ) );
                         }
                         IntegralValue epochSeconds = (IntegralValue) epochField;
-                        result = assertValidArgument( () -> ZonedDateTime.ofInstant( Instant.ofEpochMilli( epochSeconds.longValue() * 1000 ), timezone() ) );
+                        result = assertValidArgument( () -> ZonedDateTime
+                                .ofInstant( Instant.ofEpochMilli( epochSeconds.longValue() * 1000 ), timezone() ) );
                     }
                     else
                     {
-                        AnyValue epochField = fields.get( Field.epochMillis );
+                        AnyValue epochField = fields.get( TemporalFields.epochMillis );
                         if ( !(epochField instanceof IntegralValue) )
                         {
-                            throw new InvalidValuesArgumentException( String.format( "Cannot construct date time from: %s", epochField ) );
+                            throw new InvalidValuesArgumentException(
+                                    String.format( "Cannot construct date time from: %s", epochField ) );
                         }
                         IntegralValue epochMillis = (IntegralValue) epochField;
-                        result = assertValidArgument( () -> ZonedDateTime.ofInstant( Instant.ofEpochMilli( epochMillis.longValue() ), timezone() ) );
+                        result = assertValidArgument( () -> ZonedDateTime
+                                .ofInstant( Instant.ofEpochMilli( epochMillis.longValue() ), timezone() ) );
                     }
                     selectingTimeZone = false;
                 }
@@ -295,10 +316,11 @@ public final class DateTimeValue extends TemporalValue<ZonedDateTime,DateTimeVal
                     ZoneId zoneId;
                     if ( selectingTime )
                     {
-                        AnyValue timeField = fields.get( Field.time );
+                        AnyValue timeField = fields.get( TemporalFields.time );
                         if ( !(timeField instanceof TemporalValue) )
                         {
-                            throw new InvalidValuesArgumentException( String.format( "Cannot construct time from: %s", timeField ) );
+                            throw new InvalidValuesArgumentException(
+                                    String.format( "Cannot construct time from: %s", timeField ) );
                         }
                         TemporalValue t = (TemporalValue) timeField;
                         time = t.getTimePart( defaultZone ).toLocalTime();
@@ -314,10 +336,11 @@ public final class DateTimeValue extends TemporalValue<ZonedDateTime,DateTimeVal
                     LocalDate date;
                     if ( selectingDate )
                     {
-                        AnyValue dateField = fields.get( Field.date );
+                        AnyValue dateField = fields.get( TemporalFields.date );
                         if ( !(dateField instanceof TemporalValue) )
                         {
-                            throw new InvalidValuesArgumentException( String.format( "Cannot construct date from: %s", dateField ) );
+                            throw new InvalidValuesArgumentException(
+                                    String.format( "Cannot construct date from: %s", dateField ) );
                         }
                         TemporalValue t = (TemporalValue) dateField;
                         date = t.getDatePart();
@@ -330,16 +353,18 @@ public final class DateTimeValue extends TemporalValue<ZonedDateTime,DateTimeVal
                 }
                 else
                 {
-                    result = defaulZonedDateTime;
+                    result = defaultZonedDateTime;
                     selectingTimeZone = false;
                 }
 
-                if ( fields.containsKey( Field.week ) && !selectingDate && !selectingDateTime && !selectingEpoch )
+                if ( fields.containsKey( TemporalFields.week ) && !selectingDate && !selectingDateTime &&
+                     !selectingEpoch )
                 {
                     // Be sure to be in the start of the week based year (which can be later than 1st Jan)
                     result = result
-                            .with( IsoFields.WEEK_BASED_YEAR, safeCastIntegral( Field.year.name(), fields.get( Field.year ),
-                                    Field.year.defaultValue ) )
+                            .with( IsoFields.WEEK_BASED_YEAR,
+                                    safeCastIntegral( TemporalFields.year.name(), fields.get( TemporalFields.year ),
+                                            TemporalFields.year.defaultValue ) )
                             .with( IsoFields.WEEK_OF_WEEK_BASED_YEAR, 1 )
                             .with( ChronoField.DAY_OF_WEEK, 1 );
                 }
@@ -391,7 +416,17 @@ public final class DateTimeValue extends TemporalValue<ZonedDateTime,DateTimeVal
 
     private DateTimeValue( ZonedDateTime value )
     {
-        this.value = value;
+        ZoneId zone = value.getZone().normalized();
+        if ( zone instanceof ZoneOffset )
+        {
+            this.value = value;
+        }
+        else
+        {
+            // Do a 2-way lookup of the zone to make sure we only use the new name of renamed zones
+            ZoneId mappedZone = ZoneId.of( TimeZones.map( TimeZones.map( zone.getId() ) ) );
+            this.value = value.withZoneSameInstant( mappedZone );
+        }
         this.epochSeconds = this.value.toEpochSecond();
     }
 
@@ -554,6 +589,12 @@ public final class DateTimeValue extends TemporalValue<ZonedDateTime,DateTimeVal
     }
 
     @Override
+    public String getTypeName()
+    {
+        return "DateTime";
+    }
+
+    @Override
     public <T> T map( ValueMapper<T> mapper )
     {
         return mapper.mapDateTime( this );
@@ -632,7 +673,8 @@ public final class DateTimeValue extends TemporalValue<ZonedDateTime,DateTimeVal
         }
         catch ( DateTimeParseException e )
         {
-            throw new TemporalParseException( e.getMessage(), e.getParsedString(), e.getErrorIndex(), e );
+            throw new TemporalParseException( "Invalid value for TimeZone: " + e.getMessage(), e.getParsedString(),
+                    e.getErrorIndex(), e );
         }
         return parsedName;
     }
@@ -650,7 +692,8 @@ public final class DateTimeValue extends TemporalValue<ZonedDateTime,DateTimeVal
         }
         catch ( DateTimeParseException e )
         {
-            throw new TemporalParseException( e.getMessage(), e.getParsedString(), e.getErrorIndex(), e );
+            throw new TemporalParseException( "Invalid value for TimeZone: " + e.getMessage(), e.getParsedString(),
+                    e.getErrorIndex(), e );
         }
     }
 

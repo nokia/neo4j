@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,19 +19,19 @@
  */
 package org.neo4j.adversaries.pagecache;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.neo4j.io.pagecache.ByteArrayPageCursor;
 import org.neo4j.test.rule.PageCacheRule;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-public class AdversarialReadPageCursorTest
+class AdversarialReadPageCursorTest
 {
     @Test
-    public void shouldNotMessUpUnrelatedSegmentOnReadBytes() throws Exception
+    void shouldNotMessUpUnrelatedSegmentOnReadBytes() throws Exception
     {
         // Given
         byte[] buf = new byte[4];

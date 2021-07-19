@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,20 +19,24 @@
  */
 package org.neo4j.helpers;
 
+@Deprecated
 public class Reference<T>
 {
     private T t;
 
+    @Deprecated
     public Reference( T initial )
     {
         this.t = initial;
     }
 
+    @Deprecated
     public void set( T t )
     {
         this.t = t;
     }
 
+    @Deprecated
     public T get()
     {
         return t;

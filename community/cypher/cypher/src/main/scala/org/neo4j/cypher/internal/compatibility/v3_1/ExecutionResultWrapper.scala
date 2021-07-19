@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -24,10 +24,10 @@ import java.util
 
 import org.neo4j.cypher.internal
 import org.neo4j.cypher.internal._
-import org.neo4j.cypher.internal.compatibility._
+import org.neo4j.cypher.internal.compatibility.CompatibilityInternalExecutionResult
 import org.neo4j.cypher.internal.compatibility.v3_1.ExecutionResultWrapper.asKernelNotification
 import org.neo4j.cypher.internal.compiler.v3_1
-import org.neo4j.cypher.internal.compiler.v3_1.executionplan.{InternalExecutionResult, _}
+import org.neo4j.cypher.internal.compiler.v3_1.executionplan.{InternalExecutionResult => InternalExecutionResult3_1, _}
 import org.neo4j.cypher.internal.compiler.v3_1.spi.{InternalResultRow, InternalResultVisitor}
 import org.neo4j.cypher.internal.compiler.v3_1.{PlannerName, ExplainMode => ExplainModev3_1, NormalMode => NormalModev3_1, ProfileMode => ProfileModev3_1, _}
 import org.neo4j.cypher.internal.frontend.v3_1.notification.{DeprecatedPlannerNotification, InternalNotification, PlannerUnsupportedNotification, RuntimeUnsupportedNotification, _}
@@ -36,9 +36,6 @@ import org.neo4j.cypher.internal.runtime.planDescription.InternalPlanDescription
 import org.neo4j.cypher.internal.runtime.planDescription.InternalPlanDescription.Arguments._
 import org.neo4j.cypher.internal.runtime.planDescription.{Argument, Children, NoChildren, PlanDescriptionImpl, SingleChild, TwoChildren, InternalPlanDescription => InternalPlanDescription3_4}
 import org.neo4j.cypher.internal.runtime.{ExplainMode, NormalMode, ProfileMode, QueryStatistics}
-import org.neo4j.cypher.internal.util.v3_5.attribution.Id
-import org.neo4j.cypher.internal.util.v3_5.{symbols => symbolsv3_5}
-import org.neo4j.cypher.internal.v3_5.expressions.SemanticDirection.{BOTH, INCOMING, OUTGOING}
 import org.neo4j.cypher.internal.v3_5.logical.plans.QualifiedName
 import org.neo4j.cypher.result.QueryResult
 import org.neo4j.cypher.result.QueryResult.Record
@@ -48,17 +45,21 @@ import org.neo4j.graphdb.impl.notification.{NotificationCode, NotificationDetail
 import org.neo4j.graphdb.{InputPosition, Notification, ResourceIterator}
 import org.neo4j.kernel.impl.util.ValueUtils
 import org.neo4j.values.AnyValue
+import org.neo4j.cypher.internal.v3_5.expressions.SemanticDirection.{BOTH, INCOMING, OUTGOING}
+import org.neo4j.cypher.internal.v3_5.util.attribution.Id
+import org.neo4j.cypher.internal.v3_5.util.{symbols => symbolsv3_5}
 
 import scala.collection.JavaConverters._
 
-class ExecutionResultWrapper(val inner: InternalExecutionResult, val planner: PlannerName, val runtime: RuntimeName,
+class ExecutionResultWrapper(val inner: InternalExecutionResult3_1,
+                             val planner: PlannerName,
+                             val runtime: RuntimeName,
                              val preParsingNotification: Set[org.neo4j.graphdb.Notification],
                              val offset : Option[frontend.v3_1.InputPosition])
-  extends internal.runtime.InternalExecutionResult  {
+  extends CompatibilityInternalExecutionResult  {
 
-  override def planDescriptionRequested: Boolean = inner.planDescriptionRequested
-  override def javaIterator: ResourceIterator[util.Map[String, Any]] = inner.javaIterator
-  override def columnAs[T](column: String): Iterator[Nothing] = inner.columnAs(column)
+  override def javaIterator: ResourceIterator[util.Map[String, AnyRef]] =
+    inner.javaIterator.asInstanceOf[ResourceIterator[util.Map[String, AnyRef]]]
 
   override def queryStatistics(): QueryStatistics = {
     val i = inner.queryStatistics()
@@ -166,7 +167,9 @@ class ExecutionResultWrapper(val inner: InternalExecutionResult, val planner: Pl
   }
 
   override def hasNext: Boolean = inner.hasNext
-  override def next(): Map[String, Any] = inner.next()
+
+  override def next(): Map[String, AnyRef] = inner.next().asInstanceOf[Map[String, AnyRef]]
+
   override def close(): Unit = inner.close()
 
   override def queryType: internal.runtime.InternalQueryType = inner.executionType match {
@@ -201,9 +204,6 @@ class ExecutionResultWrapper(val inner: InternalExecutionResult, val planner: Pl
     case NormalModev3_1 => NormalMode
   }
 
-  override def withNotifications(notification: Notification*): internal.runtime.InternalExecutionResult =
-    new ExecutionResultWrapper(inner, planner, runtime, preParsingNotification ++ notification, offset)
-
   override def fieldNames(): Array[String] = inner.columns.toArray
 
   override def accept[E <: Exception](visitor: QueryResult.QueryResultVisitor[E]): Unit =
@@ -215,12 +215,6 @@ class ExecutionResultWrapper(val inner: InternalExecutionResult, val planner: Pl
 }
 
 object ExecutionResultWrapper {
-  def unapply(v: Any): Option[(InternalExecutionResult, PlannerName, RuntimeName, Set[org.neo4j.graphdb.Notification], Option[frontend.v3_1.InputPosition])] = v match {
-    case closing: ClosingExecutionResult => unapply(closing.inner)
-    case wrapper: ExecutionResultWrapper => Some((wrapper.inner, wrapper.planner, wrapper.runtime, wrapper.preParsingNotification, wrapper.offset))
-    case _ => None
-  }
-
   def asKernelNotification(offset : Option[frontend.v3_1.InputPosition])(notification: InternalNotification): org.neo4j.graphdb.Notification = notification match {
     case CartesianProductNotification(pos, variables) =>
       NotificationCode.CARTESIAN_PRODUCT.notification(pos.withOffset(offset).asInputPosition, NotificationDetail.Factory.cartesianProduct(variables.asJava))
@@ -257,7 +251,7 @@ object ExecutionResultWrapper {
     case DeprecatedProcedureNotification(pos, oldName, newName) =>
       NotificationCode.DEPRECATED_PROCEDURE.notification(pos.withOffset(offset).asInputPosition, NotificationDetail.Factory.deprecatedName(oldName, newName))
     case DeprecatedPlannerNotification =>
-      NotificationCode.DEPRECATED_PLANNER.notification(graphdb.InputPosition.empty)
+      NotificationCode.DEPRECATED_RULE_PLANNER.notification(graphdb.InputPosition.empty)
   }
 
   private implicit class ConvertibleCompilerInputPosition(pos: frontend.v3_1.InputPosition) {

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,26 +19,29 @@
  */
 package org.neo4j.cypher.internal.compatibility.v3_5.runtime.helpers
 
-import org.neo4j.cypher.internal.util.v3_5.{CypherException => InternalCypherException}
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.ExpressionEvaluator
+import org.neo4j.cypher.internal.runtime.QueryContext
+import org.neo4j.cypher.internal.planner.v3_5.spi.TokenContext
 import org.neo4j.cypher.internal.runtime.interpreted.ExecutionContext
 import org.neo4j.cypher.internal.runtime.interpreted.commands.convert.{CommunityExpressionConverter, ExpressionConverters}
 import org.neo4j.cypher.internal.runtime.interpreted.pipes.{NullPipeDecorator, QueryState}
-import org.neo4j.cypher.internal.v3_5.expressions.Expression
 import org.neo4j.values.virtual.VirtualValues
+import org.neo4j.cypher.internal.v3_5.expressions.Expression
+import org.neo4j.cypher.internal.v3_5.util.attribution.Id
+import org.neo4j.cypher.internal.v3_5.util.{CypherException => InternalCypherException}
 
 import scala.collection.mutable
 
-object simpleExpressionEvaluator extends ExpressionEvaluator {
+case class simpleExpressionEvaluator(queryContext: QueryContext) extends ExpressionEvaluator {
 
   // Returns Some(value) if the expression can be independently evaluated in an empty context/query state, otherwise None
   def evaluateExpression(expr: Expression): Option[Any] = {
-    val converters = new ExpressionConverters(CommunityExpressionConverter)
-    val commandExpr = converters.toCommandExpression(expr)
+    val converters = new ExpressionConverters(CommunityExpressionConverter(TokenContext.EMPTY))
+    val commandExpr = converters.toCommandExpression(Id.INVALID_ID, expr)
 
     val emptyQueryState =
       new QueryState(
-        query = null,
+        query = queryContext,
         resources = null,
         params = VirtualValues.EMPTY_MAP,
         decorator = NullPipeDecorator,

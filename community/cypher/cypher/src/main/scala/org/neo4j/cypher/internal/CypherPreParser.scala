@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,13 +19,13 @@
  */
 package org.neo4j.cypher.internal
 
-import org.neo4j.cypher.internal.frontend.v3_5.parser.Base
-import org.neo4j.cypher.internal.util.v3_5.InputPosition
+import org.neo4j.cypher.internal.v3_5.parser.Base
+import org.neo4j.cypher.internal.v3_5.util.InputPosition
 import org.parboiled.scala._
 
 final case class PreParsedStatement(statement: String, options: Seq[PreParserOption], offset: InputPosition)
 
-case object CypherPreParser extends Parser with Base {
+case object CypherPreParser extends org.parboiled.scala.Parser with Base {
   def apply(input: String): PreParsedStatement = parseOrThrow(input, None, QueryWithOptions)
 
   def QueryWithOptions: Rule1[Seq[PreParsedStatement]] =
@@ -41,7 +41,7 @@ case object CypherPreParser extends Parser with Base {
   def Cypher: Rule1[ConfigurationOptions] = rule("CYPHER options") {
     keyword("CYPHER") ~~
       optional(VersionNumber) ~~
-      zeroOrMore(PlannerOption | RuntimeOption | StrategyOption | DebugFlag, WS) ~~> ConfigurationOptions
+      zeroOrMore(PlannerOption | RuntimeOption | ExpressionEngineOption | StrategyOption | DebugFlag, WS) ~~> ConfigurationOptions
   }
 
   def PlannerOption: Rule1[PreParserOption] = rule("planner option") (
@@ -70,6 +70,11 @@ case object CypherPreParser extends Parser with Base {
   def DebugFlag: Rule1[DebugOption] = rule("debug option") {
     keyword("debug") ~~ "=" ~~ SymbolicNameString ~~> DebugOption
   }
+
+  def ExpressionEngineOption: Rule1[ExpressionEnginePreParserOption] = rule("expression engine option") (
+    option("expressionEngine", "interpreted") ~ push(InterpretedExpressionOption)
+      | option("expressionEngine", "compiled") ~ push(CompiledExpressionOption)
+  )
 
   def Digits: Rule0 = oneOrMore("0" - "9")
 

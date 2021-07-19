@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,16 +19,16 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.plans.rewriter
 
-import org.neo4j.cypher.internal.util.v3_5.attribution.{IdGen, SameId}
-import org.neo4j.cypher.internal.util.v3_5.{Rewriter, bottomUp}
-import org.neo4j.cypher.internal.v3_5.expressions.Expression
 import org.neo4j.cypher.internal.v3_5.logical.plans._
+import org.neo4j.cypher.internal.v3_5.expressions.{Ands, Expression}
+import org.neo4j.cypher.internal.v3_5.util.attribution.{IdGen, SameId}
+import org.neo4j.cypher.internal.v3_5.util.{Rewriter, bottomUp}
 
 case object unnestOptional extends Rewriter {
 
   override def apply(input: AnyRef) = if (isSafe(input)) instance.apply(input) else input
 
-  import org.neo4j.cypher.internal.util.v3_5.Foldable._
+  import org.neo4j.cypher.internal.v3_5.util.Foldable._
 
   /*
    * It is not safe to unnest an optional expand with when we have
@@ -46,13 +46,13 @@ case object unnestOptional extends Rewriter {
     case apply@Apply(lhs,
       Optional(
       e@Expand(_: Argument, _, _, _, _, _, _), _)) =>
-        optionalExpand(e.selfThis, lhs)(Seq.empty)(SameId(apply.id))
+        optionalExpand(e, lhs)(Seq.empty)(SameId(apply.id))
 
     case apply@Apply(lhs,
       Optional(
-      Selection(predicates,
+      Selection(Ands(predicates),
       e@Expand(_: Argument, _, _, _, _, _, _)), _)) =>
-        optionalExpand(e.selfThis, lhs)(predicates)(SameId(apply.id))
+        optionalExpand(e, lhs)(predicates.toSeq)(SameId(apply.id))
   })
 
   private def optionalExpand(e: Expand, lhs: LogicalPlan): Seq[Expression] => IdGen => OptionalExpand =

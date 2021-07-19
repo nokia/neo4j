@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,15 +19,13 @@
  */
 package org.neo4j.cypher.internal.runtime.interpreted.commands.expressions
 
-import org.neo4j.cypher.internal.runtime.interpreted.ExecutionContext
-import org.neo4j.cypher.internal.runtime.interpreted.IsMap
-import org.neo4j.cypher.internal.runtime.interpreted.GraphElementPropertyFunctions
+import org.neo4j.cypher.internal.runtime.interpreted.commands.AstNode
 import org.neo4j.cypher.internal.runtime.interpreted.pipes.QueryState
+import org.neo4j.cypher.internal.runtime.interpreted.{ExecutionContext, GraphElementPropertyFunctions, IsMap, LazyMap}
 import org.neo4j.values.AnyValue
 import org.neo4j.values.storable.Values
-import org.neo4j.values.virtual.VirtualValues
+import org.neo4j.values.virtual.{MapValueBuilder, VirtualValues}
 
-import scala.collection.JavaConverters._
 import scala.collection.Map
 
 case class DesugaredMapProjection(id: String, includeAllProps: Boolean, literalExpressions: Map[String, Expression])
@@ -40,12 +38,18 @@ case class DesugaredMapProjection(id: String, includeAllProps: Boolean, literalE
       case v if v == Values.NO_VALUE => return Values.NO_VALUE
       case IsMap(m) => if (includeAllProps) m(state.query) else VirtualValues.emptyMap()
     }
-    val mapOfLiteralValues = literalExpressions.map {
-      case (k, e) => (k, e(ctx, state))
-    }.toMap.asJava
+    val builder = new MapValueBuilder(literalExpressions.size)
+    literalExpressions.foreach {
+      case (k, e) => builder.add(k, e(ctx, state))
+    }
 
+    //in case we get a lazy map we need to make sure it has been loaded
+    mapOfProperties match {
+      case m :LazyMap[_] => m.load()
+      case _ =>
+    }
 
-    VirtualValues.combine(mapOfProperties, VirtualValues.map(mapOfLiteralValues))
+    mapOfProperties.updatedWith(builder.build())
   }
 
   override def rewrite(f: (Expression) => Expression) =
@@ -53,7 +57,9 @@ case class DesugaredMapProjection(id: String, includeAllProps: Boolean, literalE
 
   override def arguments = literalExpressions.values.toIndexedSeq
 
-  override def symbolTableDependencies = literalExpressions.symboltableDependencies + id
+  override def children: Seq[AstNode[_]] = arguments
+
+  override def symbolTableDependencies: Set[String] = literalExpressions.symboltableDependencies + id
 
   override def toString = s"$id{.*, " + literalExpressions.mkString + "}"
 }

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -18,8 +18,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 package org.neo4j.kernel.impl.store.format.standard;
-
-import java.io.IOException;
 
 import org.neo4j.io.pagecache.PageCursor;
 import org.neo4j.kernel.impl.store.format.BaseOneByteHeaderRecordFormat;
@@ -101,6 +99,11 @@ public class RelationshipRecordFormat extends BaseOneByteHeaderRecordFormat<Rela
                     BaseRecordFormat.longFromIntAndMod( secondNextRel, secondNextRelMod ),
                     (extraByte & 0x1) != 0,
                     (extraByte & 0x2) != 0 );
+        }
+        else
+        {
+            int nextOffset = cursor.getOffset() + recordSize - HEADER_SIZE;
+            cursor.setOffset( nextOffset );
         }
     }
 

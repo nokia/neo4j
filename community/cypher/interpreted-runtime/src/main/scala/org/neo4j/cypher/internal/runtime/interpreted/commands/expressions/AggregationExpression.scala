@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,11 +19,11 @@
  */
 package org.neo4j.cypher.internal.runtime.interpreted.commands.expressions
 
-import org.neo4j.cypher.internal.util.v3_5.SyntaxException
+import org.neo4j.cypher.internal.v3_5.util.SyntaxException
 import org.neo4j.cypher.internal.runtime.interpreted.ExecutionContext
 import org.neo4j.cypher.internal.runtime.interpreted.pipes.QueryState
 import org.neo4j.cypher.internal.runtime.interpreted.pipes.aggregation.AggregationFunction
-import org.neo4j.cypher.internal.util.v3_5.symbols.CypherType
+import org.neo4j.cypher.internal.v3_5.util.symbols.CypherType
 
 abstract class AggregationExpression extends Expression {
   def apply(ctx: ExecutionContext, state: QueryState) =
@@ -41,7 +41,7 @@ abstract class AggregationWithInnerExpression(inner:Expression) extends Aggregat
 
   def expectedInnerType: CypherType
 
-  def arguments = Seq(inner)
+  def arguments: Seq[Expression] = Seq(inner)
 
-  def symbolTableDependencies = inner.symbolTableDependencies
+  override def symbolTableDependencies: Set[String] = inner.symbolTableDependencies
 }

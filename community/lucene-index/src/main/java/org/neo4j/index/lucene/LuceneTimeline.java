@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -35,11 +35,16 @@ import org.neo4j.graphdb.index.Index;
 import org.neo4j.graphdb.index.IndexHits;
 import org.neo4j.graphdb.index.IndexManager;
 
+/**
+ * @deprecated This API will be removed in next major release. Please consider using schema indexes instead.
+ */
+@Deprecated
 public class LuceneTimeline<T extends PropertyContainer> implements TimelineIndex<T>
 {
     private static final String FIELD = "timestamp";
     private final Index<T> index;
 
+    @Deprecated
     public LuceneTimeline( GraphDatabaseService db, Index<T> index )
     {
         assertIsLuceneIndex( db, index );
@@ -78,36 +83,42 @@ public class LuceneTimeline<T extends PropertyContainer> implements TimelineInde
         return query.sort( new Sort( new SortedNumericSortField( FIELD, SortField.Type.LONG, reversed ) ) );
     }
 
+    @Deprecated
     @Override
     public T getLast()
     {
         return getSingle( true );
     }
 
+    @Deprecated
     @Override
     public T getFirst()
     {
         return getSingle( false );
     }
 
+    @Deprecated
     @Override
     public void remove( T entity, long timestamp )
     {
         index.remove( entity, FIELD, timestamp );
     }
 
+    @Deprecated
     @Override
     public void add( T entity, long timestamp )
     {
         index.add( entity, FIELD, numeric( timestamp ) );
     }
 
+    @Deprecated
     @Override
     public IndexHits<T> getBetween( Long startTimestampOrNull, Long endTimestampOrNull )
     {
         return getBetween( startTimestampOrNull, endTimestampOrNull, false );
     }
 
+    @Deprecated
     @Override
     public IndexHits<T> getBetween( Long startTimestampOrNull, Long endTimestampOrNull, boolean reversed )
     {

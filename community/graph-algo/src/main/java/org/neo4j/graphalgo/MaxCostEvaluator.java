@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -24,7 +24,9 @@ package org.neo4j.graphalgo;
  *
  * @author Peter Neubauer
  * @param <T> The cost value type
+ * @deprecated This is not in use anymore, left for backward comparability
  */
+@Deprecated
 public interface MaxCostEvaluator<T>
 {
     /**

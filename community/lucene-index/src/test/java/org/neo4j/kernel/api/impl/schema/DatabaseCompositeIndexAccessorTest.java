@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -38,17 +38,17 @@ import java.util.concurrent.Future;
 import org.neo4j.collection.PrimitiveLongCollections;
 import org.neo4j.function.IOFunction;
 import org.neo4j.helpers.TaskCoordinator;
+import org.neo4j.internal.kernel.api.IndexQuery;
+import org.neo4j.internal.kernel.api.exceptions.schema.IndexNotFoundKernelException;
 import org.neo4j.kernel.api.exceptions.index.IndexEntryConflictException;
-import org.neo4j.kernel.api.exceptions.index.IndexNotFoundKernelException;
 import org.neo4j.kernel.api.impl.index.storage.DirectoryFactory;
 import org.neo4j.kernel.api.index.IndexEntryUpdate;
 import org.neo4j.kernel.api.index.IndexQueryHelper;
 import org.neo4j.kernel.api.index.IndexUpdater;
-import org.neo4j.internal.kernel.api.IndexQuery;
-import org.neo4j.kernel.api.schema.index.SchemaIndexDescriptor;
-import org.neo4j.kernel.api.schema.index.SchemaIndexDescriptorFactory;
+import org.neo4j.kernel.api.schema.index.TestIndexDescriptorFactory;
 import org.neo4j.kernel.configuration.Config;
 import org.neo4j.kernel.impl.api.index.IndexUpdateMode;
+import org.neo4j.storageengine.api.schema.IndexDescriptor;
 import org.neo4j.storageengine.api.schema.IndexReader;
 import org.neo4j.storageengine.api.schema.IndexSampler;
 import org.neo4j.test.rule.concurrent.ThreadingRule;
@@ -68,7 +68,7 @@ public class DatabaseCompositeIndexAccessorTest
 {
     private static final int PROP_ID1 = 1;
     private static final int PROP_ID2 = 2;
-    private static final SchemaIndexDescriptor DESCRIPTOR = SchemaIndexDescriptorFactory.forLabel( 0, PROP_ID1, PROP_ID2 );
+    private static final IndexDescriptor DESCRIPTOR = TestIndexDescriptorFactory.forLabel( 0, PROP_ID1, PROP_ID2 );
     private static final Config config = Config.defaults();
     @Rule
     public final ThreadingRule threading = new ThreadingRule();
@@ -84,10 +84,8 @@ public class DatabaseCompositeIndexAccessorTest
     private final Object[] values = {"value1", "values2"};
     private final Object[] values2 = {40, 42};
     private DirectoryFactory.InMemoryDirectoryFactory dirFactory;
-    private static final SchemaIndexDescriptor SCHEMA_INDEX_DESCRIPTOR = SchemaIndexDescriptorFactory
-            .forLabel( 0, PROP_ID1, PROP_ID2 );
-    private static final SchemaIndexDescriptor UNIQUE_SCHEMA_INDEX_DESCRIPTOR = SchemaIndexDescriptorFactory
-            .uniqueForLabel( 1, PROP_ID1, PROP_ID2 );
+    private static final IndexDescriptor SCHEMA_INDEX_DESCRIPTOR = TestIndexDescriptorFactory.forLabel( 0, PROP_ID1, PROP_ID2 );
+    private static final IndexDescriptor UNIQUE_SCHEMA_INDEX_DESCRIPTOR = TestIndexDescriptorFactory.uniqueForLabel( 1, PROP_ID1, PROP_ID2 );
 
     @Parameterized.Parameters( name = "{0}" )
     public static Collection<IOFunction<DirectoryFactory,LuceneIndexAccessor>[]> implementations()
@@ -246,9 +244,10 @@ public class DatabaseCompositeIndexAccessorTest
             return nothing;
         }, null, waitingWhileIn( TaskCoordinator.class, "awaitCompletion" ), 3, SECONDS );
 
-        try ( IndexReader reader = indexReader /* do not inline! */ )
+        try ( IndexReader reader = indexReader /* do not inline! */;
+              IndexSampler sampler = indexSampler /* do not inline! */ )
         {
-            indexSampler.sampleIndex();
+            sampler.sampleIndex();
             fail( "expected exception" );
         }
         catch ( IndexNotFoundKernelException e )

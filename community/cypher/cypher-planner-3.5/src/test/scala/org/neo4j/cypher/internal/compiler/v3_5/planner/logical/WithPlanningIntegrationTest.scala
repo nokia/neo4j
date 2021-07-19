@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,12 +19,14 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical
 
+import org.neo4j.cypher.internal.compiler.v3_5.planner.BeLikeMatcher.beLike
 import org.neo4j.cypher.internal.compiler.v3_5.planner.LogicalPlanningTestSupport2
+import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.idp.ConfigurableIDPSolverConfig
 import org.neo4j.cypher.internal.ir.v3_5.{SimplePatternLength, VarPatternLength}
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.{CypherFunSuite, WindowsStringSafe}
 import org.neo4j.cypher.internal.v3_5.expressions.SemanticDirection.OUTGOING
 import org.neo4j.cypher.internal.v3_5.expressions._
 import org.neo4j.cypher.internal.v3_5.logical.plans._
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.{CypherFunSuite, WindowsStringSafe}
 
 class WithPlanningIntegrationTest extends CypherFunSuite with LogicalPlanningTestSupport2 {
   implicit val windowsSafe = WindowsStringSafe
@@ -63,7 +65,7 @@ class WithPlanningIntegrationTest extends CypherFunSuite with LogicalPlanningTes
   test("should build plans with WITH and selections") {
     val result = planFor("MATCH (a) WITH a LIMIT 1 MATCH (a)-[r1]->(b) WHERE r1.prop = 42 RETURN r1")._2
     val expected = Selection(
-      Seq(In(Property(Variable("r1")(pos), PropertyKeyName("prop")(pos))(pos), ListLiteral(List(SignedDecimalIntegerLiteral("42")(pos)))(pos))(pos)),
+      Seq(Equals(Property(Variable("r1")(pos), PropertyKeyName("prop")(pos))(pos), SignedDecimalIntegerLiteral("42")(pos))(pos)),
       Expand(
         Limit(
           AllNodesScan("a", Set()),
@@ -201,5 +203,149 @@ class WithPlanningIntegrationTest extends CypherFunSuite with LogicalPlanningTes
     )
 
     result should equal(expected)
+  }
+
+  test("WHERE clause on WITH uses argument from previous WITH"){
+    val result = planFor( """
+                      WITH 0.1 AS p
+                      MATCH (n1)
+                      WITH n1 LIMIT 10 WHERE rand() < p
+                      RETURN n1""")._2
+
+    result should beLike {
+      case
+        SelectionMatcher(Seq(LessThan(FunctionInvocation(Namespace(List()),FunctionName("rand"),false,Vector(), false),Variable("p"))),
+        Limit(
+        Apply(
+        Projection(_, _),
+        AllNodesScan("n1", _)
+        ), _, _)
+        ) => ()
+    }
+  }
+
+  test("WHERE clause on WITH DISTINCT uses argument from previous WITH"){
+    val result = planFor( """
+                      WITH 0.1 AS p
+                      MATCH (n1)
+                      WITH DISTINCT n1, p LIMIT 10 WHERE rand() < p
+                      RETURN n1""")._2
+
+    result should beLike {
+      case
+        Projection(
+          SelectionMatcher(Seq(
+            LessThan(FunctionInvocation(Namespace(List()), FunctionName("rand"), false, Vector(), false),
+                 Variable("  p@111"))),
+                         Limit(
+                         Distinct(
+                         Apply(
+                         Projection(_, _),
+                         AllNodesScan("  n1@66", _)
+                         ), _), _, _)
+        ),_) => ()
+    }
+  }
+
+  test("WHERE clause on WITH AGGREGATION uses argument from previous WITH"){
+    val result = planFor( """
+                      WITH 0.1 AS p
+                      MATCH (n1)
+                      WITH count(n1) AS n, p WHERE rand() < p
+                      RETURN n""")._2
+
+    result should beLike {
+      case
+        SelectionMatcher(Seq(LessThan(FunctionInvocation(Namespace(List()),FunctionName("rand"),false,Vector(), false),Variable("  p@114"))),
+        Aggregation(
+        Apply(
+        Projection(_, _),
+        AllNodesScan("n1", _)
+        ), _, _)
+        ) => ()
+    }
+  }
+
+  test("WHERE clause on WITH with PatternExpression"){
+    val result = planFor( """
+                      MATCH (n1)-->(n2)
+                      WITH n1 LIMIT 10 WHERE NOT (n1)<--(n2)
+                      RETURN n1""")._2
+
+    result should beLike {
+      case
+        Selection(ands,
+        Limit(_,_,_)
+        ) if hasPathExpression(ands) => ()
+    }
+  }
+
+  test("WHERE clause on WITH DISTINCT with PatternExpression"){
+    val result = planFor( """
+                      MATCH (n1)-->(n2)
+                      WITH DISTINCT n1, n2 LIMIT 10 WHERE NOT (n1)<--(n2)
+                      RETURN n1""")._2
+
+    result should beLike {
+      case
+        Projection(
+        Selection(ands,
+        Limit(_,_,_)
+        ), _) if hasPathExpression(ands)=> ()
+    }
+  }
+
+  test("WHERE clause on WITH AGGREGATION with PatternExpression"){
+    val result = planFor( """
+                      MATCH (n1)-->(n2)
+                      WITH count(n1) AS n, n2 LIMIT 10 WHERE NOT ()<--(n2)
+                      RETURN n""")._2
+
+    result should beLike {
+      case
+        Selection(ands,
+        Limit(_,_,_)
+        ) if hasGetDegree(ands) => ()
+    }
+  }
+
+  test("Complex star pattern with WITH in front should not trip up joinSolver"){
+    // created after https://github.com/neo4j/neo4j/issues/12212
+
+    val maxIterationTime = 1 // the goal here is to force compaction as fast as possible
+    val configurationThatForcesCompacting = cypherCompilerConfig.copy(idpIterationDuration = maxIterationTime)
+    val queryGraphSolver = createQueryGraphSolver(new ConfigurableIDPSolverConfig(1, maxIterationTime))
+
+    planFor(
+      """WITH 20000 AS param1, 5000 AS param2
+        |MATCH (gknA:LabelA {propertyA: 4})-[r1:relTypeA]->(:LabelB)-[r2:relTypeB]->(commonLe:LabelC) <-[r3:relTypeB]-(:LabelB)<-[r4:relTypeA]-(gknB:LabelA {propertyA: 4})
+        |WHERE NOT exists( (gknA)<-[:relTypeLink]-(:LabelD) ) AND NOT exists( (gknB)<-[:relTypeLink]-(:LabelD) ) AND substring(gknA.propertyB, 0, size(gknA.propertyB) - 1) = substring(gknB.propertyB, 0, size(gknB.propertyB) - 1) AND gknA.propertyC < gknB.propertyC
+        |MATCH (gknA)-[r7:relTypeA]->(n3:LabelB)-[assocA:relTypeB]->(thing4:LabelC)-[r8:LabelE {propertyC: 'None'}]-(commonLe)
+        |MATCH (gknB)-[r9:relTypeA]->(n5:LabelB)-[assocB:relTypeB]->(thing6:LabelC)-[r10:LabelE {propertyC: 'None'}]-(commonLe)
+        |MATCH (gknA)-[r11:relTypeA]->(n6:LabelSp)-[assocLabelSpA:relTypeB]->(LabelSpA:LabelC)
+        |MATCH (gknB)-[r12:relTypeA]->(n7:LabelSp)-[assocLabelSpB:relTypeB]->(LabelSpB:LabelC)
+        |WITH gknA, gknB, param1, param2, [{ LabelC: thing4, thing3: assocA.propertyD, thing5: CASE WHEN assocA.propertyD = 0.0 THEN 'normal' ELSE 'reverse' END, thing: CASE WHEN assocA.propertyD = 0.0 THEN 'reverse' ELSE 'normal' END, thing2: param1 }, { LabelC: thing6, thing3: assocB.propertyD, thing5: CASE WHEN assocB.propertyD = 0.0 THEN 'normal' ELSE 'reverse' END, thing: CASE WHEN assocB.propertyD = 0.0 THEN 'reverse' ELSE 'normal' END, thing2: param1 }, { LabelC: LabelSpA, thing3: assocLabelSpA.propertyD, thing5: CASE WHEN assocLabelSpA.propertyD = 0.0 THEN 'normal' ELSE 'reverse' END, thing: CASE WHEN assocLabelSpA.propertyD = 0.0 THEN 'reverse' ELSE 'normal' END, thing2: param2 }, { LabelC: LabelSpB, thing3: assocLabelSpB.propertyD, thing5: CASE WHEN assocLabelSpB.propertyD = 0.0 THEN 'normal' ELSE 'reverse' END, thing: CASE WHEN assocLabelSpB.propertyD = 0.0 THEN 'reverse' ELSE 'normal' END, thing2: param2 }] AS bounds
+        |CREATE (gknA)<-[:relTypeLink]-(newLabelD:LabelD:LabelX)-[:relTypeLink]->(gknB) SET newLabelD = { uuidKey: gknA.id + '-' + gknB.id, propertyB: substring(gknA.propertyB, 0, size(gknA.propertyB) - 1), propY: 'SOMETHING', typ: 'EKW' }
+        |CREATE (newLabelD)-[:relTypeA]->(areaLocation:LabelV:LabelK)
+        |WITH bounds, areaLocation UNWIND bounds AS bound
+        |WITH areaLocation, bound, bound.LabelC AS LabelC, bound.thing AS thing
+        |WITH areaLocation, bound, LabelC
+        |WITH areaLocation, bound, LabelC
+        |CREATE (areaLocation)-[boundRel:relTypeZ]->(LabelC)
+        |SET boundRel.thing = bound.thing, boundRel.propertyD = 2
+      """.stripMargin, configurationThatForcesCompacting, queryGraphSolver)
+    // if we fail planning for this query the test fails
+  }
+
+  private def hasPathExpression(ands: Ands): Boolean = {
+    ands.treeExists {
+      case _: PathExpression => true
+    }
+  }
+
+  private def hasGetDegree(ands: Ands): Boolean = {
+    ands.treeExists {
+      case _: GetDegree => true
+    }
   }
 }

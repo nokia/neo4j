@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.IOException;
 
 import org.neo4j.io.fs.FileSystemAbstraction;
+import org.neo4j.io.layout.DatabaseLayout;
 import org.neo4j.kernel.api.index.IndexProvider;
 import org.neo4j.kernel.impl.store.format.CapabilityType;
 import org.neo4j.kernel.impl.store.format.RecordFormatSelector;
@@ -50,7 +51,7 @@ public class SchemaIndexMigrator extends AbstractStoreMigrationParticipant
     }
 
     @Override
-    public void migrate( File storeDir, File migrationDir, ProgressReporter progressReporter,
+    public void migrate( DatabaseLayout directoryLayout, DatabaseLayout migrationLayout, ProgressReporter progressReporter,
             String versionToMigrateFrom, String versionToMigrateTo )
     {
         RecordFormats from = RecordFormatSelector.selectForVersion( versionToMigrateFrom );
@@ -67,7 +68,7 @@ public class SchemaIndexMigrator extends AbstractStoreMigrationParticipant
     }
 
     @Override
-    public void moveMigratedFiles( File migrationDir, File storeDir, String versionToUpgradeFrom,
+    public void moveMigratedFiles( DatabaseLayout migrationLayout, DatabaseLayout directoryLayout, String versionToUpgradeFrom,
             String versionToMigrateTo ) throws IOException
     {
         if ( deleteObsoleteIndexes )

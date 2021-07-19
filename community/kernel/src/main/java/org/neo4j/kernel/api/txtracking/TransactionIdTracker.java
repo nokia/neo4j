@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -23,9 +23,9 @@ import java.time.Duration;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
-import org.neo4j.kernel.AvailabilityGuard;
-import org.neo4j.kernel.api.exceptions.Status;
 import org.neo4j.internal.kernel.api.exceptions.TransactionFailureException;
+import org.neo4j.kernel.api.exceptions.Status;
+import org.neo4j.kernel.availability.AvailabilityGuard;
 import org.neo4j.kernel.impl.transaction.log.TransactionIdStore;
 
 import static org.neo4j.kernel.impl.transaction.log.TransactionIdStore.BASE_TX_ID;
@@ -37,11 +37,11 @@ import static org.neo4j.kernel.impl.transaction.log.TransactionIdStore.BASE_TX_I
 public class TransactionIdTracker
 {
     private final Supplier<TransactionIdStore> transactionIdStoreSupplier;
-    private final AvailabilityGuard availabilityGuard;
+    private final AvailabilityGuard databaseAvailabilityGuard;
 
-    public TransactionIdTracker( Supplier<TransactionIdStore> transactionIdStoreSupplier, AvailabilityGuard availabilityGuard )
+    public TransactionIdTracker( Supplier<TransactionIdStore> transactionIdStoreSupplier, AvailabilityGuard databaseAvailabilityGuard )
     {
-        this.availabilityGuard = availabilityGuard;
+        this.databaseAvailabilityGuard = databaseAvailabilityGuard;
         this.transactionIdStoreSupplier = transactionIdStoreSupplier;
     }
 
@@ -74,13 +74,15 @@ public class TransactionIdTracker
             return;
         }
 
-        if ( !availabilityGuard.isAvailable() )
+        if ( !databaseAvailabilityGuard.isAvailable() )
         {
             throw new TransactionFailureException( Status.General.DatabaseUnavailable, "Database unavailable" );
         }
 
         try
         {
+            // await for the last closed transaction id to to have at least the expected value
+            // it has to be "last closed" and not "last committed" becase all transactions before the expected one should also be committed
             transactionIdStore().awaitClosedTransactionId( oldestAcceptableTxId, timeout.toMillis() );
         }
         catch ( InterruptedException | TimeoutException e )
@@ -113,6 +115,8 @@ public class TransactionIdTracker
      */
     public long newestEncounteredTxId()
     {
-        return transactionIdStore().getLastClosedTransactionId();
+        // return the "last committed" because it is the newest id
+        // "last closed" will return the last gap-free id, pottentially for some old transaction because there might be other committing transactions
+        return transactionIdStore().getLastCommittedTransactionId();
     }
 }

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -18,6 +18,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 package org.neo4j.consistency.store.synthetic;
+
+import org.apache.commons.lang3.exception.CloneFailedException;
 
 import org.neo4j.consistency.checking.RecordCheck;
 import org.neo4j.consistency.report.ConsistencyReport;
@@ -59,6 +61,12 @@ public class CountsEntry extends AbstractBaseRecord
     public long getId()
     {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public final AbstractBaseRecord clone()
+    {
+        throw new CloneFailedException( "Synthetic records cannot be cloned." );
     }
 
     public CountsKey getCountsKey()

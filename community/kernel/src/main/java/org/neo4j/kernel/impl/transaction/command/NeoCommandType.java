@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -44,4 +44,6 @@ public interface NeoCommandType
 
     byte UPDATE_RELATIONSHIP_COUNTS_COMMAND = (byte) 16;
     byte UPDATE_NODE_COUNTS_COMMAND = (byte) 17;
+
+    byte REL_GROUP_EXTENDED_COMMAND = (byte) 21; // Relationship group with 3 byte type id
 }

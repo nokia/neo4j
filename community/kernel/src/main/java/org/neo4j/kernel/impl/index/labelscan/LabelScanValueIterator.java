@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -30,6 +30,10 @@ import org.neo4j.collection.PrimitiveLongResourceIterator;
 import org.neo4j.cursor.RawCursor;
 import org.neo4j.index.internal.gbptree.Hit;
 
+import static org.neo4j.kernel.impl.index.labelscan.LabelScanValue.RANGE_SIZE;
+import static org.neo4j.kernel.impl.index.labelscan.NativeLabelScanWriter.rangeOf;
+import static org.neo4j.storageengine.api.schema.LabelScanReader.NO_ID;
+
 /**
  * {@link LongIterator} which iterate over multiple {@link LabelScanValue} and for each
  * iterate over each set bit, returning actual node ids, i.e. {@code nodeIdRange+bitOffset}.
@@ -39,9 +43,21 @@ import org.neo4j.index.internal.gbptree.Hit;
  */
 class LabelScanValueIterator extends LabelScanValueIndexAccessor implements PrimitiveLongResourceIterator
 {
+    private long fromId;
     private boolean hasNextDecided;
     private boolean hasNext;
     protected long next;
+
+    /**
+     * @param fromId entity to start from (exclusive). The cursor gives entries that are effectively small bit-sets and the fromId may
+     * be somewhere inside a bit-set range.
+     */
+    LabelScanValueIterator( RawCursor<Hit<LabelScanKey,LabelScanValue>,IOException> cursor,
+            Collection<RawCursor<Hit<LabelScanKey,LabelScanValue>,IOException>> toRemoveFromWhenClosed, long fromId )
+    {
+        super( toRemoveFromWhenClosed, cursor );
+        this.fromId = fromId;
+    }
 
     @Override
     public boolean hasNext()
@@ -63,12 +79,6 @@ class LabelScanValueIterator extends LabelScanValueIndexAccessor implements Prim
         }
         hasNextDecided = false;
         return next;
-    }
-
-    LabelScanValueIterator( RawCursor<Hit<LabelScanKey,LabelScanValue>,IOException> cursor,
-            Collection<RawCursor<Hit<LabelScanKey,LabelScanValue>,IOException>> toRemoveFromWhenClosed )
-    {
-        super( toRemoveFromWhenClosed, cursor );
     }
 
     /**
@@ -103,8 +113,23 @@ class LabelScanValueIterator extends LabelScanValueIndexAccessor implements Prim
             }
 
             Hit<LabelScanKey,LabelScanValue> hit = cursor.get();
-            baseNodeId = hit.key().idRange * LabelScanValue.RANGE_SIZE;
+            baseNodeId = hit.key().idRange * RANGE_SIZE;
             bits = hit.value().bits;
+
+            if ( fromId != NO_ID )
+            {
+                // If we've been told to start at a specific id then trim off ids in this range less than or equal to that id
+                long range = rangeOf( fromId );
+                if ( range == hit.key().idRange )
+                {
+                    // Only do this if we're in the idRange that fromId is in, otherwise there were no ids this time in this range
+                    long relativeStartId = fromId % RANGE_SIZE;
+                    long mask = relativeStartId == RANGE_SIZE - 1 ? -1 : (1L << (relativeStartId + 1)) - 1;
+                    bits &= ~mask;
+                }
+                // ... and let's not do that again, only for the first idRange
+                fromId = NO_ID;
+            }
 
             //noinspection AssertWithSideEffects
             assert keysInOrder( hit.key() );

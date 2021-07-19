@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -43,11 +43,12 @@ import org.neo4j.test.rule.RandomRule;
 import org.neo4j.test.rule.TestDirectory;
 import org.neo4j.test.rule.fs.EphemeralFileSystemRule;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.rules.RuleChain.outerRule;
 import static org.neo4j.index.internal.gbptree.ThrowingRunnable.throwing;
-import static org.neo4j.io.pagecache.IOLimiter.unlimited;
+import static org.neo4j.io.pagecache.IOLimiter.UNLIMITED;
 import static org.neo4j.test.rule.PageCacheRule.config;
 
 public abstract class GBPTreeRecoveryITBase<KEY,VALUE>
@@ -585,7 +586,7 @@ public abstract class GBPTreeRecoveryITBase<KEY,VALUE>
         @Override
         public void execute( GBPTree<KEY,VALUE> index ) throws IOException
         {
-            index.checkpoint( unlimited() );
+            index.checkpoint( UNLIMITED );
         }
 
         @Override
@@ -619,14 +620,14 @@ public abstract class GBPTreeRecoveryITBase<KEY,VALUE>
 
     private void assertEqualsKey( KEY expected, KEY actual )
     {
-        assertTrue( String.format( "expected equal, expected=%s, actual=%s", expected.toString(), actual.toString() ),
-                layout.compare( expected, actual ) == 0 );
+        assertEquals( String.format( "expected equal, expected=%s, actual=%s", expected.toString(), actual.toString() ), 0,
+                layout.compare( expected, actual ) );
     }
 
     private void assertEqualsValue( VALUE expected, VALUE actual )
     {
-        assertTrue( String.format( "expected equal, expected=%s, actual=%s", expected.toString(), actual.toString() ),
-                layout.compareValue( expected, actual ) == 0 );
+        assertEquals( String.format( "expected equal, expected=%s, actual=%s", expected.toString(), actual.toString() ), 0,
+                layout.compareValue( expected, actual ) );
     }
 
     private long keySeed( KEY key )

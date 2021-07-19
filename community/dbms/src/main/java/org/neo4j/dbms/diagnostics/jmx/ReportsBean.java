@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -54,7 +54,7 @@ public class ReportsBean extends ManagementBeanProvider
         ReportsImpl( ManagementData management, boolean isMXBean )
         {
             super( management, isMXBean );
-            graphDatabaseAPI = management.getKernelData().graphDatabase();
+            graphDatabaseAPI = management.resolveDependency( GraphDatabaseAPI.class );
         }
 
         @Override

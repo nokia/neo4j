@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -23,8 +23,8 @@ import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.Objects;
 
-import static java.lang.String.format;
 import static org.neo4j.helpers.collection.Iterators.asSet;
+import static org.apache.commons.lang3.StringUtils.EMPTY;
 
 /**
  * Socket address derived from configuration.
@@ -39,8 +39,14 @@ public class SocketAddress
 
     public SocketAddress( String hostname, int port )
     {
-        assert !hostname.contains( "[" );
-        assert !hostname.contains( "]" );
+        if ( hostname == null )
+        {
+            throw new IllegalArgumentException( "hostname cannot be null" );
+        }
+        if ( hostname.contains( "[" ) || hostname.contains( "]" ) )
+        {
+            throw new IllegalArgumentException( "hostname cannot contain '[' or ']'" );
+        }
 
         this.hostname = hostname;
         this.port = port;
@@ -71,13 +77,13 @@ public class SocketAddress
 
     public boolean isIPv6()
     {
-        return hostname.contains( ":" );
+        return isIPv6( hostname );
     }
 
     @Override
     public String toString()
     {
-        return format( isIPv6() ? "[%s]:%s" : "%s:%s", hostname, port );
+        return format( hostname, port );
     }
 
     @Override
@@ -99,5 +105,25 @@ public class SocketAddress
     public int hashCode()
     {
         return Objects.hash( hostname, port );
+    }
+
+    public static String format( java.net.SocketAddress address )
+    {
+        if ( address instanceof InetSocketAddress )
+        {
+            InetSocketAddress inetSocketAddress = (InetSocketAddress) address;
+            return format( inetSocketAddress.getHostString(), inetSocketAddress.getPort() );
+        }
+        return address == null ? EMPTY : address.toString();
+    }
+
+    public static String format( String hostname, int port )
+    {
+        return String.format( isIPv6( hostname ) ? "[%s]:%s" : "%s:%s", hostname, port );
+    }
+
+    private static boolean isIPv6( String hostname )
+    {
+        return hostname.contains( ":" );
     }
 }

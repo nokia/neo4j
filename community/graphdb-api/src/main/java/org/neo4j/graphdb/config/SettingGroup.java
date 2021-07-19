@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -41,7 +41,7 @@ public interface SettingGroup<T> extends SettingValidator
     Map<String,T> values( Map<String,String> validConfig );
 
     /**
-     * This will return a list of all settings beloning to this group based on the settings in {@code params}
+     * This will return a list of all settings belonging to this group based on the settings in {@code params}
      * @param params a map of all settings
      * @return a list of the settings this group contains.
      */
@@ -61,6 +61,14 @@ public interface SettingGroup<T> extends SettingValidator
      * @return {@code true} if internal setting, false otherwise.
      */
     boolean internal();
+
+    /**
+     * @return {@code true} if secret setting (should be hidden), false otherwise.
+     */
+    default boolean secret()
+    {
+        return false;
+    }
 
     /**
      * @return the documented default value if it needs special documentation, empty if default value is good as is.

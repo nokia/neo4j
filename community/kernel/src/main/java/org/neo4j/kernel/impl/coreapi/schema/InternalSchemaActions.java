@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,16 +19,13 @@
  */
 package org.neo4j.kernel.impl.coreapi.schema;
 
+import java.util.Optional;
+
 import org.neo4j.graphdb.Label;
 import org.neo4j.graphdb.RelationshipType;
 import org.neo4j.graphdb.schema.ConstraintDefinition;
 import org.neo4j.graphdb.schema.IndexDefinition;
 import org.neo4j.internal.kernel.api.exceptions.KernelException;
-import org.neo4j.kernel.api.exceptions.schema.AlreadyConstrainedException;
-import org.neo4j.kernel.api.exceptions.schema.AlreadyIndexedException;
-import org.neo4j.kernel.api.exceptions.schema.CreateConstraintFailureException;
-import org.neo4j.internal.kernel.api.exceptions.schema.IllegalTokenNameException;
-import org.neo4j.internal.kernel.api.exceptions.schema.TooManyLabelsException;
 
 /**
  * Implementations are used to configure {@link IndexCreatorImpl} and {@link BaseNodeConstraintCreator} for re-use
@@ -36,7 +33,7 @@ import org.neo4j.internal.kernel.api.exceptions.schema.TooManyLabelsException;
  */
 public interface InternalSchemaActions
 {
-    IndexDefinition createIndexDefinition( Label label, String... propertyKey );
+    IndexDefinition createIndexDefinition( Label label, Optional<String> indexName, String... propertyKey );
 
     void dropIndexDefinitions( IndexDefinition indexDefinition );
 

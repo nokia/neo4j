@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -46,12 +46,17 @@ public enum NotificationCode
         Status.Statement.FeatureDeprecationWarning,
         "Using PLANNER for switching between planners has been deprecated, please use CYPHER planner=[rule,cost] instead"
     ),
-    DEPRECATED_PLANNER(
+    DEPRECATED_RULE_PLANNER(
         SeverityLevel.WARNING,
         Status.Statement.FeatureDeprecationWarning,
         "The rule planner, which was used to plan this query, is deprecated and will be discontinued soon. " +
                 "If you did not explicitly choose the rule planner, you should try to change your query so that the " +
                 "rule planner is not used"
+    ),
+    DEPRECATED_COMPILED_RUNTIME(
+            SeverityLevel.WARNING,
+            Status.Statement.FeatureDeprecationWarning,
+            "The compiled runtime, which was requested to execute this query, is deprecated and will be removed in a future release."
     ),
     PLANNER_UNSUPPORTED(
         SeverityLevel.WARNING,
@@ -131,6 +136,11 @@ public enum NotificationCode
             "The semantics of using colon in the separation of alternative relationship types in conjunction with the " +
             "use of variable binding, inlined property predicates, or variable length will change in a future version."
     ),
+    DEPRECATED_PARAMETER_SYNTAX(
+        SeverityLevel.WARNING,
+        Status.Statement.FeatureDeprecationWarning,
+        "The parameter syntax `{param}` is deprecated, please use `$param` instead"
+    ),
     EAGER_LOAD_CSV(
         SeverityLevel.WARNING,
         Status.Statement.EagerOperatorWarning,
@@ -181,6 +191,11 @@ public enum NotificationCode
             Status.Statement.PlannerUnavailableWarning,
         "CREATE UNIQUE is unsupported for current CYPHER version, the query has been executed by an older CYPHER version"
     ),
+    CREATE_UNIQUE_DEPRECATED(
+            SeverityLevel.WARNING,
+            Status.Statement.FeatureDeprecationWarning,
+            "CREATE UNIQUE is deprecated and will be removed in a future version."
+    ),
     START_UNAVAILABLE_FALLBACK(
             SeverityLevel.WARNING,
             Status.Statement.PlannerUnavailableWarning,
@@ -193,7 +208,17 @@ public enum NotificationCode
     EXPERIMENTAL_FEATURE(
             SeverityLevel.WARNING,
             Status.Statement.ExperimentalFeature,
-            "You are using an experimental feature" );
+            "You are using an experimental feature" ),
+    SUBOPTIMAL_INDEX_FOR_CONTAINS_QUERY(
+            SeverityLevel.INFORMATION,
+            Status.Statement.SuboptimalIndexForWildcardQuery,
+            "If the performance of this statement using `CONTAINS` doesn't meet your expectations check out the alternative index-providers, see " +
+                    "documentation on index configuration." ),
+    SUBOPTIMAL_INDEX_FOR_ENDS_WITH_QUERY(
+            SeverityLevel.INFORMATION,
+            Status.Statement.SuboptimalIndexForWildcardQuery,
+            "If the performance of this statement using `ENDS WITH` doesn't meet your expectations check out the alternative index-providers, see " +
+                    "documentation on index configuration." );
 
     private final Status status;
     private final String description;

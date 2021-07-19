@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,7 +19,7 @@
  */
 package org.neo4j.consistency.checking.full;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import org.neo4j.consistency.checking.full.QueueDistribution.QueueDistributor;
 import org.neo4j.consistency.checking.full.QueueDistribution.RelationshipNodesQueueDistributor;
@@ -30,10 +30,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class RecordDistributorTest
+class RecordDistributorTest
 {
     @Test
-    public void shouldDistributeRelationshipRecordsByNodeId() throws Exception
+    void shouldDistributeRelationshipRecordsByNodeId() throws Exception
     {
         // GIVEN
         QueueDistributor<RelationshipRecord> distributor = new RelationshipNodesQueueDistributor( 5, 100 );
@@ -55,7 +55,7 @@ public class RecordDistributorTest
         verify( consumer, times( 1 ) ).accept( relationship, 2 );
     }
 
-    private RelationshipRecord relationship( long id, long startNodeId, long endNodeId )
+    private static RelationshipRecord relationship( long id, long startNodeId, long endNodeId )
     {
         RelationshipRecord record = new RelationshipRecord( id );
         record.setInUse( true );

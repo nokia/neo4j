@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -31,6 +31,8 @@ import org.neo4j.kernel.api.index.IndexUpdater;
 import org.neo4j.test.DoubleLatch;
 import org.neo4j.test.ThreadTestUtils;
 
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.neo4j.kernel.impl.api.index.SchemaIndexTestHelper.mockIndexProxy;
 
 public class ContractCheckingIndexProxyTest
@@ -143,7 +145,7 @@ public class ContractCheckingIndexProxyTest
         }
     }
 
-    @Test( expected = IllegalStateException.class )
+    @Test
     public void shouldNotForceBeforeCreate() throws IOException
     {
         // GIVEN
@@ -151,10 +153,11 @@ public class ContractCheckingIndexProxyTest
         IndexProxy outer = newContractCheckingIndexProxy( inner );
 
         // WHEN
-        outer.force( IOLimiter.unlimited() );
+        outer.force( IOLimiter.UNLIMITED );
+        verifyNoMoreInteractions( inner );
     }
 
-    @Test( expected = IllegalStateException.class )
+    @Test
     public void shouldNotForceAfterClose() throws IOException
     {
         // GIVEN
@@ -164,7 +167,10 @@ public class ContractCheckingIndexProxyTest
         // WHEN
         outer.start();
         outer.close();
-        outer.force( IOLimiter.unlimited() );
+        outer.force( IOLimiter.UNLIMITED );
+        verify( inner ).start();
+        verify( inner ).close();
+        verifyNoMoreInteractions( inner );
     }
 
     @Test( expected = /* THEN */ IllegalStateException.class )
@@ -297,7 +303,7 @@ public class ContractCheckingIndexProxyTest
         actionThreadReference.set( actionThread );
 
         outer.start();
-        Thread thread = runInSeparateThread( () -> outer.force( IOLimiter.unlimited() ) );
+        Thread thread = runInSeparateThread( () -> outer.force( IOLimiter.UNLIMITED ) );
 
         ThreadTestUtils.awaitThreadState( actionThread, TEST_TIMEOUT, Thread.State.TIMED_WAITING );
         latch.countDown();
@@ -335,6 +341,6 @@ public class ContractCheckingIndexProxyTest
 
     private ContractCheckingIndexProxy newContractCheckingIndexProxy( IndexProxy inner )
     {
-        return new ContractCheckingIndexProxy( inner, false );
+        return new ContractCheckingIndexProxy( inner );
     }
 }

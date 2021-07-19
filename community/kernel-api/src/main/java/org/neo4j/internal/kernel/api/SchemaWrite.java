@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -18,6 +18,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 package org.neo4j.internal.kernel.api;
+
+import java.util.Optional;
 
 import org.neo4j.internal.kernel.api.exceptions.schema.SchemaKernelException;
 import org.neo4j.internal.kernel.api.schema.LabelSchemaDescriptor;
@@ -39,6 +41,25 @@ public interface SchemaWrite
     IndexReference indexCreate( SchemaDescriptor descriptor ) throws SchemaKernelException;
 
     /**
+     * Create index from schema descriptor
+     *
+     * @param descriptor description of the index
+     * @param name name of the index
+     * @return the newly created index
+     */
+    IndexReference indexCreate( SchemaDescriptor descriptor, Optional<String> name ) throws SchemaKernelException;
+
+    /**
+     * Create index from schema descriptor
+     *
+     * @param descriptor description of the index
+     * @param provider name of the desired index provider implementation
+     * @param name name of the index
+     * @return the newly created index
+     */
+    IndexReference indexCreate( SchemaDescriptor descriptor, String provider, Optional<String> name ) throws SchemaKernelException;
+
+    /**
      * Drop the given index
      *
      * @param index the index to drop
@@ -53,11 +74,27 @@ public interface SchemaWrite
     ConstraintDescriptor uniquePropertyConstraintCreate( SchemaDescriptor descriptor ) throws SchemaKernelException;
 
     /**
+     * Create unique property constraint
+     *
+     * @param descriptor description of the constraint
+     * @param provider name of the desired index provider implementation
+     */
+    ConstraintDescriptor uniquePropertyConstraintCreate( SchemaDescriptor descriptor, String provider ) throws SchemaKernelException;
+
+    /**
      * Create node key constraint
      *
      * @param descriptor description of the constraint
      */
     ConstraintDescriptor nodeKeyConstraintCreate( LabelSchemaDescriptor descriptor ) throws SchemaKernelException;
+
+    /**
+     * Create node key constraint
+     *
+     * @param descriptor description of the constraint
+     * @param provider name of the desired index provider implementation
+     */
+    ConstraintDescriptor nodeKeyConstraintCreate( LabelSchemaDescriptor descriptor, String provider ) throws SchemaKernelException;
 
     /**
      * Create node property existence constraint

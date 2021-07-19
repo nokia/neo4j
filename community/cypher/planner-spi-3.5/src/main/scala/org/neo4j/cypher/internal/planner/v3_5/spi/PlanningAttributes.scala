@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,11 +19,17 @@
  */
 package org.neo4j.cypher.internal.planner.v3_5.spi
 
-import org.neo4j.cypher.internal.ir.v3_5.PlannerQuery
-import org.neo4j.cypher.internal.util.v3_5.Cardinality
-import org.neo4j.cypher.internal.util.v3_5.attribution.Attribute
+import org.neo4j.cypher.internal.ir.v3_5.{PlannerQuery, ProvidedOrder}
+import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.{Cardinalities, ProvidedOrders, Solveds}
+import org.neo4j.cypher.internal.v3_5.util.Cardinality
+import org.neo4j.cypher.internal.v3_5.util.attribution.{Attribute, Attributes, IdGen}
 
 object PlanningAttributes {
   class Solveds extends Attribute[PlannerQuery]
   class Cardinalities extends Attribute[Cardinality]
+  class ProvidedOrders extends Attribute[ProvidedOrder]
+}
+
+case class PlanningAttributes(solveds: Solveds, cardinalities: Cardinalities, providedOrders: ProvidedOrders) {
+  def asAttributes(idGen: IdGen): Attributes = Attributes(idGen, solveds, cardinalities, providedOrders)
 }

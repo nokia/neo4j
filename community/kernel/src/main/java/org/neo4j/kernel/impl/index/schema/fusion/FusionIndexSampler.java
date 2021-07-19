@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,15 +19,22 @@
  */
 package org.neo4j.kernel.impl.index.schema.fusion;
 
-import org.neo4j.kernel.api.exceptions.index.IndexNotFoundKernelException;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.neo4j.helpers.Exceptions;
+import org.neo4j.internal.kernel.api.exceptions.schema.IndexNotFoundKernelException;
 import org.neo4j.storageengine.api.schema.IndexSample;
 import org.neo4j.storageengine.api.schema.IndexSampler;
 
+import static org.neo4j.helpers.collection.Iterables.asCollection;
+import static org.neo4j.io.IOUtils.closeAllSilently;
+
 public class FusionIndexSampler implements IndexSampler
 {
-    private final IndexSampler[] samplers;
+    private final Iterable<IndexSampler> samplers;
 
-    public FusionIndexSampler( IndexSampler... samplers )
+    public FusionIndexSampler( Iterable<IndexSampler> samplers )
     {
         this.samplers = samplers;
     }
@@ -35,15 +42,28 @@ public class FusionIndexSampler implements IndexSampler
     @Override
     public IndexSample sampleIndex() throws IndexNotFoundKernelException
     {
-        IndexSample[] samples = new IndexSample[samplers.length];
-        for ( int i = 0; i < samplers.length; i++ )
+        List<IndexSample> samples = new ArrayList<>();
+        Exception exception = null;
+        for ( IndexSampler sampler : samplers )
         {
-            samples[i] = samplers[i].sampleIndex();
+            try
+            {
+                samples.add( sampler.sampleIndex() );
+            }
+            catch ( IndexNotFoundKernelException | RuntimeException e )
+            {
+                exception = Exceptions.chain( exception, e );
+            }
+        }
+        if ( exception != null )
+        {
+            Exceptions.throwIfUnchecked( exception );
+            throw (IndexNotFoundKernelException)exception;
         }
         return combineSamples( samples );
     }
 
-    public static IndexSample combineSamples( IndexSample... samples )
+    public static IndexSample combineSamples( Iterable<IndexSample> samples )
     {
         long indexSize = 0;
         long uniqueValues = 0;
@@ -55,5 +75,11 @@ public class FusionIndexSampler implements IndexSampler
             sampleSize += sample.sampleSize();
         }
         return new IndexSample( indexSize, uniqueValues, sampleSize );
+    }
+
+    @Override
+    public void close()
+    {
+        closeAllSilently( asCollection( samplers ) );
     }
 }

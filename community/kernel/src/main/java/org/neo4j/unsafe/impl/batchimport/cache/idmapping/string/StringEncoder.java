@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -31,7 +31,7 @@ import static java.lang.Math.max;
  */
 public class StringEncoder implements Encoder
 {
-    private static long UPPER_INT_MASK = 0x00000000_FFFFFFFFL;
+    private static final long UPPER_INT_MASK = 0x00000000_FFFFFFFFL;
     private static final int FOURTH_BYTE = 0x000000FF;
 
     // fixed values

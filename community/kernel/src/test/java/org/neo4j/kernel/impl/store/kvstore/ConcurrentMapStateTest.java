@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -26,11 +26,11 @@ import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.locks.Lock;
 
-import org.neo4j.concurrent.Runnables;
 import org.neo4j.io.pagecache.tracing.cursor.context.EmptyVersionContextSupplier;
 import org.neo4j.io.pagecache.tracing.cursor.context.VersionContext;
 import org.neo4j.io.pagecache.tracing.cursor.context.VersionContextSupplier;
 import org.neo4j.kernel.impl.context.TransactionVersionContextSupplier;
+import org.neo4j.util.concurrent.Runnables;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;

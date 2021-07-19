@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,14 +19,11 @@
  */
 package org.neo4j.kernel.api.impl.schema.populator;
 
-import java.io.IOException;
-
-import org.neo4j.kernel.api.exceptions.index.IndexEntryConflictException;
 import org.neo4j.kernel.api.impl.schema.LuceneDocumentStructure;
 import org.neo4j.kernel.api.impl.schema.SchemaIndex;
 import org.neo4j.kernel.api.index.IndexEntryUpdate;
 import org.neo4j.kernel.api.index.IndexUpdater;
-import org.neo4j.kernel.api.index.PropertyAccessor;
+import org.neo4j.storageengine.api.NodePropertyAccessor;
 import org.neo4j.kernel.impl.api.index.sampling.DefaultNonUniqueIndexSampler;
 import org.neo4j.kernel.impl.api.index.sampling.IndexSamplingConfig;
 import org.neo4j.kernel.impl.api.index.sampling.NonUniqueIndexSampler;
@@ -36,7 +33,7 @@ import org.neo4j.storageengine.api.schema.IndexSample;
  * A {@link LuceneIndexPopulator} used for non-unique Lucene schema indexes.
  * Performs sampling using {@link DefaultNonUniqueIndexSampler}.
  */
-public class NonUniqueLuceneIndexPopulator extends LuceneIndexPopulator
+public class NonUniqueLuceneIndexPopulator extends LuceneIndexPopulator<SchemaIndex>
 {
     private final IndexSamplingConfig samplingConfig;
     private NonUniqueIndexSampler sampler;
@@ -49,13 +46,13 @@ public class NonUniqueLuceneIndexPopulator extends LuceneIndexPopulator
     }
 
     @Override
-    public void verifyDeferredConstraints( PropertyAccessor accessor )
+    public void verifyDeferredConstraints( NodePropertyAccessor accessor )
     {
         // no constraints to verify so do nothing
     }
 
     @Override
-    public IndexUpdater newPopulatingUpdater( PropertyAccessor propertyAccessor )
+    public IndexUpdater newPopulatingUpdater( NodePropertyAccessor nodePropertyAccessor )
     {
         return new NonUniqueLuceneIndexPopulatingUpdater( writer, sampler );
     }

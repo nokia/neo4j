@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -27,18 +27,22 @@ import org.neo4j.graphdb.PropertyContainer;
  * down version of {@link Index} that disallows mutating operations.
  *
  * @param <T> The Primitive this Index holds
+ * @deprecated This API will be removed in next major release. Please consider using schema indexes instead.
  */
+@Deprecated
 public interface ReadableIndex<T extends PropertyContainer>
 {
     /**
      * @return the name of the index, i.e. the name this index was
      * created with.
      */
+    @Deprecated
     String getName();
 
     /**
      * @return the type of entities are managed by this index.
      */
+    @Deprecated
     Class<T> getEntityType();
 
     /**
@@ -52,6 +56,7 @@ public interface ReadableIndex<T extends PropertyContainer>
      *         result set isn't looped through, {@link IndexHits#close()} must
      *         be called before disposing of the result.
      */
+    @Deprecated
     IndexHits<T> get( String key, Object value );
 
     /**
@@ -65,6 +70,7 @@ public interface ReadableIndex<T extends PropertyContainer>
      * result set isn't looped through, {@link IndexHits#close()} must be
      * called before disposing of the result.
      */
+    @Deprecated
     IndexHits<T> query( String key, Object queryOrQueryObject );
 
     /**
@@ -76,6 +82,7 @@ public interface ReadableIndex<T extends PropertyContainer>
      * result set isn't looped through, {@link IndexHits#close()} must be
      * called before disposing of the result.
      */
+    @Deprecated
     IndexHits<T> query( Object queryOrQueryObject );
 
     /**
@@ -85,11 +92,13 @@ public interface ReadableIndex<T extends PropertyContainer>
      *
      * @return true iff mutating operations are supported.
      */
+    @Deprecated
     boolean isWriteable();
 
     /**
      * Get the {@link GraphDatabaseService graph database} that owns this index.
      * @return the {@link GraphDatabaseService graph database} that owns this index.
      */
+    @Deprecated
     GraphDatabaseService getGraphDatabase();
 }

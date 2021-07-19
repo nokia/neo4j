@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -41,32 +41,41 @@ public class ProcedureSignature
     private final List<FieldSignature> inputSignature;
     private final List<FieldSignature> outputSignature;
     private final Mode mode;
+    private final boolean admin;
     private final String deprecated;
     private final String[] allowed;
     private final String description;
     private final String warning;
+    private final boolean eager;
     private final boolean caseInsensitive;
+    private final boolean internal;
 
     public ProcedureSignature(
             QualifiedName name,
             List<FieldSignature> inputSignature,
             List<FieldSignature> outputSignature,
             Mode mode,
+            boolean admin,
             String deprecated,
             String[] allowed,
             String description,
             String warning,
-            boolean caseInsensitive )
+            boolean eager,
+            boolean caseInsensitive,
+            boolean internal )
     {
         this.name = name;
         this.inputSignature = unmodifiableList( inputSignature );
         this.outputSignature = outputSignature == VOID ? outputSignature : unmodifiableList( outputSignature );
         this.mode = mode;
+        this.admin = admin;
         this.deprecated = deprecated;
         this.allowed = allowed;
         this.description = description;
         this.warning = warning;
+        this.eager = eager;
         this.caseInsensitive = caseInsensitive;
+        this.internal = internal;
     }
 
     public QualifiedName name()
@@ -77,6 +86,11 @@ public class ProcedureSignature
     public Mode mode()
     {
         return mode;
+    }
+
+    public boolean admin()
+    {
+        return admin;
     }
 
     public Optional<String> deprecated()
@@ -117,6 +131,16 @@ public class ProcedureSignature
     public Optional<String> warning()
     {
         return Optional.ofNullable( warning );
+    }
+
+    public boolean eager()
+    {
+        return eager;
+    }
+
+    public boolean internal()
+    {
+        return internal;
     }
 
     @Override
@@ -167,6 +191,9 @@ public class ProcedureSignature
         private String[] allowed = new String[0];
         private String description;
         private String warning;
+        private boolean eager;
+        private boolean admin;
+        private boolean internal;
 
         public Builder( String[] namespace, String name )
         {
@@ -217,16 +244,34 @@ public class ProcedureSignature
             return this;
         }
 
+        public Builder admin( boolean admin )
+        {
+            this.admin = admin;
+            return this;
+        }
+
         public Builder warning( String warning )
         {
             this.warning =  warning;
             return this;
         }
 
+        public Builder eager( boolean eager )
+        {
+            this.eager = eager;
+            return this;
+        }
+
+        public Builder internal()
+        {
+            this.internal = true;
+            return this;
+        }
+
         public ProcedureSignature build()
         {
-            return new ProcedureSignature( name, inputSignature, outputSignature, mode, deprecated, allowed,
-                    description, warning, false );
+            return new ProcedureSignature( name, inputSignature, outputSignature, mode, admin, deprecated, allowed,
+                    description, warning, eager, false, internal );
         }
     }
 

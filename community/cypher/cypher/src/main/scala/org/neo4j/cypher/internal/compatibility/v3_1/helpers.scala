@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,21 +20,21 @@
 package org.neo4j.cypher.internal.compatibility.v3_1
 
 import org.neo4j.cypher.InternalException
-import org.neo4j.cypher.internal.util.v3_5.InputPosition
+import org.neo4j.cypher.internal.v3_5.util.InputPosition
 import org.neo4j.cypher.internal.compiler.v3_1
 import org.neo4j.cypher.internal.compiler.v3_1.CompilationPhaseTracer.{CompilationPhaseEvent, CompilationPhase => v3_1Phase}
 import org.neo4j.cypher.internal.compiler.v3_1.{CypherCompilerConfiguration => CypherCompilerConfiguration3_1}
-import org.neo4j.cypher.internal.frontend.v3_5.phases.CompilationPhaseTracer.{CompilationPhase => v3_5Phase}
-import org.neo4j.cypher.internal.compiler.v3_5.CypherCompilerConfiguration
+import org.neo4j.cypher.internal.v3_5.frontend.phases.CompilationPhaseTracer.{CompilationPhase => v3_5Phase}
+import org.neo4j.cypher.internal.compiler.v3_5.CypherPlannerConfiguration
 import org.neo4j.cypher.internal.frontend.v3_1.{InputPosition => InputPosition3_1}
-import org.neo4j.cypher.internal.frontend.v3_5.phases.CompilationPhaseTracer
+import org.neo4j.cypher.internal.v3_5.frontend.phases.CompilationPhaseTracer
 import org.neo4j.kernel.impl.query.{QueryExecutionMonitor, TransactionalContext}
 
 object helpers {
   implicit def monitorFailure(t: Throwable)(implicit monitor: QueryExecutionMonitor, tc: TransactionalContext): Unit = {
     monitor.endFailure(tc.executingQuery(), t)
   }
-  def as3_1(config: CypherCompilerConfiguration) =
+  def as3_1(config: CypherPlannerConfiguration) =
     CypherCompilerConfiguration3_1(
       config.queryCacheSize,
       config.statsDivergenceCalculator.initialThreshold,

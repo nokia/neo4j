@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -34,7 +34,7 @@ public class TransactionMetadataCacheTest
     public void shouldReturnNullWhenMissingATxInTheCache()
     {
         // given
-        final TransactionMetadataCache cache = new TransactionMetadataCache( 2 );
+        final TransactionMetadataCache cache = new TransactionMetadataCache();
 
         // when
         final TransactionMetadataCache.TransactionMetadata metadata = cache.getTransactionMetadata( 42 );
@@ -47,7 +47,7 @@ public class TransactionMetadataCacheTest
     public void shouldReturnTheTxValueTIfInTheCached()
     {
         // given
-        final TransactionMetadataCache cache = new TransactionMetadataCache( 2 );
+        final TransactionMetadataCache cache = new TransactionMetadataCache();
         final LogPosition position = new LogPosition( 3, 4 );
         final int txId = 42;
         final int masterId = 0;
@@ -69,7 +69,7 @@ public class TransactionMetadataCacheTest
     public void shouldThrowWhenCachingATxWithNegativeOffsetPosition()
     {
         // given
-        final TransactionMetadataCache cache = new TransactionMetadataCache( 2 );
+        final TransactionMetadataCache cache = new TransactionMetadataCache();
         final LogPosition position = new LogPosition( 3, -1 );
         final int txId = 42;
         final int masterId = 0;
@@ -93,7 +93,7 @@ public class TransactionMetadataCacheTest
     public void shouldClearTheCache()
     {
         // given
-        final TransactionMetadataCache cache = new TransactionMetadataCache( 2 );
+        final TransactionMetadataCache cache = new TransactionMetadataCache();
         final LogPosition position = new LogPosition( 3, 4 );
         final int txId = 42;
         final int masterId = 0;

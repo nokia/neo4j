@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,9 +19,13 @@
  */
 package org.neo4j.cypher.internal.planner.v3_5.spi
 
-import java.lang.Math.{abs, max}
+import java.lang.Math.abs
+import java.lang.Math.max
 
-import org.neo4j.cypher.internal.util.v3_5.{Cardinality, LabelId, RelTypeId, Selectivity}
+import org.neo4j.cypher.internal.v3_5.util.Cardinality
+import org.neo4j.cypher.internal.v3_5.util.LabelId
+import org.neo4j.cypher.internal.v3_5.util.RelTypeId
+import org.neo4j.cypher.internal.v3_5.util.Selectivity
 
 import scala.collection.mutable
 
@@ -44,12 +48,11 @@ case class GraphStatisticsSnapshot(statsValues: Map[StatisticsKey, Double] = Map
       case NodesWithLabelCardinality(labelId) =>
         instrumented.nodesWithLabelCardinality(labelId)
       case NodesAllCardinality =>
-        val value = statsValues.getOrElse(NodesAllCardinality, 1.0)
-        snapshot.map.put(NodesAllCardinality, value) // Copy the old value, otherwise every create would lead to a diverged cache if we update this
+        instrumented.nodesAllCardinality()
       case CardinalityByLabelsAndRelationshipType(lhs, relType, rhs) =>
         instrumented.cardinalityByLabelsAndRelationshipType(lhs, relType, rhs)
       case IndexSelectivity(index) =>
-        instrumented.indexSelectivity(index)
+        instrumented.uniqueValueSelectivity(index)
       case IndexPropertyExistsSelectivity(index) =>
         instrumented.indexPropertyExistsSelectivity(index)
     }
@@ -64,7 +67,8 @@ case class GraphStatisticsSnapshot(statsValues: Map[StatisticsKey, Double] = Map
     val divergedStats = (statsValues map {
       case (k, e1) =>
         val e2 = snapshot.statsValues(k)
-        abs(e1 - e2) / max(e1, e2)
+        val divergence = abs(e1 - e2) / max(e1, e2)
+        if (divergence.isNaN) 0 else divergence
     }).max
     divergedStats > minThreshold
   }
@@ -84,8 +88,8 @@ case class InstrumentedGraphStatistics(inner: GraphStatistics, snapshot: Mutable
       inner.cardinalityByLabelsAndRelationshipType(fromLabel, relTypeId, toLabel).amount
     )
 
-  def indexSelectivity(index: IndexDescriptor): Option[Selectivity] = {
-    val selectivity = inner.indexSelectivity(index)
+  def uniqueValueSelectivity(index: IndexDescriptor): Option[Selectivity] = {
+    val selectivity = inner.uniqueValueSelectivity(index)
     snapshot.map.getOrElseUpdate(IndexSelectivity(index), selectivity.fold(0.0)(_.factor))
     selectivity
   }

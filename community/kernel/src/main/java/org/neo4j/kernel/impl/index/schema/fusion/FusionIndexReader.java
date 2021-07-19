@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,74 +21,68 @@ package org.neo4j.kernel.impl.index.schema.fusion;
 
 import java.util.Arrays;
 
-import org.neo4j.collection.PrimitiveLongResourceCollections;
 import org.neo4j.collection.PrimitiveLongResourceIterator;
 import org.neo4j.graphdb.Resource;
 import org.neo4j.internal.kernel.api.IndexOrder;
 import org.neo4j.internal.kernel.api.IndexQuery;
 import org.neo4j.internal.kernel.api.IndexQuery.ExistsPredicate;
-import org.neo4j.kernel.api.exceptions.index.IndexNotApplicableKernelException;
-import org.neo4j.kernel.api.schema.index.SchemaIndexDescriptor;
+import org.neo4j.internal.kernel.api.exceptions.schema.IndexNotApplicableKernelException;
 import org.neo4j.kernel.impl.api.schema.BridgingIndexProgressor;
-import org.neo4j.kernel.impl.index.schema.fusion.FusionIndexProvider.Selector;
+import org.neo4j.storageengine.api.NodePropertyAccessor;
+import org.neo4j.storageengine.api.schema.IndexDescriptor;
 import org.neo4j.storageengine.api.schema.IndexProgressor;
 import org.neo4j.storageengine.api.schema.IndexReader;
 import org.neo4j.storageengine.api.schema.IndexSampler;
 import org.neo4j.values.storable.Value;
 
 import static java.lang.String.format;
+import static org.neo4j.collection.PrimitiveLongResourceCollections.concat;
 
 class FusionIndexReader extends FusionIndexBase<IndexReader> implements IndexReader
 {
-    private final SchemaIndexDescriptor descriptor;
+    private final IndexDescriptor descriptor;
 
-    FusionIndexReader( IndexReader[] readers, Selector selector, SchemaIndexDescriptor descriptor )
+    FusionIndexReader( SlotSelector slotSelector, LazyInstanceSelector<IndexReader> instanceSelector, IndexDescriptor descriptor )
     {
-        super( readers, selector );
+        super( slotSelector, instanceSelector );
         this.descriptor = descriptor;
     }
 
     @Override
     public void close()
     {
-        forAll( Resource::close, instances );
+        instanceSelector.close( Resource::close );
     }
 
     @Override
-    public long countIndexedNodes( long nodeId, Value... propertyValues )
+    public long countIndexedNodes( long nodeId, int[] propertyKeyIds, Value... propertyValues )
     {
-        return selector.select( instances, propertyValues ).countIndexedNodes( nodeId, propertyValues );
+        return instanceSelector.select( slotSelector.selectSlot( propertyValues, GROUP_OF ) ).countIndexedNodes( nodeId, propertyKeyIds, propertyValues );
     }
 
     @Override
     public IndexSampler createSampler()
     {
-        return new FusionIndexSampler( instancesAs( IndexSampler.class, IndexReader::createSampler ) );
+        return new FusionIndexSampler( instanceSelector.transform( IndexReader::createSampler ) );
     }
 
     @Override
     public PrimitiveLongResourceIterator query( IndexQuery... predicates ) throws IndexNotApplicableKernelException
     {
-        IndexReader instance = selector.select( instances, predicates );
-        if ( instance != null )
-        {
-            return instance.query( predicates );
-        }
-        else
-        {
-            PrimitiveLongResourceIterator[] converted = instancesAs( PrimitiveLongResourceIterator.class, reader -> reader.query( predicates ) );
-            return PrimitiveLongResourceCollections.concat( converted );
-        }
+        IndexSlot slot = slotSelector.selectSlot( predicates, IndexQuery::valueGroup );
+        return slot != null
+               ? instanceSelector.select( slot ).query( predicates )
+               : concat( instanceSelector.transform( reader -> reader.query( predicates ) ) );
     }
 
     @Override
-    public void query( IndexProgressor.NodeValueClient cursor, IndexOrder indexOrder, IndexQuery... predicates )
+    public void query( IndexProgressor.NodeValueClient cursor, IndexOrder indexOrder, boolean needsValues, IndexQuery... predicates )
             throws IndexNotApplicableKernelException
     {
-        IndexReader instance = selector.select( instances, predicates );
-        if ( instance != null )
+        IndexSlot slot = slotSelector.selectSlot( predicates, IndexQuery::valueGroup );
+        if ( slot != null )
         {
-            instance.query( cursor, indexOrder, predicates );
+            instanceSelector.select( slot ).query( cursor, indexOrder, needsValues, predicates );
         }
         else
         {
@@ -100,28 +94,66 @@ class FusionIndexReader extends FusionIndexBase<IndexReader> implements IndexRea
             }
             BridgingIndexProgressor multiProgressor = new BridgingIndexProgressor( cursor,
                     descriptor.schema().getPropertyIds() );
-            cursor.initialize( descriptor, multiProgressor, predicates );
-            for ( IndexReader reader : instances )
+            cursor.initialize( descriptor, multiProgressor, predicates, indexOrder, needsValues );
+            try
             {
-                reader.query( multiProgressor, indexOrder, predicates );
+                instanceSelector.forAll( reader ->
+                {
+                    try
+                    {
+                        reader.query( multiProgressor, indexOrder, needsValues, predicates );
+                    }
+                    catch ( IndexNotApplicableKernelException e )
+                    {
+                        throw new InnerException( e );
+                    }
+                } );
+            }
+            catch ( InnerException e )
+            {
+                throw e.getCause();
             }
         }
+    }
+
+    private static final class InnerException extends RuntimeException
+    {
+        private InnerException( IndexNotApplicableKernelException e )
+        {
+            super( e );
+        }
+
+        @Override
+        public synchronized IndexNotApplicableKernelException getCause()
+        {
+            return (IndexNotApplicableKernelException) super.getCause();
+        }
+    }
+
+    @Override
+    public void distinctValues( IndexProgressor.NodeValueClient cursor, NodePropertyAccessor propertyAccessor, boolean needsValues )
+    {
+        BridgingIndexProgressor multiProgressor = new BridgingIndexProgressor( cursor, descriptor.schema().getPropertyIds() );
+        cursor.initialize( descriptor, multiProgressor, new IndexQuery[0], IndexOrder.NONE, needsValues );
+        instanceSelector.forAll( reader -> reader.distinctValues( multiProgressor, propertyAccessor, needsValues ) );
     }
 
     @Override
     public boolean hasFullValuePrecision( IndexQuery... predicates )
     {
-        IndexReader instance = selector.select( instances, predicates );
-        if ( instance == null )
+        IndexSlot slot = slotSelector.selectSlot( predicates, IndexQuery::valueGroup );
+        if ( slot != null )
         {
+            return instanceSelector.select( slot ).hasFullValuePrecision( predicates );
+        }
+        else
+        {
+            // UNKNOWN slot which basically means the EXISTS predicate
             if ( !(predicates.length == 1 && predicates[0] instanceof ExistsPredicate) )
             {
                 throw new IllegalStateException( "Selected IndexReader null for predicates " + Arrays.toString( predicates ) );
             }
-            // null means ExistsPredicate and we don't care about
-            // full value precision for that, therefor true.
             return true;
         }
-        return instance.hasFullValuePrecision( predicates );
     }
 }

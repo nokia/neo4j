@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -29,7 +29,6 @@ import org.eclipse.collections.impl.set.mutable.primitive.IntHashSet;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 
 import org.neo4j.consistency.checking.ChainCheck;
 import org.neo4j.consistency.checking.CheckerEngine;
@@ -39,19 +38,21 @@ import org.neo4j.consistency.checking.index.IndexAccessors;
 import org.neo4j.consistency.report.ConsistencyReport;
 import org.neo4j.consistency.store.RecordAccess;
 import org.neo4j.internal.kernel.api.IndexQuery;
+import org.neo4j.internal.kernel.api.exceptions.schema.IndexNotApplicableKernelException;
 import org.neo4j.internal.kernel.api.schema.SchemaDescriptor;
-import org.neo4j.kernel.api.exceptions.index.IndexNotApplicableKernelException;
 import org.neo4j.kernel.impl.api.LookupFilter;
-import org.neo4j.kernel.impl.store.record.IndexRule;
 import org.neo4j.kernel.impl.store.record.NodeRecord;
 import org.neo4j.kernel.impl.store.record.PropertyBlock;
 import org.neo4j.kernel.impl.store.record.PropertyRecord;
 import org.neo4j.kernel.impl.store.record.Record;
+import org.neo4j.storageengine.api.EntityType;
 import org.neo4j.storageengine.api.schema.IndexReader;
+import org.neo4j.storageengine.api.schema.StoreIndexDescriptor;
 import org.neo4j.values.storable.Value;
 import org.neo4j.values.storable.Values;
 
 import static java.lang.String.format;
+import static org.neo4j.values.storable.NoValue.NO_VALUE;
 
 /**
  * Checks nodes and how they're indexed in one go. Reports any found inconsistencies.
@@ -62,7 +63,7 @@ public class PropertyAndNodeIndexedCheck implements RecordCheck<NodeRecord, Cons
     private final PropertyReader propertyReader;
     private final CacheAccess cacheAccess;
 
-    public PropertyAndNodeIndexedCheck( IndexAccessors indexes, PropertyReader propertyReader, CacheAccess cacheAccess )
+    PropertyAndNodeIndexedCheck( IndexAccessors indexes, PropertyReader propertyReader, CacheAccess cacheAccess )
     {
         this.indexes = indexes;
         this.propertyReader = propertyReader;
@@ -74,13 +75,20 @@ public class PropertyAndNodeIndexedCheck implements RecordCheck<NodeRecord, Cons
                        CheckerEngine<NodeRecord, ConsistencyReport.NodeConsistencyReport> engine,
                        RecordAccess records )
     {
-        Collection<PropertyRecord> properties = propertyReader.getPropertyRecordChain( record );
-        cacheAccess.client().putPropertiesToCache(properties);
-        if ( indexes != null )
+        try
         {
-            matchIndexesToNode( record, engine, records, properties );
+            Collection<PropertyRecord> properties = propertyReader.getPropertyRecordChain( record.getNextProp() );
+            cacheAccess.client().putPropertiesToCache(properties);
+            if ( indexes != null )
+            {
+                matchIndexesToNode( record, engine, records, properties );
+            }
+            checkProperty( record, engine, properties );
         }
-        checkProperty( record, engine, properties );
+        catch ( PropertyReader.CircularPropertyRecordChainException e )
+        {
+            engine.report().propertyChainContainsCircularReference( e.propertyRecordClosingTheCircle() );
+        }
     }
 
     /**
@@ -93,22 +101,21 @@ public class PropertyAndNodeIndexedCheck implements RecordCheck<NodeRecord, Cons
             RecordAccess records,
             Collection<PropertyRecord> propertyRecs )
     {
-        Set<Long> labels = NodeLabelReader.getListOfLabels( record, records, engine );
+        long[] labels = NodeLabelReader.getListOfLabels( record, records, engine ).stream().mapToLong( Long::longValue ).toArray();
         IntObjectMap<PropertyBlock> nodePropertyMap = null;
-        for ( IndexRule indexRule : indexes.onlineRules() )
+        for ( StoreIndexDescriptor indexRule : indexes.onlineRules() )
         {
-            long labelId = indexRule.schema().keyId();
-            if ( labels.contains( labelId ) )
+            SchemaDescriptor schema = indexRule.schema();
+            if ( schema.entityType() == EntityType.NODE && schema.isAffected( labels ) )
             {
                 if ( nodePropertyMap == null )
                 {
                     nodePropertyMap = properties( propertyReader.propertyBlocks( propertyRecs ) );
                 }
 
-                int[] indexPropertyIds = indexRule.schema().getPropertyIds();
-                if ( nodeHasSchemaProperties( nodePropertyMap, indexPropertyIds ) )
+                if ( entityIntersectsSchema( nodePropertyMap, schema ) )
                 {
-                    Value[] values = getPropertyValues( nodePropertyMap, indexPropertyIds );
+                    Value[] values = getPropertyValues( propertyReader, nodePropertyMap, schema.getPropertyIds() );
                     try ( IndexReader reader = indexes.accessorFor( indexRule ).newReader() )
                     {
                         long nodeId = record.getId();
@@ -119,7 +126,7 @@ public class PropertyAndNodeIndexedCheck implements RecordCheck<NodeRecord, Cons
                         }
                         else
                         {
-                            long count = reader.countIndexedNodes( nodeId, values );
+                            long count = reader.countIndexedNodes( nodeId, schema.getPropertyIds(), values );
                             reportIncorrectIndexCount( values, engine, indexRule, count );
                         }
                     }
@@ -129,7 +136,7 @@ public class PropertyAndNodeIndexedCheck implements RecordCheck<NodeRecord, Cons
     }
 
     private void verifyNodeCorrectlyIndexedUniquely( long nodeId, Value[] propertyValues,
-            CheckerEngine<NodeRecord,ConsistencyReport.NodeConsistencyReport> engine, IndexRule indexRule,
+            CheckerEngine<NodeRecord,ConsistencyReport.NodeConsistencyReport> engine, StoreIndexDescriptor indexRule,
             IndexReader reader )
     {
         IndexQuery[] query = seek( indexRule.schema(), propertyValues );
@@ -155,7 +162,9 @@ public class PropertyAndNodeIndexedCheck implements RecordCheck<NodeRecord, Cons
     }
 
     private void reportIncorrectIndexCount( Value[] propertyValues,
-            CheckerEngine<NodeRecord,ConsistencyReport.NodeConsistencyReport> engine, IndexRule indexRule, long count )
+                                            CheckerEngine<NodeRecord,ConsistencyReport.NodeConsistencyReport> engine,
+                                            StoreIndexDescriptor indexRule,
+                                            long count )
     {
         if ( count == 0 )
         {
@@ -200,18 +209,18 @@ public class PropertyAndNodeIndexedCheck implements RecordCheck<NodeRecord, Cons
         }
     }
 
-    private Value[] getPropertyValues( IntObjectMap<PropertyBlock> propertyMap, int[] indexPropertyIds )
+    static Value[] getPropertyValues( PropertyReader propertyReader, IntObjectMap<PropertyBlock> propertyMap, int[] indexPropertyIds )
     {
         Value[] values = new Value[indexPropertyIds.length];
         for ( int i = 0; i < indexPropertyIds.length; i++ )
         {
             PropertyBlock propertyBlock = propertyMap.get( indexPropertyIds[i] );
-            values[i] = propertyReader.propertyValue( propertyBlock );
+            values[i] = propertyBlock != null ? propertyReader.propertyValue( propertyBlock ) : NO_VALUE;
         }
         return values;
     }
 
-    private IntObjectMap<PropertyBlock> properties( List<PropertyBlock> propertyBlocks )
+    static IntObjectMap<PropertyBlock> properties( List<PropertyBlock> propertyBlocks )
     {
         final MutableIntObjectMap<PropertyBlock> propertyIds = new IntObjectHashMap<>();
         for ( PropertyBlock propertyBlock : propertyBlocks )
@@ -251,16 +260,40 @@ public class PropertyAndNodeIndexedCheck implements RecordCheck<NodeRecord, Cons
                 ? indexedNodeIds : LookupFilter.exactIndexMatches( propertyReader, indexedNodeIds, query );
     }
 
-    private static boolean nodeHasSchemaProperties(
-            IntObjectMap<PropertyBlock> nodePropertyMap, int[] indexPropertyIds )
+    static boolean entityIntersectsSchema( IntObjectMap<PropertyBlock> entityPropertyMap, SchemaDescriptor schema )
+    {
+        boolean requireAllTokens = schema.propertySchemaType() == SchemaDescriptor.PropertySchemaType.COMPLETE_ALL_TOKENS;
+        if ( requireAllTokens )
+        {
+            return hasAllProperties( entityPropertyMap, schema.getPropertyIds() );
+        }
+        else
+        {
+            return hasAnyProperty( entityPropertyMap, schema.getPropertyIds() );
+        }
+    }
+
+    private static boolean hasAllProperties( IntObjectMap<PropertyBlock> blockMap, int[] indexPropertyIds )
     {
         for ( int indexPropertyId : indexPropertyIds )
         {
-            if ( !nodePropertyMap.containsKey( indexPropertyId ) )
+            if ( !blockMap.containsKey( indexPropertyId ) )
             {
                 return false;
             }
         }
         return true;
+    }
+
+    private static boolean hasAnyProperty( IntObjectMap<PropertyBlock> blockMap, int[] indexPropertyIds )
+    {
+        for ( int indexPropertyId : indexPropertyIds )
+        {
+            if ( blockMap.containsKey( indexPropertyId ) )
+            {
+                return true;
+            }
+        }
+        return false;
     }
 }

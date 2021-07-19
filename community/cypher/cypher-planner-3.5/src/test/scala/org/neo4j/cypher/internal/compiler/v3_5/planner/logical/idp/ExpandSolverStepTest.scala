@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,24 +19,14 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.idp
 
-import org.mockito.Mockito._
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
-import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.Metrics.CardinalityModel
-import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.steps.LogicalPlanProducer
-import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.{LogicalPlanningContext, Metrics, QueryGraphSolver}
-import org.neo4j.cypher.internal.frontend.v3_5.ast._
-import org.neo4j.cypher.internal.frontend.v3_5.phases.InternalNotificationLogger
-import org.neo4j.cypher.internal.v3_5.logical.plans.{Expand, ExpandAll, ExpandInto, LogicalPlan}
-import org.neo4j.cypher.internal.frontend.v3_5.semantics.SemanticTable
-import org.neo4j.cypher.internal.ir.v3_5._
-import org.neo4j.cypher.internal.planner.v3_5.spi.PlanContext
-import org.neo4j.cypher.internal.util.v3_5.Cardinality
-import org.neo4j.cypher.internal.util.v3_5.attribution.SequentialIdGen
 import org.neo4j.cypher.internal.compiler.v3_5.planner.LogicalPlanningTestSupport2
 import org.neo4j.cypher.internal.ir.v3_5._
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
-import org.neo4j.cypher.internal.v3_5.expressions.SemanticDirection
 import org.neo4j.cypher.internal.v3_5.logical.plans.{Expand, ExpandAll, ExpandInto, LogicalPlan}
+import org.neo4j.cypher.internal.v3_5.ast._
+import org.neo4j.cypher.internal.v3_5.expressions.SemanticDirection
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
+
+import scala.collection.immutable.BitSet
 
 
 class ExpandSolverStepTest extends CypherFunSuite with LogicalPlanningTestSupport2 with AstConstructionTestSupport {
@@ -53,20 +43,20 @@ class ExpandSolverStepTest extends CypherFunSuite with LogicalPlanningTestSuppor
 
   test("does not expand based on empty table") {
     implicit val registry = IdRegistry[PatternRelationship]
-    new given().withLogicalPlanningContext { (cfg, ctx, solveds, cardinalities) =>
-      expandSolverStep(qg)(registry, register(pattern1, pattern2), table, ctx, solveds) should be(empty)
+    new given().withLogicalPlanningContext { (cfg, ctx) =>
+      expandSolverStep(qg)(registry, register(pattern1, pattern2), table, ctx) should be(empty)
     }
   }
 
   test("expands if an unsolved pattern relationship overlaps once with a single solved plan") {
     implicit val registry = IdRegistry[PatternRelationship]
 
-    new given().withLogicalPlanningContext { (cfg, ctx, solveds, cardinalities) =>
-      val plan1 = fakeLogicalPlanFor("a", "r1", "b")
-      solveds.set(plan1.id, RegularPlannerQuery(QueryGraph.empty.addPatternNodes("a", "b")))
+    new given().withLogicalPlanningContext { (cfg, ctx) =>
+      val plan1 = fakeLogicalPlanFor(ctx.planningAttributes, "a", "r1", "b")
+      ctx.planningAttributes.solveds.set(plan1.id, RegularPlannerQuery(QueryGraph.empty.addPatternNodes("a", "b")))
       table.put(register(pattern1), plan1)
 
-      expandSolverStep(qg)(registry, register(pattern1, pattern2), table, ctx, solveds).toSet should equal(Set(
+      expandSolverStep(qg)(registry, register(pattern1, pattern2), table, ctx).toSet should equal(Set(
         Expand(plan1, "b", SemanticDirection.OUTGOING, Seq.empty, "c", "r2", ExpandAll)
       ))
     }
@@ -75,14 +65,14 @@ class ExpandSolverStepTest extends CypherFunSuite with LogicalPlanningTestSuppor
   test("expands if an unsolved pattern relationships overlaps twice with a single solved plan") {
     implicit val registry = IdRegistry[PatternRelationship]
 
-    new given().withLogicalPlanningContext { (cfg, ctx, solveds, cardinalities) =>
-      val plan1 = fakeLogicalPlanFor("a", "r1", "b")
-      solveds.set(plan1.id, RegularPlannerQuery(QueryGraph.empty.addPatternNodes("a", "b")))
+    new given().withLogicalPlanningContext { (cfg, ctx) =>
+      val plan1 = fakeLogicalPlanFor(ctx.planningAttributes, "a", "r1", "b")
+      ctx.planningAttributes.solveds.set(plan1.id, RegularPlannerQuery(QueryGraph.empty.addPatternNodes("a", "b")))
       table.put(register(pattern1), plan1)
 
       val patternX = PatternRelationship("r2", ("a", "b"), SemanticDirection.OUTGOING, Seq.empty, SimplePatternLength)
 
-      expandSolverStep(qg)(registry, register(pattern1, patternX), table, ctx, solveds).toSet should equal(Set(
+      expandSolverStep(qg)(registry, register(pattern1, patternX), table, ctx).toSet should equal(Set(
         Expand(plan1, "a", SemanticDirection.OUTGOING, Seq.empty, "b", "r2", ExpandInto),
         Expand(plan1, "b", SemanticDirection.INCOMING, Seq.empty, "a", "r2", ExpandInto)
       ))
@@ -91,14 +81,14 @@ class ExpandSolverStepTest extends CypherFunSuite with LogicalPlanningTestSuppor
 
   test("does not expand if an unsolved pattern relationship does not overlap with a solved plan") {
     implicit val registry = IdRegistry[PatternRelationship]
-    new given().withLogicalPlanningContext { (cfg, ctx, solveds, cardinalities) =>
-      val plan1 = fakeLogicalPlanFor("a", "r1", "b")
-      solveds.set(plan1.id, RegularPlannerQuery(QueryGraph.empty.addPatternNodes("a", "b")))
+    new given().withLogicalPlanningContext { (cfg, ctx) =>
+      val plan1 = fakeLogicalPlanFor(ctx.planningAttributes, "a", "r1", "b")
+      ctx.planningAttributes.solveds.set(plan1.id, RegularPlannerQuery(QueryGraph.empty.addPatternNodes("a", "b")))
       table.put(register(pattern1), plan1)
 
       val patternX = PatternRelationship("r2", ("x", "y"), SemanticDirection.OUTGOING, Seq.empty, SimplePatternLength)
 
-      expandSolverStep(qg)(registry, register(pattern1, patternX), table, ctx, solveds).toSet should be(empty)
+      expandSolverStep(qg)(registry, register(pattern1, patternX), table, ctx).toSet should be(empty)
     }
 
   }
@@ -106,17 +96,33 @@ class ExpandSolverStepTest extends CypherFunSuite with LogicalPlanningTestSuppor
   test("expands if an unsolved pattern relationship overlaps with multiple solved plans") {
     implicit val registry = IdRegistry[PatternRelationship]
 
-    new given().withLogicalPlanningContext { (cfg, ctx, solveds, cardinalities) =>
-      val plan1 = fakeLogicalPlanFor("a", "r1", "b", "c", "r2", "d")
-      solveds.set(plan1.id, RegularPlannerQuery(QueryGraph.empty.addPatternNodes("a", "b", "c", "d")))
+    new given().withLogicalPlanningContext { (cfg, ctx) =>
+      val plan1 = fakeLogicalPlanFor(ctx.planningAttributes, "a", "r1", "b", "c", "r2", "d")
+      ctx.planningAttributes.solveds.set(plan1.id, RegularPlannerQuery(QueryGraph.empty.addPatternNodes("a", "b", "c", "d")))
       table.put(register(pattern1, pattern2), plan1)
 
       val pattern3 = PatternRelationship("r3", ("b", "c"), SemanticDirection.OUTGOING, Seq.empty, SimplePatternLength)
 
-      expandSolverStep(qg)(registry, register(pattern1, pattern2, pattern3), table, ctx, solveds).toSet should equal(Set(
+      expandSolverStep(qg)(registry, register(pattern1, pattern2, pattern3), table, ctx).toSet should equal(Set(
         Expand(plan1, "b", SemanticDirection.OUTGOING, Seq.empty, "c", "r3", ExpandInto),
         Expand(plan1, "c", SemanticDirection.INCOMING, Seq.empty, "b", "r3", ExpandInto)
       ))
+    }
+  }
+
+  test("does not expand if goal is entirely compacted") {
+    implicit val registry: DefaultIdRegistry[PatternRelationship] = IdRegistry[PatternRelationship]
+
+    new given().withLogicalPlanningContext { (_, ctx) =>
+      val plan1 = fakeLogicalPlanFor(ctx.planningAttributes, "a", "r1", "b")
+      ctx.planningAttributes.solveds.set(plan1.id, RegularPlannerQuery(QueryGraph.empty.addPatternNodes("a", "b")))
+
+      val compactedPattern1 = BitSet(registry.compact(register(pattern1)))
+      val compactedPattern2 = BitSet(registry.compact(register(pattern2)))
+
+      table.put(compactedPattern1, plan1)
+
+      expandSolverStep(qg)(registry, compactedPattern1 ++ compactedPattern2, table, ctx).toSet should be(empty)
     }
   }
 

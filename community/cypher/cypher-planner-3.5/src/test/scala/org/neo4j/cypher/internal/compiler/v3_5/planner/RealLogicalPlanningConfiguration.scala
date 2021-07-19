@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,26 +19,23 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner
 
-import org.neo4j.cypher.internal.compiler.v3_5.CypherCompilerConfiguration
+import org.neo4j.cypher.internal.compiler.v3_5.CypherPlannerConfiguration
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.Metrics.{CardinalityModel, QueryGraphCardinalityModel, QueryGraphSolverInput}
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.{CardinalityCostModel, ExpressionEvaluator, Metrics, StatisticsBackedCardinalityModel}
-import org.neo4j.cypher.internal.frontend.v3_5.semantics.SemanticTable
-import org.neo4j.cypher.internal.ir.v3_5.{PlannerQuery, QueryGraph}
+import org.neo4j.cypher.internal.ir.v3_5.QueryGraph
 import org.neo4j.cypher.internal.planner.v3_5.spi.GraphStatistics
 import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.Cardinalities
-import org.neo4j.cypher.internal.util.v3_5.{Cardinality, Cost}
-import org.neo4j.cypher.internal.v3_5.logical.plans.LogicalPlan
+import org.neo4j.cypher.internal.v3_5.logical.plans.{LogicalPlan, ProcedureSignature}
+import org.neo4j.cypher.internal.v3_5.util.{Cardinality, Cost}
 
-case class RealLogicalPlanningConfiguration(cypherCompilerConfig: CypherCompilerConfiguration)
+case class RealLogicalPlanningConfiguration(cypherCompilerConfig: CypherPlannerConfiguration)
   extends LogicalPlanningConfiguration with LogicalPlanningConfigurationAdHocSemanticTable {
 
   override def cardinalityModel(queryGraphCardinalityModel: QueryGraphCardinalityModel, evaluator: ExpressionEvaluator): CardinalityModel = {
-    val model: Metrics.CardinalityModel = new StatisticsBackedCardinalityModel(queryGraphCardinalityModel, evaluator)
-    ({
-      case (pq: PlannerQuery, card: QueryGraphSolverInput, semanticTable: SemanticTable) => model(pq, card, semanticTable)
-    })
+    new StatisticsBackedCardinalityModel(queryGraphCardinalityModel, evaluator)
   }
 
+  //noinspection ScalaUnnecessaryParentheses
   override def costModel(): PartialFunction[(LogicalPlan, QueryGraphSolverInput, Cardinalities), Cost] = {
     val model: Metrics.CostModel = CardinalityCostModel(cypherCompilerConfig)
     ({
@@ -47,10 +44,11 @@ case class RealLogicalPlanningConfiguration(cypherCompilerConfig: CypherCompiler
   }
 
   override def graphStatistics: GraphStatistics = HardcodedGraphStatistics
-  override def indexes: Set[(String, Seq[String])] = Set.empty
-  override def uniqueIndexes: Set[(String, Seq[String])] = Set.empty
+  override def indexes: Map[IndexDef, IndexType] = Map.empty
+  override def procedureSignatures: Set[ProcedureSignature] = Set.empty
   override def labelCardinality: Map[String, Cardinality] = Map.empty
   override def knownLabels: Set[String] = Set.empty
+  override def knownRelationships: Set[String] = Set.empty
   override def labelsById: Map[Int, String] = Map.empty
 
   override def qg: QueryGraph = ???

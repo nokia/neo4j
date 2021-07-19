@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -47,13 +47,16 @@ import java.util.Map;
 import java.util.TimeZone;
 import java.util.stream.Stream;
 
+import org.neo4j.internal.diagnostics.DiagnosticsManager;
+import org.neo4j.internal.diagnostics.DiagnosticsPhase;
+import org.neo4j.internal.diagnostics.DiagnosticsProvider;
 import org.neo4j.io.os.OsBeanUtil;
 import org.neo4j.logging.Logger;
 
 import static java.net.NetworkInterface.getNetworkInterfaces;
 import static org.neo4j.helpers.Format.bytes;
 
-enum SystemDiagnostics implements DiagnosticsProvider
+public enum SystemDiagnostics implements DiagnosticsProvider
 {
     SYSTEM_MEMORY( "System memory information:" )
     {
@@ -330,7 +333,7 @@ enum SystemDiagnostics implements DiagnosticsProvider
         this.message = message;
     }
 
-    static void registerWith( DiagnosticsManager manager )
+    public static void registerWith( DiagnosticsManager manager )
     {
         for ( SystemDiagnostics provider : values() )
         {

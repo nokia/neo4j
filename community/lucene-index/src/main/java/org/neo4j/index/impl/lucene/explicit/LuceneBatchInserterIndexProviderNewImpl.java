@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -41,7 +41,9 @@ import org.neo4j.unsafe.batchinsert.internal.IndexConfigStoreProvider;
  * The {@link BatchInserter} version of {@link LuceneIndexImplementation}. Indexes
  * created and populated using {@link BatchInserterIndex}s from this provider
  * are compatible with {@link Index}s from {@link LuceneIndexImplementation}.
+ * @deprecated This API will be removed in next major release. Please consider using schema indexes instead.
  */
+@Deprecated
 public class LuceneBatchInserterIndexProviderNewImpl implements BatchInserterIndexProvider
 {
     private final BatchInserter inserter;
@@ -49,6 +51,7 @@ public class LuceneBatchInserterIndexProviderNewImpl implements BatchInserterInd
     final IndexConfigStore indexStore;
     private LuceneBatchInserterIndex.RelationshipLookup relationshipLookup;
 
+    @Deprecated
     public LuceneBatchInserterIndexProviderNewImpl( final BatchInserter inserter )
     {
         this.inserter = inserter;

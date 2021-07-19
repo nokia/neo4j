@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -23,9 +23,10 @@ import org.neo4j.cypher.internal.runtime.ImplicitValueConversion._
 import org.neo4j.cypher.internal.runtime.interpreted.commands.expressions.Variable
 import org.neo4j.cypher.internal.runtime.interpreted.{ExecutionContext, ImplicitDummyPos, QueryContextAdaptation, QueryStateHelper}
 import org.neo4j.cypher.internal.runtime.{EagerReadWriteCallMode, LazyReadOnlyCallMode, QueryContext}
-import org.neo4j.cypher.internal.util.v3_5.symbols._
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
 import org.neo4j.cypher.internal.v3_5.logical.plans._
+import org.neo4j.cypher.internal.v3_5.util.symbols._
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
+import org.neo4j.internal.kernel.api.procs.ProcedureCallContext
 import org.neo4j.values.AnyValue
 import org.neo4j.values.storable.{IntValue, LongValue}
 
@@ -51,7 +52,7 @@ class ProcedureCallPipeTest
       argExprs = Seq(Variable("a")),
       rowProcessing = FlatMapAndAppendToRow,
       resultSymbols = Seq("r" -> CTString),
-      resultIndices = Seq(0 -> "r")
+      resultIndices = Seq(0 -> ("r", "r"))
     )()
 
     val qtx = new FakeQueryContext(ID, resultsTransformer, ProcedureReadOnlyAccess(emptyStringArray))
@@ -74,7 +75,7 @@ class ProcedureCallPipeTest
       argExprs = Seq(Variable("a")),
       rowProcessing = FlatMapAndAppendToRow,
       resultSymbols = Seq("r" -> CTString),
-      resultIndices = Seq(0 -> "r")
+      resultIndices = Seq(0 -> ("r", "r"))
     )()
 
     val qtx = new FakeQueryContext(ID, resultsTransformer, ProcedureReadWriteAccess(emptyStringArray))
@@ -117,14 +118,12 @@ class ProcedureCallPipeTest
 
   class FakeQueryContext(id: Int, result: Seq[Any] => Iterator[Array[AnyRef]],
                          expectedAccessMode: ProcedureAccessMode) extends QueryContext with QueryContextAdaptation {
-    override def isGraphKernelResultValue(v: Any): Boolean = false
-
-    override def callReadOnlyProcedure(id: Int, args: Seq[Any], allowed: Array[String]) = {
+    override def callReadOnlyProcedure(id: Int, args: Seq[Any], allowed: Array[String], procedureCallContext: ProcedureCallContext) = {
       expectedAccessMode should equal(ProcedureReadOnlyAccess(emptyStringArray))
       doIt(id, args, allowed)
     }
 
-    override def callReadWriteProcedure(id: Int, args: Seq[Any], allowed: Array[String]): Iterator[Array[AnyRef]] = {
+    override def callReadWriteProcedure(id: Int, args: Seq[Any], allowed: Array[String], procedureCallContext: ProcedureCallContext): Iterator[Array[AnyRef]] = {
       expectedAccessMode should equal(ProcedureReadWriteAccess(emptyStringArray))
       doIt(id, args, allowed)
     }

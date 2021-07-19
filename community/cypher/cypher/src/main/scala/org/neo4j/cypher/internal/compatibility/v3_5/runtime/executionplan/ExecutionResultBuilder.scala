@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,29 +19,20 @@
  */
 package org.neo4j.cypher.internal.compatibility.v3_5.runtime.executionplan
 
-import org.neo4j.cypher.internal.util.v3_5.CypherException
-import org.neo4j.cypher.internal.compatibility.v3_5.runtime.RuntimeName
-import org.neo4j.cypher.internal.frontend.v3_5.PlannerName
-import org.neo4j.cypher.internal.frontend.v3_5.phases.InternalNotificationLogger
-import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.Cardinalities
+import org.neo4j.cypher.internal.runtime.QueryContext
 import org.neo4j.cypher.internal.runtime.interpreted.pipes.PipeDecorator
-import org.neo4j.cypher.internal.runtime.{ExecutionMode, InternalExecutionResult, QueryContext}
+import org.neo4j.cypher.result.{QueryProfile, RuntimeResult}
 import org.neo4j.values.virtual.MapValue
+import org.neo4j.cypher.internal.v3_5.frontend.phases.InternalNotificationLogger
 
 trait ExecutionResultBuilder {
-  def setQueryContext(context: QueryContext)
   def setLoadCsvPeriodicCommitObserver(batchRowCount: Long)
   def setPipeDecorator(newDecorator: PipeDecorator)
-  def setExceptionDecorator(newDecorator: CypherException => CypherException)
-  def build(planType: ExecutionMode,
-            params: MapValue,
-            notificationLogger: InternalNotificationLogger,
-            plannerName: PlannerName,
-            runtimeName: RuntimeName,
+  def build(params: MapValue,
             readOnly: Boolean,
-            cardinalities: Cardinalities): InternalExecutionResult
+            queryProfile: QueryProfile): RuntimeResult
 }
 
 trait ExecutionResultBuilderFactory {
-  def create(): ExecutionResultBuilder
+  def create(queryContext: QueryContext): ExecutionResultBuilder
 }

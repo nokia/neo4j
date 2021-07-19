@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -18,9 +18,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 package org.neo4j.internal.kernel.api.exceptions.schema;
-
-import java.util.Arrays;
-import java.util.stream.Collectors;
 
 import org.neo4j.internal.kernel.api.TokenNameLookup;
 import org.neo4j.internal.kernel.api.exceptions.KernelException;
@@ -53,29 +50,8 @@ public abstract class SchemaKernelException extends KernelException
         super( statusCode, message );
     }
 
-    protected static String messageWithLabelAndPropertyName( TokenNameLookup tokenNameLookup, String formatString,
-            SchemaDescriptor descriptor )
+    protected static String messageWithLabelAndPropertyName( TokenNameLookup tokenNameLookup, String formatString, SchemaDescriptor descriptor )
     {
-        int[] propertyIds = descriptor.getPropertyIds();
-
-        if ( tokenNameLookup != null )
-        {
-            String propertyString = propertyIds.length == 1 ?
-                                    "property '" + tokenNameLookup.propertyKeyGetName( propertyIds[0]) + "'" :
-                                    "properties " + Arrays.stream( propertyIds )
-                                            .mapToObj( i -> "'" + tokenNameLookup.propertyKeyGetName( i ) + "'" )
-                                            .collect( Collectors.joining( " and " ));
-            return String.format( formatString,
-                    tokenNameLookup.labelGetName( descriptor.keyId() ), propertyString);
-        }
-        else
-        {
-            String keyString = propertyIds.length == 1 ? "key[" + propertyIds[0] + "]" :
-                               "keys[" + Arrays.stream( propertyIds )
-                                       .mapToObj( Integer::toString )
-                                       .collect( Collectors.joining( ", " )) + "]";
-            return String.format( formatString,
-                    "label[" + descriptor.keyId() + "]", keyString );
-        }
+        return String.format( formatString, descriptor.userDescription( tokenNameLookup ) );
     }
 }

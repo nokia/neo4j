@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,10 +19,8 @@
  */
 package org.neo4j.graphdb.impl.notification;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public interface NotificationDetail
 {
@@ -44,8 +42,13 @@ public interface NotificationDetail
         public static NotificationDetail index( final String labelName, final String... propertyKeyNames )
         {
             return createNotificationDetail( "hinted index",
-                    String.format( "index on :%s(%s)", labelName,
-                            Arrays.stream( propertyKeyNames ).collect( Collectors.joining( "," ) ) ), true );
+                    String.format( "index on :%s(%s)", labelName, String.join( ",", propertyKeyNames ) ), true );
+        }
+
+        public static NotificationDetail suboptimalIndex( final String labelName, final String... propertyKeyNames )
+        {
+            return createNotificationDetail( "index",
+                    String.format( "index on :%s(%s)", labelName, String.join( ",", propertyKeyNames ) ), true );
         }
 
         public static NotificationDetail label( final String labelName )

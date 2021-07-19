@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -31,9 +31,18 @@ public class MappingSerializer extends Serializer
         this.writer = writer;
     }
 
+    /**
+     * @deprecated please use {@link #putAbsoluteUri(String, URI)}
+     */
+    @Deprecated
     void putAbsoluteUri( String key, String path )
     {
         writer.writeValue( RepresentationType.URI, key, path );
+    }
+
+    void putAbsoluteUri( String key, URI path )
+    {
+        writer.writeValue( RepresentationType.URI, key, path.toASCIIString() );
     }
 
     public void putRelativeUri( String key, String path )

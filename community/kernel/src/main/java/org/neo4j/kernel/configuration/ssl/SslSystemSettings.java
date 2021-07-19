@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -25,7 +25,7 @@ import org.neo4j.configuration.Description;
 import org.neo4j.configuration.LoadableConfig;
 import org.neo4j.graphdb.config.Setting;
 
-import static org.neo4j.kernel.configuration.Settings.options;
+import static org.neo4j.kernel.configuration.Settings.optionsObeyCase;
 import static org.neo4j.kernel.configuration.Settings.setting;
 
 /**
@@ -35,5 +35,6 @@ import static org.neo4j.kernel.configuration.Settings.setting;
 public class SslSystemSettings implements LoadableConfig
 {
     @Description( "Netty SSL provider" )
-    public static final Setting<SslProvider> netty_ssl_provider = setting( "dbms.netty.ssl.provider", options( SslProvider.class ), SslProvider.JDK.name() );
+    public static final Setting<SslProvider> netty_ssl_provider =
+            setting( "dbms.netty.ssl.provider", optionsObeyCase( SslProvider.class ), SslProvider.JDK.name() );
 }

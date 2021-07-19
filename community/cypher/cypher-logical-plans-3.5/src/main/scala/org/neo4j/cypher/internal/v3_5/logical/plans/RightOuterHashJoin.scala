@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,11 +19,12 @@
  */
 package org.neo4j.cypher.internal.v3_5.logical.plans
 
-import org.neo4j.cypher.internal.util.v3_5.attribution.IdGen
+import org.neo4j.cypher.internal.v3_5.expressions.Property
+import org.neo4j.cypher.internal.v3_5.util.attribution.IdGen
 
 /**
   * Variant of NodeHashJoin. Also builds a hash table using 'left' and produces merged left and right rows using this
-  * table. In addition, also produces left and right rows with missing key values, and left rows that were not matched
+  * table. In addition, also produces left rows with missing key values, and right rows that were not matched
   * in the hash table. In these additional rows, variables from the opposing stream are set to NO_VALUE.
   *
   * This is equivalent to a right outer join in relational algebra.
@@ -37,4 +38,13 @@ case class RightOuterHashJoin(nodes: Set[String],
   val rhs = Some(right)
 
   val availableSymbols: Set[String] = left.availableSymbols ++ right.availableSymbols
+
+  /**
+    * Cached node properties from lhs cannot be used if they refer to a join key node. This is because outer
+    * rows will nullify the lhs columns even thought a join key node might still have the property.
+    */
+  override def availableCachedNodeProperties: Map[Property, CachedNodeProperty] =
+    left.availableCachedNodeProperties.filter {
+      case (_, cachedNodeProperty) => !nodes.contains(cachedNodeProperty.nodeVariableName)
+    } ++ right.availableCachedNodeProperties
 }

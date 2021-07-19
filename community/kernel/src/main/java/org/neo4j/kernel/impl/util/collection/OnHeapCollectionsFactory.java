@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -17,18 +17,16 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 package org.neo4j.kernel.impl.util.collection;
 
-import org.eclipse.collections.api.map.primitive.MutableIntObjectMap;
 import org.eclipse.collections.api.map.primitive.MutableLongObjectMap;
 import org.eclipse.collections.api.set.primitive.MutableLongSet;
-import org.eclipse.collections.impl.map.mutable.primitive.IntObjectHashMap;
 import org.eclipse.collections.impl.map.mutable.primitive.LongObjectHashMap;
 import org.eclipse.collections.impl.set.mutable.primitive.LongHashSet;
 
-import org.neo4j.kernel.impl.util.diffsets.PrimitiveLongDiffSets;
+import org.neo4j.kernel.impl.util.diffsets.MutableLongDiffSetsImpl;
 import org.neo4j.memory.MemoryTracker;
+import org.neo4j.values.storable.Value;
 
 public class OnHeapCollectionsFactory implements CollectionsFactory
 {
@@ -46,21 +44,15 @@ public class OnHeapCollectionsFactory implements CollectionsFactory
     }
 
     @Override
-    public <V> MutableLongObjectMap<V> newLongObjectMap()
+    public MutableLongDiffSetsImpl newLongDiffSets()
+    {
+        return new MutableLongDiffSetsImpl( this );
+    }
+
+    @Override
+    public MutableLongObjectMap<Value> newValuesMap()
     {
         return new LongObjectHashMap<>();
-    }
-
-    @Override
-    public <V> MutableIntObjectMap<V> newIntObjectMap()
-    {
-        return new IntObjectHashMap<>();
-    }
-
-    @Override
-    public PrimitiveLongDiffSets newLongDiffSets()
-    {
-        return new PrimitiveLongDiffSets( this );
     }
 
     @Override
@@ -70,8 +62,8 @@ public class OnHeapCollectionsFactory implements CollectionsFactory
     }
 
     @Override
-    public boolean collectionsMustBeReleased()
+    public void release()
     {
-        return false;
+        // nop
     }
 }

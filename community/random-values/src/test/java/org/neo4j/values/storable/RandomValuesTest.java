@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,6 +19,7 @@
  */
 package org.neo4j.values.storable;
 
+import org.apache.commons.lang3.ArrayUtils;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -35,6 +36,7 @@ import java.util.stream.Collectors;
 import org.neo4j.values.AnyValue;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -50,9 +52,9 @@ import static org.neo4j.values.storable.Values.longValue;
 @RunWith( Parameterized.class )
 public class RandomValuesTest
 {
-    private static final int ITERATIONS = 500;
+    private static final int ITERATIONS = 1000;
 
-    @Parameterized.Parameter( 0 )
+    @Parameterized.Parameter()
     public RandomValues randomValues;
 
     @Parameterized.Parameter( 1 )
@@ -198,43 +200,6 @@ public class RandomValuesTest
     }
 
     @Test
-    public void nextDigitString()
-    {
-        Set<Integer> seenDigits = "0123456789".chars().boxed().collect( Collectors.toSet() );
-        for ( int i = 0; i < ITERATIONS; i++ )
-        {
-            TextValue textValue = randomValues.nextDigitString( 5, 10 );
-            String asString = textValue.stringValue();
-            for ( int j = 0; j < asString.length(); j++ )
-            {
-                int ch = asString.charAt( j );
-                assertTrue( Character.isDigit( ch ) );
-                seenDigits.remove( ch );
-            }
-        }
-        assertThat( seenDigits, empty() );
-    }
-
-    @Test
-    public void nextAlphaString()
-    {
-        Set<Integer> seenDigits = "ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvxyz".chars().boxed()
-                .collect( Collectors.toSet() );
-        for ( int i = 0; i < ITERATIONS; i++ )
-        {
-            TextValue textValue = randomValues.nextAlphaTextValue( 5, 10 );
-            String asString = textValue.stringValue();
-            for ( int j = 0; j < asString.length(); j++ )
-            {
-                int ch = asString.charAt( j );
-                assertTrue( "Not a character: " + ch, Character.isAlphabetic( ch ) );
-                seenDigits.remove( ch );
-            }
-        }
-        assertThat( seenDigits, empty() );
-    }
-
-    @Test
     public void nextAlphaNumericString()
     {
         Set<Integer> seenDigits = "ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvxyz0123456789".chars().boxed()
@@ -260,19 +225,6 @@ public class RandomValuesTest
         for ( int i = 0; i < ITERATIONS; i++ )
         {
             TextValue textValue = randomValues.nextAsciiTextValue( 10, 20 );
-            String asString = textValue.stringValue();
-            int length = asString.length();
-            assertThat( length, greaterThanOrEqualTo( 10 ) );
-            assertThat( length, lessThanOrEqualTo( 20 ) );
-        }
-    }
-
-    @Test
-    public void nextPrintableAsciiString()
-    {
-        for ( int i = 0; i < ITERATIONS; i++ )
-        {
-            TextValue textValue = randomValues.nextPrintableAsciiTextValue( 10, 20 );
             String asString = textValue.stringValue();
             int length = asString.length();
             assertThat( length, greaterThanOrEqualTo( 10 ) );
@@ -324,6 +276,64 @@ public class RandomValuesTest
         }
 
         assertThat( seen, empty() );
+    }
+
+    @Test
+    public void nextValueOfTypes()
+    {
+        ValueType[] allTypes = ValueType.values();
+        ValueType[] including = randomValues.selection( allTypes, 1, allTypes.length, false );
+        HashSet<Class<? extends AnyValue>> seen = new HashSet<>();
+        for ( ValueType type : including )
+        {
+            seen.add( type.valueClass );
+        }
+        for ( int i = 0; i < ITERATIONS; i++ )
+        {
+            Value value = randomValues.nextValueOfTypes( including );
+            assertValueAmongTypes( including, value );
+            markSeen( value.getClass(), seen );
+        }
+        assertThat( seen, empty() );
+    }
+
+    @Test
+    public void excluding()
+    {
+        ValueType[] allTypes = ValueType.values();
+        ValueType[] excluding = randomValues.selection( allTypes, 1, allTypes.length, false );
+        ValueType[] including = randomValues.excluding( excluding );
+        for ( ValueType excludedType : excluding )
+        {
+            if ( ArrayUtils.contains( including, excludedType ) )
+            {
+                fail( "Including array " + Arrays.toString( including ) + " contains excluded type " + excludedType );
+            }
+        }
+    }
+
+    @Test
+    public void nextBasicMultilingualPlaneTextValue()
+    {
+        for ( int i = 0; i < ITERATIONS; i++ )
+        {
+            TextValue value = randomValues.nextBasicMultilingualPlaneTextValue();
+            //make sure the value fits in 16bits, meaning that the size of the char[]
+            //matches the number of code points.
+            assertThat( value.length(), equalTo( value.stringValue().length() ) );
+        }
+    }
+
+    private void assertValueAmongTypes( ValueType[] types, Value value )
+    {
+        for ( ValueType type : types )
+        {
+            if ( type.valueClass.isAssignableFrom( value.getClass() ) )
+            {
+                return;
+            }
+        }
+        fail( "Value " + value + " was not among types " + Arrays.toString( types ) );
     }
 
     private void assertKnownType( Class<? extends AnyValue> typeToCheck, Set<Class<? extends AnyValue>> types )

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -64,7 +64,20 @@ class SimpleIdProvider implements IdProvider
         releasedIds.add( Pair.of( unstableGeneration, id ) );
     }
 
-    long lastId()
+    @Override
+    public void visitFreelist( IdProviderVisitor visitor )
+    {
+        int pos = 0;
+        visitor.beginFreelistPage( 0 );
+        for ( Pair<Long,Long> releasedId : releasedIds )
+        {
+            visitor.freelistEntry( releasedId.getRight(), releasedId.getLeft(), pos++ );
+        }
+        visitor.endFreelistPage( 0 );
+    }
+
+    @Override
+    public long lastId()
     {
         return lastId;
     }

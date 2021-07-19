@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,17 +20,16 @@
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.steps
 
 import org.neo4j.cypher.internal.compiler.v3_5.planner._
-import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.LogicalPlanningContext
-import org.neo4j.cypher.internal.frontend.v3_5.ast
-import org.neo4j.cypher.internal.frontend.v3_5.ast.AscSortItem
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
+import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.{LogicalPlanningContext, PlanMatchHelp}
 import org.neo4j.cypher.internal.ir.v3_5._
-import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.{Cardinalities, Solveds}
-import org.neo4j.cypher.internal.util.v3_5.Cardinality
+import org.neo4j.cypher.internal.v3_5.ast
+import org.neo4j.cypher.internal.v3_5.ast.{ASTAnnotationMap, AscSortItem}
+import org.neo4j.cypher.internal.v3_5.ast.semantics.{ExpressionTypeInfo, SemanticTable}
 import org.neo4j.cypher.internal.v3_5.expressions._
 import org.neo4j.cypher.internal.v3_5.logical.plans.{Ascending, ColumnOrder, LogicalPlan, Projection}
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
 
-class ProjectionTest extends CypherFunSuite with LogicalPlanningTestSupport {
+class ProjectionTest extends CypherFunSuite with LogicalPlanningTestSupport with PlanMatchHelp {
 
   val x: Expression = UnsignedDecimalIntegerLiteral("110") _
   val y: Expression = UnsignedDecimalIntegerLiteral("10") _
@@ -41,56 +40,85 @@ class ProjectionTest extends CypherFunSuite with LogicalPlanningTestSupport {
     // given
     val projections: Map[String, Expression] = Map("42" -> SignedDecimalIntegerLiteral("42") _)
 
-    val (context, startPlan, solveds, cardinalities) = queryGraphWith(projectionsMap = projections)
+    val (context, startPlan) = queryGraphWith(projectionsMap = projections)
 
     // when
-    val result = projection(startPlan, projections, context, solveds, cardinalities)
+    val result = projection(startPlan, projections, projections, InterestingOrder.empty, context)
 
     // then
     result should equal(Projection(startPlan, projections))
-    solveds.get(result.id).horizon should equal(RegularQueryProjection(projections))
+    context.planningAttributes.solveds.get(result.id).horizon should equal(RegularQueryProjection(projections))
+  }
+
+  test("should mark as solved according to projectionsToMarkSolved argument") {
+    // given
+    val projections: Map[String, Expression] = Map("42" -> SignedDecimalIntegerLiteral("42")(pos), "43" -> SignedDecimalIntegerLiteral("43")(pos))
+    val projectionsToMarkSolved: Map[String, Expression] = Map("42" -> SignedDecimalIntegerLiteral("42")(pos))
+
+    val (context, startPlan) = queryGraphWith(projectionsMap = projections)
+
+    // when
+    val result = projection(startPlan, projections, projectionsToMarkSolved, InterestingOrder.empty, context)
+
+    // then
+    result should equal(Projection(startPlan, projections))
+    context.planningAttributes.solveds.get(result.id).horizon should equal(RegularQueryProjection(projectionsToMarkSolved))
   }
 
   test("does not add projection when not needed") {
     // given
     val projections: Map[String, Expression] = Map("n" -> Variable("n") _)
-    val (context, startPlan, solveds, cardinalities) = queryGraphWith(projectionsMap = projections)
+    val (context, startPlan) = queryGraphWith(projectionsMap = projections)
 
     // when
-    val result = projection(startPlan, projections, context, solveds, cardinalities)
+    val result = projection(startPlan, projections, projections, InterestingOrder.empty, context)
 
     // then
     result should equal(startPlan)
-    solveds.get(result.id).horizon should equal(RegularQueryProjection(projections))
+    context.planningAttributes.solveds.get(result.id).horizon should equal(RegularQueryProjection(projections))
+  }
+
+  test("only adds the set difference of projections needed") {
+    // given
+    val projections: Map[String, Expression] = Map("n" -> Variable("n") _, "42" -> SignedDecimalIntegerLiteral("42") _)
+    val (context, startPlan) = queryGraphWith(projectionsMap = projections)
+
+    // when
+    val result = projection(startPlan, projections, projections, InterestingOrder.empty, context)
+
+    // then
+    val actualProjections = Map("42" -> SignedDecimalIntegerLiteral("42")(pos))
+    result should equal(Projection(startPlan, actualProjections))
+    context.planningAttributes.solveds.get(result.id).horizon should equal(RegularQueryProjection(projections))
   }
 
   test("does projection when renaming columns") {
     // given
     val projections: Map[String, Expression] = Map("  n@34" -> Variable("n") _)
-    val (context, startPlan, solveds, cardinalities) = queryGraphWith(projectionsMap = projections)
+    val (context, startPlan) = queryGraphWith(projectionsMap = projections)
 
     // when
-    val result = projection(startPlan, projections, context, solveds, cardinalities)
+    val result = projection(startPlan, projections, projections, InterestingOrder.empty, context)
 
     // then
     result should equal(Projection(startPlan, projections))
-    solveds.get(result.id).horizon should equal(RegularQueryProjection(projections))
+    context.planningAttributes.solveds.get(result.id).horizon should equal(RegularQueryProjection(projections))
   }
 
   private def queryGraphWith(skip: Option[Expression] = None,
                              limit: Option[Expression] = None,
                              sortItems: Seq[ast.SortItem] = Seq.empty,
-                             projectionsMap: Map[String, Expression] = Map("n" -> Variable("n")(pos))):
-  (LogicalPlanningContext, LogicalPlan, Solveds, Cardinalities) = {
-    val (context, solveds, cardinalities) = newMockedLogicalPlanningContext(
-      planContext = newMockedPlanContext
-    )
+                             projectionsMap: Map[String, Expression] = Map("n" -> Variable("n")(pos)),
+                             availablePropertiesFromIndexes: Map[Property, String] = Map.empty):
+  (LogicalPlanningContext, LogicalPlan) = {
+    val context = newMockedLogicalPlanningContext(planContext = newMockedPlanContext(), semanticTable = new SemanticTable(types = mock[ASTAnnotationMap[Expression, ExpressionTypeInfo]]))
 
     val ids = projectionsMap.keySet
 
     val plan =
-      newMockedLogicalPlanWithSolved(solveds, cardinalities, idNames = ids, solved = RegularPlannerQuery(QueryGraph.empty.addPatternNodes(ids.toList: _*)))
+      newMockedLogicalPlanWithSolved(context.planningAttributes, idNames = ids, solved = RegularPlannerQuery(QueryGraph.empty.addPatternNodes(ids.toList: _*)),
+        availablePropertiesFromIndexes = availablePropertiesFromIndexes)
 
-    (context, plan, solveds, cardinalities)
+    (context, plan)
   }
 }

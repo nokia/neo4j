@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -51,7 +51,7 @@ public class ServerSettingsTest
                         .documentedDefaultValue()
                         .orElseThrow( () -> new RuntimeException( "Default value not present!" ) );
 
-        assertEquals( "Number of available processors (max 500).", documentedDefaultValue );
+        assertEquals( "Number of available processors, or 500 for machines which have more than 500 processors.", documentedDefaultValue );
     }
 
     @Test

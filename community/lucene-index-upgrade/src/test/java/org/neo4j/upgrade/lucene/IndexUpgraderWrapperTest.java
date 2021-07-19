@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -40,9 +40,9 @@ public class IndexUpgraderWrapperTest
     {
         IndexUpgraderWrapper upgrader = getIndexUpgrader( createJarLoader() );
 
-        UpgraterStub.resetInvocationMark();
+        UpgraderStub.resetInvocationMark();
         upgrader.upgradeIndex( Paths.get( "some" ) );
-        assertTrue( UpgraterStub.getInvocationMark() );
+        assertTrue( UpgraderStub.getInvocationMark() );
     }
 
     @Test
@@ -65,7 +65,7 @@ public class IndexUpgraderWrapperTest
     private EmbeddedJarLoader createJarLoader() throws ClassNotFoundException, IOException
     {
         EmbeddedJarLoader jarLoader = Mockito.mock( EmbeddedJarLoader.class );
-        when( jarLoader.loadEmbeddedClass( anyString() ) ).thenReturn( UpgraterStub.class );
+        when( jarLoader.loadEmbeddedClass( anyString() ) ).thenReturn( UpgraderStub.class );
         return jarLoader;
     }
 }

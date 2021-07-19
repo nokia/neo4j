@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,14 +19,15 @@
  */
 package org.neo4j.kernel.api.query;
 
-import org.neo4j.kernel.impl.locking.LockWaitEvent;
+import org.neo4j.storageengine.api.lock.LockTracer;
+import org.neo4j.storageengine.api.lock.LockWaitEvent;
 import org.neo4j.storageengine.api.lock.ResourceType;
 
 /**
  * This is both a status state in the state machine of {@link ExecutingQuery}, and a {@link LockWaitEvent}.
  * The reason for this is to avoid unnecessary object allocation and indirection, since there is always a one-to-one
  * mapping between the status corresponding to the lock we are waiting on (caused by
- * {@linkplain org.neo4j.kernel.impl.locking.LockTracer#waitForLock(boolean, ResourceType, long...) the event of waiting
+ * {@linkplain LockTracer#waitForLock(boolean, ResourceType, long...) the event of waiting
  * on a lock}) and the event object used to {@linkplain LockWaitEvent#close() signal the end of the wait}.
  */
 class WaitingOnLockEvent extends WaitingOnLock implements LockWaitEvent

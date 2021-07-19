@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -34,7 +34,7 @@ import static org.neo4j.kernel.configuration.Settings.INTEGER;
 import static org.neo4j.kernel.configuration.Settings.advertisedAddress;
 import static org.neo4j.kernel.configuration.Settings.legacyFallback;
 import static org.neo4j.kernel.configuration.Settings.listenAddress;
-import static org.neo4j.kernel.configuration.Settings.options;
+import static org.neo4j.kernel.configuration.Settings.optionsObeyCase;
 import static org.neo4j.kernel.configuration.Settings.setting;
 
 @Description( "Configuration options for Bolt connectors. " +
@@ -80,7 +80,7 @@ public class BoltConnector extends Connector
     {
         super( key );
         encryption_level = group.scope(
-                Settings.setting( "tls_level", options( EncryptionLevel.class ), OPTIONAL.name() ) );
+                Settings.setting( "tls_level", optionsObeyCase( EncryptionLevel.class ), OPTIONAL.name() ) );
         Setting<ListenSocketAddress> legacyAddressSetting = listenAddress( "address", 7687 );
         Setting<ListenSocketAddress> listenAddressSetting = legacyFallback( legacyAddressSetting,
                 listenAddress( "listen_address", 7687 ) );

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -28,26 +28,25 @@ import java.nio.channels.OverlappingFileLockException;
 import org.neo4j.io.fs.FileSystemAbstraction;
 import org.neo4j.io.fs.OpenMode;
 import org.neo4j.io.fs.StoreChannel;
+import org.neo4j.io.layout.StoreLayout;
 import org.neo4j.kernel.StoreLockException;
 
 /**
- * The class takes a lock on the {@link #STORE_LOCK_FILENAME} file. The lock is valid after a successful call to
+ * The class takes a lock on store described by provided instance of {@link StoreLayout}. The lock is valid after a successful call to
  * {@link #checkLock()} until a call to {@link #close()}.
  */
 public class StoreLocker implements Closeable
 {
-    public static final String STORE_LOCK_FILENAME = "store_lock";
-
     final FileSystemAbstraction fileSystemAbstraction;
     final File storeLockFile;
 
     FileLock storeLockFileLock;
     private StoreChannel storeLockFileChannel;
 
-    public StoreLocker( FileSystemAbstraction fileSystemAbstraction, File storeDirectory )
+    public StoreLocker( FileSystemAbstraction fileSystemAbstraction, StoreLayout storeLayout )
     {
         this.fileSystemAbstraction = fileSystemAbstraction;
-        storeLockFile = new File( storeDirectory, STORE_LOCK_FILENAME );
+        storeLockFile = storeLayout.storeLockFile();
     }
 
     /**
@@ -110,7 +109,7 @@ public class StoreLocker implements Closeable
         return storeLockException( message, null );
     }
 
-    private StoreLockException storeLockException( String message, Exception e )
+    private static StoreLockException storeLockException( String message, Exception e )
     {
         String help = "Please ensure no other process is using this database, and that the directory is writable " +
                 "(required even for read-only access)";

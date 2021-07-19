@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -24,6 +24,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import org.neo4j.internal.kernel.api.IndexCapability;
+import org.neo4j.internal.kernel.api.IndexLimitation;
 import org.neo4j.internal.kernel.api.IndexOrder;
 import org.neo4j.internal.kernel.api.IndexValueCapability;
 import org.neo4j.values.storable.ValueCategory;
@@ -34,11 +35,13 @@ import org.neo4j.values.storable.ValueCategory;
  */
 public class UnionIndexCapability implements IndexCapability
 {
-    private final IndexCapability[] capabilities;
+    private final Iterable<IndexCapability> capabilities;
+    private final IndexLimitation[] limitationsUnion;
 
-    public UnionIndexCapability( IndexCapability... capabilities )
+    protected UnionIndexCapability( Iterable<IndexCapability> capabilities )
     {
         this.capabilities = capabilities;
+        this.limitationsUnion = limitationsUnion( capabilities );
     }
 
     @Override
@@ -65,5 +68,33 @@ public class UnionIndexCapability implements IndexCapability
             }
         }
         return currentBest;
+    }
+
+    @Override
+    public boolean isFulltextIndex()
+    {
+        return false;
+    }
+
+    @Override
+    public boolean isEventuallyConsistent()
+    {
+        return false;
+    }
+
+    @Override
+    public IndexLimitation[] limitations()
+    {
+        return limitationsUnion;
+    }
+
+    private IndexLimitation[] limitationsUnion( Iterable<IndexCapability> capabilities )
+    {
+        HashSet<IndexLimitation> union = new HashSet<>();
+        for ( IndexCapability capability : capabilities )
+        {
+            union.addAll( Arrays.asList( capability.limitations() ) );
+        }
+        return union.toArray( new IndexLimitation[union.size()] );
     }
 }

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -35,7 +35,7 @@ import static org.neo4j.kernel.configuration.Settings.INTEGER;
 import static org.neo4j.kernel.configuration.Settings.NO_DEFAULT;
 import static org.neo4j.kernel.configuration.Settings.advertisedAddress;
 import static org.neo4j.kernel.configuration.Settings.listenAddress;
-import static org.neo4j.kernel.configuration.Settings.options;
+import static org.neo4j.kernel.configuration.Settings.optionsObeyCase;
 import static org.neo4j.kernel.configuration.Settings.setting;
 
 public class BoltConnectorValidator extends ConnectorValidator
@@ -64,13 +64,13 @@ public class BoltConnectorValidator extends ConnectorValidator
             break;
         case "type":
             setting =
-                    (BaseSetting) setting( settingName, options( Connector.ConnectorType.class ), NO_DEFAULT );
+                    (BaseSetting) setting( settingName, optionsObeyCase( Connector.ConnectorType.class ), NO_DEFAULT );
             setting.setDeprecated( true );
             setting.setDescription( "Connector type. This setting is deprecated and its value will instead be " +
                     "inferred from the name of the connector." );
             break;
         case "tls_level":
-            setting = (BaseSetting) setting( settingName, options( BoltConnector.EncryptionLevel.class ),
+            setting = (BaseSetting) setting( settingName, optionsObeyCase( BoltConnector.EncryptionLevel.class ),
                     OPTIONAL.name() );
             setting.setDescription( "Encryption level to require this connector to use." );
             break;

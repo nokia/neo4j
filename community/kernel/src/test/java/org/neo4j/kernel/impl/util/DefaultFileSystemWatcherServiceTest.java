@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -28,25 +28,26 @@ import java.util.concurrent.CountDownLatch;
 
 import org.neo4j.io.fs.watcher.FileWatcher;
 import org.neo4j.io.fs.watcher.SilentFileWatcher;
-import org.neo4j.kernel.impl.scheduler.CentralJobScheduler;
 import org.neo4j.kernel.impl.util.watcher.DefaultFileSystemWatcherService;
+import org.neo4j.scheduler.JobScheduler;
 
 import static org.mockito.Mockito.verify;
+import static org.neo4j.kernel.impl.scheduler.JobSchedulerFactory.createInitialisedScheduler;
 
 public class DefaultFileSystemWatcherServiceTest
 {
 
-    private static CentralJobScheduler jobScheduler;
-    private FileWatcher fileWatcher = Mockito.mock( FileWatcher.class );
+    private static JobScheduler jobScheduler;
+    private final FileWatcher fileWatcher = Mockito.mock( FileWatcher.class );
 
     @BeforeClass
     public static void setUp()
     {
-        jobScheduler = new CentralJobScheduler();
+        jobScheduler = createInitialisedScheduler();
     }
 
     @AfterClass
-    public static void tearDown()
+    public static void tearDown() throws Throwable
     {
         jobScheduler.shutdown();
     }

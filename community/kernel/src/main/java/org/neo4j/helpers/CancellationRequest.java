@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -24,13 +24,16 @@ package org.neo4j.helpers;
  * remain application dependent, but the task to be cancelled can use this to discover if cancellation has been
  * requested.
  */
+@Deprecated
 public interface CancellationRequest
 {
     /**
      * @return True iff a request for cancellation has been issued. It is assumed that the request cannot be withdrawn
      * so once this method returns true it must always return true on all subsequent calls.
      */
+    @Deprecated
     boolean cancellationRequested();
 
+    @Deprecated
     CancellationRequest NEVER_CANCELLED = () -> false;
 }

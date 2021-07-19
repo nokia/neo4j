@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,6 +19,7 @@
  */
 package org.neo4j.collection;
 
+import org.eclipse.collections.api.LongIterable;
 import org.eclipse.collections.api.iterator.LongIterator;
 import org.eclipse.collections.api.set.primitive.LongSet;
 import org.eclipse.collections.api.set.primitive.MutableLongSet;
@@ -38,12 +39,9 @@ import java.util.function.LongPredicate;
 import org.neo4j.graphdb.Resource;
 
 import static java.util.Arrays.copyOf;
-import static org.neo4j.collection.PrimitiveCommons.closeSafely;
 
 /**
  * Basic and common primitive int collection utils and manipulations.
- *
- * @see PrimitiveIntCollections
  */
 public class PrimitiveLongCollections
 {
@@ -51,7 +49,7 @@ public class PrimitiveLongCollections
 
     private PrimitiveLongCollections()
     {
-        throw new AssertionError( "no instance" );
+        // nop
     }
 
     public static LongIterator iterator( final long... items )
@@ -91,47 +89,10 @@ public class PrimitiveLongCollections
         };
     }
 
-    public static PrimitiveLongResourceIterator filter( PrimitiveLongResourceIterator source, final LongPredicate filter )
-    {
-        return new PrimitiveLongResourceFilteringIterator( source )
-        {
-            @Override
-            public boolean test( long item )
-            {
-                return filter.test( item );
-            }
-        };
-    }
-
     // Range
     public static LongIterator range( long start, long end )
     {
         return new PrimitiveLongRangeIterator( start, end );
-    }
-
-    public static long single( LongIterator iterator, long defaultItem )
-    {
-        try
-        {
-            if ( !iterator.hasNext() )
-            {
-                closeSafely( iterator );
-                return defaultItem;
-            }
-            long item = iterator.next();
-            if ( iterator.hasNext() )
-            {
-                throw new NoSuchElementException( "More than one item in " + iterator + ", first:" + item +
-                        ", second:" + iterator.next() );
-            }
-            closeSafely( iterator );
-            return item;
-        }
-        catch ( NoSuchElementException exception )
-        {
-            closeSafely( iterator, exception );
-            throw exception;
-        }
     }
 
     /**
@@ -388,24 +349,23 @@ public class PrimitiveLongCollections
      */
     public static long[] deduplicate( long[] values )
     {
-        int unique = 0;
-        for ( int i = 0; i < values.length; i++ )
+        if ( values.length < 2 )
         {
-            long value = values[i];
-            for ( int j = 0; j < unique; j++ )
+            return values;
+        }
+        long lastValue = values[0];
+        int uniqueIndex = 1;
+        for ( int i = 1; i < values.length; i++ )
+        {
+            long currentValue = values[i];
+            if ( currentValue != lastValue )
             {
-                if ( value == values[j] )
-                {
-                    value = -1; // signal that this value is not unique
-                    break; // we will not find more than one conflict
-                }
-            }
-            if ( value != -1 )
-            {   // this has to be done outside the inner loop, otherwise we'd never accept a single one...
-                values[unique++] = values[i];
+                values[uniqueIndex] = currentValue;
+                lastValue = currentValue;
+                uniqueIndex++;
             }
         }
-        return unique < values.length ? Arrays.copyOf( values, unique ) : values;
+        return uniqueIndex < values.length ? Arrays.copyOf( values, uniqueIndex ) : values;
     }
 
     /**
@@ -527,24 +487,6 @@ public class PrimitiveLongCollections
         public abstract boolean test( long testItem );
     }
 
-    public abstract static class PrimitiveLongResourceFilteringIterator extends PrimitiveLongFilteringIterator
-            implements PrimitiveLongResourceIterator
-    {
-        PrimitiveLongResourceFilteringIterator( LongIterator source )
-        {
-            super( source );
-        }
-
-        @Override
-        public void close()
-        {
-            if ( source instanceof Resource )
-            {
-                ((Resource) source).close();
-            }
-        }
-    }
-
     public static class PrimitiveLongRangeIterator extends PrimitiveLongBaseIterator
     {
         private long current;
@@ -568,5 +510,13 @@ public class PrimitiveLongCollections
                 current++;
             }
         }
+    }
+
+    public static MutableLongSet mergeToSet( LongIterable a, LongIterable b )
+    {
+        final MutableLongSet set = new LongHashSet( a.size() + b.size() );
+        set.addAll( a );
+        set.addAll( b );
+        return set;
     }
 }

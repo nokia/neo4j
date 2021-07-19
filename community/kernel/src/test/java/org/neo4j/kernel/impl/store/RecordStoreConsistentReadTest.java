@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -23,14 +23,15 @@ import org.junit.After;
 import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
 
-import java.io.File;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.neo4j.dbms.database.DatabaseManager;
 import org.neo4j.graphdb.mockfs.EphemeralFileSystemAbstraction;
 import org.neo4j.helpers.collection.Iterables;
 import org.neo4j.io.fs.FileSystemAbstraction;
@@ -49,6 +50,7 @@ import org.neo4j.kernel.impl.store.record.RelationshipRecord;
 import org.neo4j.logging.NullLogProvider;
 import org.neo4j.string.UTF8;
 import org.neo4j.test.rule.PageCacheRule;
+import org.neo4j.test.rule.TestDirectory;
 import org.neo4j.values.storable.Value;
 import org.neo4j.values.storable.Values;
 
@@ -65,6 +67,8 @@ public abstract class RecordStoreConsistentReadTest<R extends AbstractBaseRecord
 
     @ClassRule
     public static final PageCacheRule pageCacheRule = new PageCacheRule( config().withInconsistentReads( false ) );
+    @Rule
+    public final TestDirectory testDirectory = TestDirectory.testDirectory();
 
     private FileSystemAbstraction fs;
     private AtomicBoolean nextReadIsInconsistent;
@@ -86,8 +90,7 @@ public abstract class RecordStoreConsistentReadTest<R extends AbstractBaseRecord
     {
         PageCache pageCache = pageCacheRule.getPageCache( fs,
                 config().withInconsistentReads( nextReadIsInconsistent ) );
-        File storeDir = new File( "stores" );
-        StoreFactory factory = new StoreFactory( storeDir, Config.defaults(), new DefaultIdGeneratorFactory( fs ),
+        StoreFactory factory = new StoreFactory( testDirectory.databaseLayout(), Config.defaults(), new DefaultIdGeneratorFactory( fs ),
                 pageCache, fs, NullLogProvider.getInstance(), EmptyVersionContextSupplier.EMPTY );
         NeoStores neoStores = factory.openAllNeoStores( true );
         S store = initialiseStore( neoStores );
@@ -471,7 +474,7 @@ public abstract class RecordStoreConsistentReadTest<R extends AbstractBaseRecord
             return record;
         }
 
-        private void ensureHeavy( PropertyStore store, PropertyRecord record )
+        private static void ensureHeavy( PropertyStore store, PropertyRecord record )
         {
             for ( PropertyBlock propertyBlock : record )
             {
@@ -503,7 +506,7 @@ public abstract class RecordStoreConsistentReadTest<R extends AbstractBaseRecord
             }
         }
 
-        private void assertPropertyBlocksEqual( int index, PropertyBlock actualBlock, PropertyBlock expectedBlock )
+        private static void assertPropertyBlocksEqual( int index, PropertyBlock actualBlock, PropertyBlock expectedBlock )
         {
             assertThat( "[" + index + "]getKeyIndexId", actualBlock.getKeyIndexId(),
                     is( expectedBlock.getKeyIndexId() ) );

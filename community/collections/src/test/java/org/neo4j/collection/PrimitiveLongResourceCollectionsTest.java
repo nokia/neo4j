@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -22,7 +22,6 @@ package org.neo4j.collection;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.LongPredicate;
 
 import org.neo4j.graphdb.Resource;
 
@@ -30,7 +29,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class PrimitiveLongResourceCollectionsTest
 {
-    private static final LongPredicate EVEN = value -> value % 2 == 0;
 
     // ITERATOR
 
@@ -52,26 +50,6 @@ class PrimitiveLongResourceCollectionsTest
     }
 
     // FILTER
-
-    @Test
-    void filterItems()
-    {
-        // Given
-        CountingResource resource = new CountingResource();
-        PrimitiveLongResourceIterator iterator = PrimitiveLongResourceCollections.iterator( resource, 1, 2, 3, 4 );
-
-        // When
-        PrimitiveLongResourceIterator filtered = PrimitiveLongResourceCollections.filter( iterator, EVEN );
-
-        // Then
-        assertContent( filtered, 2, 4 );
-
-        // When
-        filtered.close();
-
-        // Then
-        assertEquals( 1, resource.closeCount(), "exactly one call to close" );
-    }
 
     // CONCAT
 

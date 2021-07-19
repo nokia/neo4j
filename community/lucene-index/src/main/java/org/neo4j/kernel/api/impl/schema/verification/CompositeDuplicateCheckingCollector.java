@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -27,14 +27,14 @@ import org.neo4j.kernel.api.StatementConstants;
 import org.neo4j.internal.kernel.api.exceptions.KernelException;
 import org.neo4j.kernel.api.exceptions.index.IndexEntryConflictException;
 import org.neo4j.kernel.api.impl.schema.LuceneDocumentStructure;
-import org.neo4j.kernel.api.index.PropertyAccessor;
+import org.neo4j.storageengine.api.NodePropertyAccessor;
 import org.neo4j.values.storable.Value;
 
 public class CompositeDuplicateCheckingCollector extends DuplicateCheckingCollector
 {
     private final int[] propertyKeyIds;
 
-    CompositeDuplicateCheckingCollector( PropertyAccessor accessor, int[] propertyKeyIds )
+    CompositeDuplicateCheckingCollector( NodePropertyAccessor accessor, int[] propertyKeyIds )
     {
         super( accessor, StatementConstants.NO_SUCH_PROPERTY_KEY );
         this.propertyKeyIds = propertyKeyIds;
@@ -48,7 +48,7 @@ public class CompositeDuplicateCheckingCollector extends DuplicateCheckingCollec
         Value[] values = new Value[propertyKeyIds.length];
         for ( int i = 0; i < values.length; i++ )
         {
-            values[i] = accessor.getPropertyValue( nodeId, propertyKeyIds[i] );
+            values[i] = accessor.getNodePropertyValue( nodeId, propertyKeyIds[i] );
         }
         duplicateCheckStrategy.checkForDuplicate( values, nodeId );
     }

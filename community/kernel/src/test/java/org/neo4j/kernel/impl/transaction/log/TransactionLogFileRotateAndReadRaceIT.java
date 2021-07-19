@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -58,7 +58,7 @@ import static org.junit.Assert.assertTrue;
  */
 public class TransactionLogFileRotateAndReadRaceIT
 {
-    private final TestDirectory directory = TestDirectory.testDirectory( getClass() );
+    private final TestDirectory directory = TestDirectory.testDirectory();
     private final LifeRule life = new LifeRule( true );
     private final DefaultFileSystemRule fileSystemRule = new DefaultFileSystemRule();
     private final OtherThreadRule<Void> t2 = new OtherThreadRule<>( getClass().getName() + "-T2" );
@@ -75,7 +75,7 @@ public class TransactionLogFileRotateAndReadRaceIT
     {
         // GIVEN
         LogVersionRepository logVersionRepository = new SimpleLogVersionRepository();
-        LogFiles logFiles = LogFilesBuilder.builder( directory.directory(), fileSystemRule.get() )
+        LogFiles logFiles = LogFilesBuilder.builder( directory.databaseLayout(), fileSystemRule.get() )
                 .withLogVersionRepository( logVersionRepository )
                 .withTransactionIdStore( new SimpleTransactionIdStore() )
                 .build();

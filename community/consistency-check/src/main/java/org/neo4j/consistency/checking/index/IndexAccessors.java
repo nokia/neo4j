@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -30,6 +30,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import org.neo4j.internal.kernel.api.InternalIndexState;
+import org.neo4j.internal.kernel.api.TokenNameLookup;
 import org.neo4j.kernel.api.index.IndexAccessor;
 import org.neo4j.kernel.api.index.IndexProvider;
 import org.neo4j.kernel.impl.api.index.IndexProviderMap;
@@ -37,43 +38,42 @@ import org.neo4j.kernel.impl.api.index.sampling.IndexSamplingConfig;
 import org.neo4j.kernel.impl.store.RecordStore;
 import org.neo4j.kernel.impl.store.SchemaStorage;
 import org.neo4j.kernel.impl.store.record.DynamicRecord;
-import org.neo4j.kernel.impl.store.record.IndexRule;
+import org.neo4j.storageengine.api.schema.StoreIndexDescriptor;
 
 public class IndexAccessors implements Closeable
 {
     private final MutableLongObjectMap<IndexAccessor> accessors = new LongObjectHashMap<>();
-    private final List<IndexRule> onlineIndexRules = new ArrayList<>();
-    private final List<IndexRule> notOnlineIndexRules = new ArrayList<>();
+    private final List<StoreIndexDescriptor> onlineIndexRules = new ArrayList<>();
+    private final List<StoreIndexDescriptor> notOnlineIndexRules = new ArrayList<>();
 
-    public IndexAccessors( IndexProviderMap providers,
-                           RecordStore<DynamicRecord> schemaStore,
-                           IndexSamplingConfig samplingConfig ) throws IOException
+    public IndexAccessors( IndexProviderMap providers, RecordStore<DynamicRecord> schemaStore, IndexSamplingConfig samplingConfig,
+            TokenNameLookup tokenNameLookup ) throws IOException
     {
-        Iterator<IndexRule> rules = new SchemaStorage( schemaStore ).indexesGetAll();
+        Iterator<StoreIndexDescriptor> indexes = new SchemaStorage( schemaStore ).indexesGetAll();
         for (; ; )
         {
             try
             {
-                if ( rules.hasNext() )
+                if ( indexes.hasNext() )
                 {
                     // we intentionally only check indexes that are online since
                     // - populating indexes will be rebuilt on next startup
                     // - failed indexes have to be dropped by the user anyways
-                    IndexRule indexRule = rules.next();
-                    if ( indexRule.isIndexWithoutOwningConstraint() )
+                    StoreIndexDescriptor indexDescriptor = indexes.next();
+                    if ( indexDescriptor.isIndexWithoutOwningConstraint() )
                     {
-                        notOnlineIndexRules.add( indexRule );
+                        notOnlineIndexRules.add( indexDescriptor );
                     }
                     else
                     {
                         if ( InternalIndexState.ONLINE ==
-                                provider( providers, indexRule ).getInitialState( indexRule.getId(), indexRule.getIndexDescriptor() ) )
+                                provider( providers, indexDescriptor ).getInitialState( indexDescriptor ) )
                         {
-                            onlineIndexRules.add( indexRule );
+                            onlineIndexRules.add( indexDescriptor );
                         }
                         else
                         {
-                            notOnlineIndexRules.add( indexRule );
+                            notOnlineIndexRules.add( indexDescriptor );
                         }
                     }
                 }
@@ -88,32 +88,42 @@ public class IndexAccessors implements Closeable
             }
         }
 
-        for ( IndexRule indexRule : onlineIndexRules )
+        for ( StoreIndexDescriptor indexRule : onlineIndexRules )
         {
             long indexId = indexRule.getId();
-            accessors.put( indexId, provider( providers, indexRule )
-                    .getOnlineAccessor( indexId, indexRule.getIndexDescriptor(), samplingConfig ) );
+            accessors.put( indexId, provider( providers, indexRule ).getOnlineAccessor( indexRule, samplingConfig, tokenNameLookup ) );
         }
     }
 
-    private IndexProvider provider( IndexProviderMap providers, IndexRule indexRule )
+    private IndexProvider provider( IndexProviderMap providers, StoreIndexDescriptor indexRule )
     {
-        return providers.apply( indexRule.getProviderDescriptor() );
+        return providers.lookup( indexRule.providerDescriptor() );
     }
 
-    public Collection<IndexRule> notOnlineRules()
+    public Collection<StoreIndexDescriptor> notOnlineRules()
     {
         return notOnlineIndexRules;
     }
 
-    public IndexAccessor accessorFor( IndexRule indexRule )
+    public IndexAccessor accessorFor( StoreIndexDescriptor indexRule )
     {
         return accessors.get( indexRule.getId() );
     }
 
-    public Iterable<IndexRule> onlineRules()
+    public Iterable<StoreIndexDescriptor> onlineRules()
     {
         return onlineIndexRules;
+    }
+
+    public void remove( StoreIndexDescriptor descriptor )
+    {
+        IndexAccessor remove = accessors.remove( descriptor.getId() );
+        if ( remove != null )
+        {
+            remove.close();
+        }
+        onlineIndexRules.remove( descriptor );
+        notOnlineIndexRules.remove( descriptor );
     }
 
     @Override

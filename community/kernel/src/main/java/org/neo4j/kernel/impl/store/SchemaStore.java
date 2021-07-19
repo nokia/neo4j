@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -27,8 +27,8 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
+import org.neo4j.internal.kernel.api.exceptions.schema.MalformedSchemaRuleException;
 import org.neo4j.io.pagecache.PageCache;
-import org.neo4j.kernel.api.exceptions.schema.MalformedSchemaRuleException;
 import org.neo4j.kernel.configuration.Config;
 import org.neo4j.kernel.impl.store.allocator.ReusableRecordsCompositeAllocator;
 import org.neo4j.kernel.impl.store.format.RecordFormats;
@@ -49,7 +49,8 @@ public class SchemaStore extends AbstractDynamicStore implements Iterable<Schema
     public static final int BLOCK_SIZE = 56;
 
     public SchemaStore(
-            File fileName,
+            File file,
+            File idFile,
             Config conf,
             IdType idType,
             IdGeneratorFactory idGeneratorFactory,
@@ -58,7 +59,7 @@ public class SchemaStore extends AbstractDynamicStore implements Iterable<Schema
             RecordFormats recordFormats,
             OpenOption... openOptions )
     {
-        super( fileName, conf, idType, idGeneratorFactory, pageCache, logProvider, TYPE_DESCRIPTOR, BLOCK_SIZE,
+        super( file, idFile, conf, idType, idGeneratorFactory, pageCache, logProvider, TYPE_DESCRIPTOR, BLOCK_SIZE,
                 recordFormats.dynamic(), recordFormats.storeVersion(), openOptions );
     }
 
@@ -73,7 +74,7 @@ public class SchemaStore extends AbstractDynamicStore implements Iterable<Schema
         List<DynamicRecord> records = new ArrayList<>();
         DynamicRecord record = getRecord( rule.getId(), nextRecord(), CHECK );
         DynamicRecordAllocator recordAllocator = new ReusableRecordsCompositeAllocator( singleton( record ), this );
-        allocateRecordsFromBytes( records, rule.serialize(), recordAllocator );
+        allocateRecordsFromBytes( records, SchemaRuleSerialization.serialize( rule ), recordAllocator );
         return records;
     }
 

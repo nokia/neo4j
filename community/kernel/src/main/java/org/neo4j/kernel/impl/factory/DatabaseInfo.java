@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -22,6 +22,7 @@ package org.neo4j.kernel.impl.factory;
 public class DatabaseInfo
 {
     public static final DatabaseInfo UNKNOWN = new DatabaseInfo( Edition.unknown, OperationalMode.unknown );
+    public static final DatabaseInfo TOOL = new DatabaseInfo( Edition.unknown, OperationalMode.single );
     public static final DatabaseInfo COMMUNITY = new DatabaseInfo( Edition.community, OperationalMode.single );
     public static final DatabaseInfo ENTERPRISE = new DatabaseInfo( Edition.enterprise, OperationalMode.single );
     public static final DatabaseInfo HA = new DatabaseInfo( Edition.enterprise, OperationalMode.ha );

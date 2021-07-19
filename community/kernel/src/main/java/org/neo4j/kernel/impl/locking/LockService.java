@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -52,7 +52,7 @@ public interface LockService
 
     Lock acquireNodeLock( long nodeId, LockType type );
 
-    Lock acquireRelationshipLock( long relationhipId, LockType type );
+    Lock acquireRelationshipLock( long relationshipId, LockType type );
 
     Lock NO_LOCK = new Lock()
     {
@@ -72,7 +72,7 @@ public interface LockService
         }
 
         @Override
-        public Lock acquireRelationshipLock( long relationhipId, LockType type )
+        public Lock acquireRelationshipLock( long relationshipId, LockType type )
         {
             return NO_LOCK;
         }

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,6 +20,7 @@
 package org.neo4j.kernel.impl.api;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.function.LongConsumer;
 
 import org.neo4j.helpers.collection.Visitor;
@@ -211,5 +212,11 @@ public class TransactionToApply implements CommandsToApply, AutoCloseable
         {
             return "(unable to count: " + e.getMessage() + ")";
         }
+    }
+
+    @Override
+    public Iterator<StorageCommand> iterator()
+    {
+        return transactionRepresentation.iterator();
     }
 }

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -30,12 +30,16 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
+@Deprecated
 public final class TimeUtil
 {
+    @Deprecated
     public static final TimeUnit DEFAULT_TIME_UNIT = TimeUnit.SECONDS;
 
+    @Deprecated
     public static final String VALID_TIME_DESCRIPTION = "Valid units are: 'ms', 's', 'm' and 'h'; default unit is 's'";
 
+    @Deprecated
     public static final Function<String,Long> parseTimeMillis = timeWithOrWithoutUnit ->
     {
         int unitIndex = -1;
@@ -76,6 +80,7 @@ public final class TimeUtil
         }
     };
 
+    @Deprecated
     public static String nanosToString( long nanos )
     {
         assert nanos >= 0;

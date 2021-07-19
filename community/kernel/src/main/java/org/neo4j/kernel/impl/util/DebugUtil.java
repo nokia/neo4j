@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -106,12 +106,14 @@ public class DebugUtil
         PrintWriter writer = new PrintWriter( stringWriter );
         try
         {
-            BufferedReader reader = new BufferedReader( new StringReader( string ) );
-            String line = null;
-            for ( int count = 0; ( line = reader.readLine() ) != null && count < maxNumberOfLines;
-                    count++ )
+            try ( BufferedReader reader = new BufferedReader( new StringReader( string ) ) )
             {
-                writer.println( line );
+                String line = null;
+                for ( int count = 0; (line = reader.readLine()) != null && count < maxNumberOfLines;
+                      count++ )
+                {
+                    writer.println( line );
+                }
             }
             writer.close();
             return stringWriter.getBuffer().toString();

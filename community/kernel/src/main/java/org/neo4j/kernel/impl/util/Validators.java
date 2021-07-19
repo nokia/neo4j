@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -29,8 +29,7 @@ import java.util.regex.Pattern;
 
 import org.neo4j.io.fs.DefaultFileSystemAbstraction;
 import org.neo4j.io.fs.FileSystemAbstraction;
-import org.neo4j.kernel.impl.store.MetaDataStore;
-import org.neo4j.kernel.impl.storemigration.StoreFileType;
+import org.neo4j.io.layout.DatabaseLayout;
 
 public class Validators
 {
@@ -79,7 +78,7 @@ public class Validators
         }
         catch ( IOException e )
         {
-            throw new IllegalArgumentException( "Directoy '" + value + "' not writable: " + e.getMessage() );
+            throw new IllegalArgumentException( "Directory '" + value + "' not writable: " + e.getMessage() );
         }
         finally
         {
@@ -91,7 +90,7 @@ public class Validators
     {
         try ( FileSystemAbstraction fileSystem = new DefaultFileSystemAbstraction() )
         {
-            if ( isExistingDatabase( fileSystem, value ) )
+            if ( isExistingDatabase( fileSystem, DatabaseLayout.of( value ) ) )
             {
                 throw new IllegalArgumentException( "Directory '" + value + "' already contains a database" );
             }
@@ -102,13 +101,13 @@ public class Validators
         }
     };
 
-    public static final Validator<File> CONTAINS_EXISTING_DATABASE = value ->
+    public static final Validator<File> CONTAINS_EXISTING_DATABASE = dbDir ->
     {
         try ( FileSystemAbstraction fileSystem = new DefaultFileSystemAbstraction() )
         {
-            if ( !isExistingDatabase( fileSystem, value ) )
+            if ( !isExistingDatabase( fileSystem, DatabaseLayout.of( dbDir ) ) )
             {
-                throw new IllegalArgumentException( "Directory '" + value + "' does not contain a database" );
+                throw new IllegalArgumentException( "Directory '" + dbDir + "' does not contain a database" );
             }
         }
         catch ( IOException e )
@@ -117,9 +116,9 @@ public class Validators
         }
     };
 
-    private static boolean isExistingDatabase( FileSystemAbstraction fileSystem, File value )
+    private static boolean isExistingDatabase( FileSystemAbstraction fileSystem, DatabaseLayout layout )
     {
-        return fileSystem.fileExists( new File( value, StoreFileType.STORE.augment( MetaDataStore.DEFAULT_NAME ) ) );
+        return fileSystem.fileExists( layout.metadataStore() );
     }
 
     public static Validator<String> inList( String[] validStrings )

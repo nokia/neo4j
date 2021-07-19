@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,33 +19,33 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner
 
-import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.{Cardinalities, Solveds}
+import org.neo4j.csv.reader.Configuration
 import org.neo4j.cypher.internal.compiler.v3_5._
-import org.neo4j.cypher.internal.compiler.v3_5.ast.rewriters._
 import org.neo4j.cypher.internal.compiler.v3_5.phases._
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.Metrics._
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.cardinality.QueryGraphCardinalityModel
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.idp._
-import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.plans.rewriter.unnestApply
-import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.steps.LogicalPlanProducer
+import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.plans.rewriter.PlanRewriter
+import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.steps.{LogicalPlanProducer, devNullListener, replacePropertyLookupsWithVariables}
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.{LogicalPlanningContext, _}
 import org.neo4j.cypher.internal.compiler.v3_5.test_helpers.ContextHelper
-import org.neo4j.cypher.internal.frontend.v3_5.ast._
-import org.neo4j.cypher.internal.frontend.v3_5.ast.rewriters._
-import org.neo4j.cypher.internal.frontend.v3_5.helpers.fixedPoint
-import org.neo4j.cypher.internal.frontend.v3_5.helpers.rewriting.RewriterStepSequencer
-import org.neo4j.cypher.internal.frontend.v3_5.helpers.rewriting.RewriterStepSequencer.newPlain
-import org.neo4j.cypher.internal.frontend.v3_5.parser.CypherParser
-import org.neo4j.cypher.internal.frontend.v3_5.phases._
-import org.neo4j.cypher.internal.frontend.v3_5.semantics.SemanticTable
 import org.neo4j.cypher.internal.ir.v3_5._
-import org.neo4j.cypher.internal.planner.v3_5.spi.{GraphStatistics, IDPPlannerName, IndexDescriptor}
-import org.neo4j.cypher.internal.util.v3_5.attribution.SequentialIdGen
-import org.neo4j.cypher.internal.util.v3_5.attribution.{Attribute, Attributes}
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.{CypherFunSuite, CypherTestSupport}
-import org.neo4j.cypher.internal.util.v3_5.{Cardinality, PropertyKeyId}
+import org.neo4j.cypher.internal.planner.v3_5.spi.IndexDescriptor.{OrderCapability, ValueCapability}
+import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.{Cardinalities, ProvidedOrders, Solveds}
+import org.neo4j.cypher.internal.planner.v3_5.spi._
+import org.neo4j.cypher.internal.v3_5.ast._
+import org.neo4j.cypher.internal.v3_5.ast.semantics.SemanticTable
 import org.neo4j.cypher.internal.v3_5.expressions.PatternExpression
-import org.neo4j.cypher.internal.v3_5.logical.plans.{LogicalPlan, ProduceResult}
+import org.neo4j.cypher.internal.v3_5.frontend.phases._
+import org.neo4j.cypher.internal.v3_5.logical.plans._
+import org.neo4j.cypher.internal.v3_5.parser.CypherParser
+import org.neo4j.cypher.internal.v3_5.rewriting.RewriterStepSequencer.newPlain
+import org.neo4j.cypher.internal.v3_5.rewriting.rewriters._
+import org.neo4j.cypher.internal.v3_5.rewriting.{Deprecations, RewriterStepSequencer, ValidatingRewriterStepSequencer}
+import org.neo4j.cypher.internal.v3_5.util.attribution.{Attribute, Attributes}
+import org.neo4j.cypher.internal.v3_5.util.helpers.fixedPoint
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.{CypherFunSuite, CypherTestSupport}
+import org.neo4j.cypher.internal.v3_5.util.{Cardinality, Cost, PropertyKeyId}
 import org.neo4j.helpers.collection.Visitable
 import org.neo4j.kernel.impl.util.dbstructure.DbStructureVisitor
 import org.scalatest.matchers.{BeMatcher, MatchResult}
@@ -57,11 +57,11 @@ trait LogicalPlanningTestSupport2 extends CypherTestSupport with AstConstruction
   self: CypherFunSuite =>
 
   var parser = new CypherParser
-  val rewriterSequencer = RewriterStepSequencer.newValidating _
+  val rewriterSequencer: String => ValidatingRewriterStepSequencer = RewriterStepSequencer.newValidating
   var astRewriter = new ASTRewriter(rewriterSequencer, literalExtraction = Never, getDegreeRewriting = true)
-  final var planner = new QueryPlanner()
-  var queryGraphSolver: QueryGraphSolver = new IDPQueryGraphSolver(SingleComponentPlanner(mock[IDPQueryGraphSolverMonitor]), cartesianProductsOrValueJoins, mock[IDPQueryGraphSolverMonitor])
-  val cypherCompilerConfig = CypherCompilerConfiguration(
+  final var planner = QueryPlanner()
+  var queryGraphSolver: QueryGraphSolver = createQueryGraphSolver()
+  val cypherCompilerConfig = CypherPlannerConfiguration(
     queryCacheSize = 100,
     statsDivergenceCalculator = StatsDivergenceCalculator.divergenceNoDecayCalculator(0.5, 1000),
     useErrorsOverWarnings = false,
@@ -70,62 +70,85 @@ trait LogicalPlanningTestSupport2 extends CypherTestSupport with AstConstruction
     errorIfShortestPathFallbackUsedAtRuntime = false,
     errorIfShortestPathHasCommonNodesAtRuntime = true,
     legacyCsvQuoteEscaping = false,
+    csvBufferSize = Configuration.DEFAULT_BUFFER_SIZE_4MB,
     nonIndexedLabelWarningThreshold = 10000,
-    planWithMinimumCardinalityEstimates = true
+    planWithMinimumCardinalityEstimates = true,
+    lenientCreateRelationship = false
   )
-  val realConfig = new RealLogicalPlanningConfiguration(cypherCompilerConfig)
+  val realConfig = RealLogicalPlanningConfiguration(cypherCompilerConfig)
+
+  def createQueryGraphSolver(solverConfig: IDPSolverConfig = DefaultIDPSolverConfig): QueryGraphSolver = {
+    new IDPQueryGraphSolver(SingleComponentPlanner(mock[IDPQueryGraphSolverMonitor], solverConfig), cartesianProductsOrValueJoins, mock[IDPQueryGraphSolverMonitor])
+  }
 
   implicit class LogicalPlanningEnvironment[C <: LogicalPlanningConfiguration](config: C) {
-    lazy val semanticTable = config.updateSemanticTableWithTokens(SemanticTable())
+    lazy val semanticTable: SemanticTable = config.updateSemanticTableWithTokens(SemanticTable())
 
-    def metricsFactory = new MetricsFactory {
-      def newCostModel(ignore: CypherCompilerConfiguration) =
+    def metricsFactory: MetricsFactory = new MetricsFactory {
+      def newCostModel(ignore: CypherPlannerConfiguration): (LogicalPlan, QueryGraphSolverInput, Cardinalities) => Cost =
         (plan: LogicalPlan, input: QueryGraphSolverInput, cardinalities: Cardinalities) => config.costModel()((plan, input, cardinalities))
 
-      def newCardinalityEstimator(queryGraphCardinalityModel: QueryGraphCardinalityModel, evaluator: ExpressionEvaluator) =
+      def newCardinalityEstimator(queryGraphCardinalityModel: QueryGraphCardinalityModel, evaluator: ExpressionEvaluator): CardinalityModel =
         config.cardinalityModel(queryGraphCardinalityModel, mock[ExpressionEvaluator])
 
-      def newQueryGraphCardinalityModel(statistics: GraphStatistics) = QueryGraphCardinalityModel.default(statistics)
+      def newQueryGraphCardinalityModel(statistics: GraphStatistics): QueryGraphCardinalityModel = QueryGraphCardinalityModel.default(statistics)
     }
 
     def table = Map.empty[PatternExpression, QueryGraph]
 
-    def planContext = new NotImplementedPlanContext {
-      override def statistics: GraphStatistics =
-        config.graphStatistics
+    def planContext: NotImplementedPlanContext = new NotImplementedPlanContext {
+      override def statistics: InstrumentedGraphStatistics = InstrumentedGraphStatistics(
+        config.graphStatistics,
+        new MutableGraphStatisticsSnapshot())
 
       override def indexesGetForLabel(labelId: Int): Iterator[IndexDescriptor] = {
         val label = config.labelsById(labelId)
-        config.indexes.filter(p => p._1 == label).flatMap(p => indexGet(p._1, p._2)).iterator
+        config.indexes.collect {
+          case (indexDef, indexType) if indexDef.label == label =>
+            newIndexDescriptor(indexDef, config.indexes(indexDef))
+        }.iterator
       }
 
       override def uniqueIndexesGetForLabel(labelId: Int): Iterator[IndexDescriptor] = {
         val label = config.labelsById(labelId)
-        config.uniqueIndexes.filter(p => p._1 == label).flatMap(p => uniqueIndexGet(p._1, p._2)).iterator
+        config.indexes.collect {
+          case (indexDef, indexType) if indexType.isUnique && indexDef.label == label =>
+            newIndexDescriptor(indexDef, config.indexes(indexDef))
+        }.iterator
       }
 
-      override def uniqueIndexGet(labelName: String, propertyKeys: Seq[String]): Option[IndexDescriptor] =
-        if (config.uniqueIndexes((labelName, propertyKeys)))
-          Some(IndexDescriptor(
-            semanticTable.resolvedLabelNames(labelName).id,
-            propertyKeys.map(semanticTable.resolvedPropertyKeyNames(_).id)
-          ))
-        else
-          None
+      private def newIndexDescriptor(indexDef: IndexDef, indexType: IndexType) = {
+        // Our fake index either can always or never return property values
+        val canGetValue = if (indexType.withValues) CanGetValue else DoNotGetValue
+        val valueCapability: ValueCapability = _ => indexDef.propertyKeys.map(_ => canGetValue)
+        val orderCapability: OrderCapability = _ => indexType.withOrdering
+        IndexDescriptor(
+          semanticTable.resolvedLabelNames(indexDef.label),
+          indexDef.propertyKeys.map(semanticTable.resolvedPropertyKeyNames(_)),
+          valueCapability = valueCapability,
+          orderCapability = orderCapability,
+          isUnique = indexType.isUnique
+        )
+      }
 
-      override def indexGet(labelName: String, propertyKeys: Seq[String]): Option[IndexDescriptor] =
-        if (config.indexes((labelName, propertyKeys)) || config.uniqueIndexes((labelName, propertyKeys)))
-          Some(IndexDescriptor(
-            semanticTable.resolvedLabelNames(labelName).id,
-            propertyKeys.map(semanticTable.resolvedPropertyKeyNames(_).id)
-          ))
-        else
-          None
+      override def procedureSignature(name: QualifiedName): ProcedureSignature = {
+        config.procedureSignatures.find(_.name == name).get
+      }
 
-      override def indexExistsForLabel(labelName: String): Boolean =
-        config.indexes.exists(_._1 == labelName) || config.uniqueIndexes.exists(_._1 == labelName)
+      override def indexExistsForLabel(labelId: Int): Boolean = {
+        val labelName = config.labelsById(labelId)
+        config.indexes.keys.exists(_.label == labelName)
+      }
 
-      override def getOptPropertyKeyId(propertyKeyName: String) =
+      override def indexExistsForLabelAndProperties(labelName: String, propertyKey: Seq[String]): Boolean =
+        config.indexes.contains(IndexDef(labelName, propertyKey))
+
+      override def indexGetForLabelAndProperties(labelName: String, propertyKeys: Seq[String]): Option[IndexDescriptor] = {
+        val indexDef = IndexDef(labelName, propertyKeys)
+        config.indexes.get(indexDef).map(indexType => newIndexDescriptor(indexDef, indexType))
+      }
+
+      override def getOptPropertyKeyId(propertyKeyName: String): Option[Int] =
         semanticTable.resolvedPropertyKeyNames.get(propertyKeyName).map(_.id)
 
       override def getOptLabelId(labelName: String): Option[Int] =
@@ -135,65 +158,52 @@ trait LogicalPlanningTestSupport2 extends CypherTestSupport with AstConstruction
         semanticTable.resolvedRelTypeNames.get(relType).map(_.id)
     }
 
-    def pipeLine(): Transformer[CompilerContext, BaseState, LogicalPlanState] =
-      Parsing andThen
-      PreparatoryRewriting andThen
-      SemanticAnalysis(warn = true) andThen
-      AstRewriting(newPlain, literalExtraction = Never) andThen
-      RewriteProcedureCalls andThen
-      Namespacer andThen
-      transitiveClosure andThen
-      rewriteEqualityToInPredicate andThen
-      CNFNormalizer andThen
-      LateAstRewriting andThen
-      ResolveTokens andThen
-      CreatePlannerQuery andThen
-      OptionalMatchRemover andThen
-      QueryPlanner().adds(CompilationContains[LogicalPlan]) andThen
-      Do[CompilerContext, LogicalPlanState, LogicalPlanState]((state, context) => removeApply(state, context, state.solveds, new Attributes(idGen, state.cardinalities)))
-
-    // This fakes pattern expression naming for testing purposes
-    // In the actual code path, this renaming happens as part of planning
-    //
-    // cf. QueryPlanningStrategy
-    //
-    private def namePatternPredicates(input: LogicalPlanState, context: CompilerContext): LogicalPlanState = {
-      val newStatement = input.statement.endoRewrite(namePatternPredicatePatternElements)
-      input.copy(maybeStatement = Some(newStatement))
+    def pipeLine(): Transformer[PlannerContext, BaseState, LogicalPlanState] = {
+      CompilationPhases.parsing(newPlain, literalExtraction = Never) andThen
+        RewriteProcedureCalls andThen
+        ProcedureDeprecationWarnings andThen
+        ProcedureWarnings andThen
+        CompilationPhases.lateAstRewriting andThen
+        ResolveTokens andThen
+        CreatePlannerQuery andThen
+        OptionalMatchRemover andThen
+        QueryPlanner().adds(CompilationContains[LogicalPlan]) andThen
+        PlanRewriter(newPlain) andThen
+        replacePropertyLookupsWithVariables andThen
+        If((s: LogicalPlanState) => s.unionQuery.readOnly)(
+          CheckForUnresolvedTokens
+        )
     }
 
-    private def removeApply(input: LogicalPlanState, context: CompilerContext, solveds: Solveds, attributes: Attributes): LogicalPlanState = {
-      val newPlan = input.logicalPlan.endoRewrite(fixedPoint(unnestApply(solveds, attributes)))
-      input.copy(maybeLogicalPlan = Some(newPlan))
-    }
-
-    def getLogicalPlanFor(queryString: String): (Option[PeriodicCommit], LogicalPlan, SemanticTable, Solveds, Cardinalities) = {
+    def getLogicalPlanFor(queryString: String, config:CypherPlannerConfiguration = cypherCompilerConfig, queryGraphSolver: QueryGraphSolver = queryGraphSolver): (Option[PeriodicCommit], LogicalPlan, SemanticTable, Solveds, Cardinalities) = {
       val mkException = new SyntaxExceptionCreator(queryString, Some(pos))
-      val metrics = metricsFactory.newMetrics(planContext.statistics, mock[ExpressionEvaluator], cypherCompilerConfig)
+      val metrics = metricsFactory.newMetrics(planContext.statistics, mock[ExpressionEvaluator], config)
       def context = ContextHelper.create(planContext = planContext,
         exceptionCreator = mkException,
         queryGraphSolver = queryGraphSolver,
         metrics = metrics,
-        config = cypherCompilerConfig,
+        config = config,
         logicalPlanIdGen = idGen
       )
 
       val state = InitialState(queryString, None, IDPPlannerName)
       val output = pipeLine().transform(state, context)
       val logicalPlan = output.logicalPlan.asInstanceOf[ProduceResult].source
-      (output.periodicCommit, logicalPlan, output.semanticTable(), output.solveds, output.cardinalities)
+      (output.periodicCommit, logicalPlan, output.semanticTable(), output.planningAttributes.solveds, output.planningAttributes.cardinalities)
     }
 
-    def estimate(qg: QueryGraph, input: QueryGraphSolverInput = QueryGraphSolverInput.empty) =
+    def estimate(qg: QueryGraph, input: QueryGraphSolverInput = QueryGraphSolverInput.empty): Cardinality =
       metricsFactory.
         newMetrics(config.graphStatistics, mock[ExpressionEvaluator], cypherCompilerConfig).
         queryGraphCardinalityModel(qg, input, semanticTable)
 
-    def withLogicalPlanningContext[T](f: (C, LogicalPlanningContext, Solveds, Cardinalities) => T): T = {
+    def withLogicalPlanningContext[T](f: (C, LogicalPlanningContext) => T): T = {
       val metrics = metricsFactory.newMetrics(config.graphStatistics, mock[ExpressionEvaluator], cypherCompilerConfig)
       val solveds = new Solveds
       val cardinalities = new Cardinalities
-      val logicalPlanProducer = LogicalPlanProducer(metrics.cardinality, solveds, cardinalities, idGen)
+      val providedOrders = new ProvidedOrders
+      val planningAttributes = new PlanningAttributes(solveds, cardinalities, providedOrders)
+      val logicalPlanProducer = LogicalPlanProducer(metrics.cardinality, planningAttributes, idGen)
       val ctx = LogicalPlanningContext(
         planContext = planContext,
         logicalPlanProducer = logicalPlanProducer,
@@ -201,15 +211,21 @@ trait LogicalPlanningTestSupport2 extends CypherTestSupport with AstConstruction
         semanticTable = semanticTable,
         strategy = queryGraphSolver,
         input = QueryGraphSolverInput.empty,
-        notificationLogger = devNullLogger
+        notificationLogger = devNullLogger,
+        costComparisonListener = devNullListener,
+        planningAttributes = planningAttributes
       )
-      f(config, ctx, solveds, cardinalities)
+      f(config, ctx)
     }
 
 
     def withLogicalPlanningContextWithFakeAttributes[T](f: (C, LogicalPlanningContext) => T): T = {
       val metrics = metricsFactory.newMetrics(config.graphStatistics, mock[ExpressionEvaluator], cypherCompilerConfig)
-      val logicalPlanProducer = LogicalPlanProducer(metrics.cardinality, new StubSolveds, new StubCardinalities, idGen)
+      val solveds = new StubSolveds
+      val cardinalities = new StubCardinalities
+      val providedOrders = new StubProvidedOrders
+      val planningAttributes = new PlanningAttributes(solveds, cardinalities, providedOrders)
+      val logicalPlanProducer = LogicalPlanProducer(metrics.cardinality, planningAttributes, idGen)
       val ctx = LogicalPlanningContext(
         planContext = planContext,
         logicalPlanProducer = logicalPlanProducer,
@@ -217,7 +233,9 @@ trait LogicalPlanningTestSupport2 extends CypherTestSupport with AstConstruction
         semanticTable = semanticTable,
         strategy = queryGraphSolver,
         input = QueryGraphSolverInput.empty,
-        notificationLogger = devNullLogger
+        notificationLogger = devNullLogger,
+        costComparisonListener = devNullListener,
+        planningAttributes = planningAttributes
       )
       f(config, ctx)
     }
@@ -235,15 +253,16 @@ trait LogicalPlanningTestSupport2 extends CypherTestSupport with AstConstruction
 
   def fakeLogicalPlanFor(id: String*): FakePlan = FakePlan(id.toSet)
 
-  def fakeLogicalPlanFor(solveds: Solveds, cardinalities: Cardinalities, id: String*): FakePlan = {
+  def fakeLogicalPlanFor(planningAttributes: PlanningAttributes, id: String*): FakePlan = {
     val res = FakePlan(id.toSet)
-    solveds.set(res.id, PlannerQuery.empty)
-    cardinalities.set(res.id, 0.0)
+    planningAttributes.solveds.set(res.id, PlannerQuery.empty)
+    planningAttributes.cardinalities.set(res.id, 0.0)
+    planningAttributes.providedOrders.set(res.id, ProvidedOrder.empty)
     res
   }
 
-  def planFor(queryString: String): (Option[PeriodicCommit], LogicalPlan, SemanticTable, Solveds, Cardinalities) =
-    new given().getLogicalPlanFor(queryString)
+  def planFor(queryString: String, config:CypherPlannerConfiguration = cypherCompilerConfig, queryGraphSolver: QueryGraphSolver = queryGraphSolver): (Option[PeriodicCommit], LogicalPlan, SemanticTable, Solveds, Cardinalities) =
+    new given().getLogicalPlanFor(queryString, config, queryGraphSolver)
 
   class given extends StubbedLogicalPlanningConfiguration(realConfig)
 
@@ -257,7 +276,7 @@ trait LogicalPlanningTestSupport2 extends CypherTestSupport with AstConstruction
     semanticTable.resolvedPropertyKeyNames(label)
 
   def using[T <: LogicalPlan](implicit tag: ClassTag[T]): BeMatcher[LogicalPlan] = new BeMatcher[LogicalPlan] {
-    import org.neo4j.cypher.internal.util.v3_5.Foldable._
+    import org.neo4j.cypher.internal.v3_5.util.Foldable._
     override def apply(actual: LogicalPlan): MatchResult = {
       val matches = actual.treeFold(false) {
         case lp if tag.runtimeClass.isInstance(lp) => acc => (true, None)

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,14 +19,14 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical
 
-import org.neo4j.cypher.internal.util.v3_5.Rewritable._
-import org.neo4j.cypher.internal.util.v3_5.{InputPosition, Rewriter, topDown}
-import org.neo4j.cypher.internal.compiler.v3_5.phases.{CompilerContext, LogicalPlanState}
-import org.neo4j.cypher.internal.frontend.v3_5.phases.CompilationPhaseTracer.CompilationPhase
-import org.neo4j.cypher.internal.frontend.v3_5.phases.CompilationPhaseTracer.CompilationPhase.LOGICAL_PLANNING
-import org.neo4j.cypher.internal.frontend.v3_5.phases.{Condition, Phase}
+import org.neo4j.cypher.internal.v3_5.util.Rewritable._
+import org.neo4j.cypher.internal.v3_5.util.{InputPosition, Rewriter, topDown}
+import org.neo4j.cypher.internal.compiler.v3_5.phases.{PlannerContext, LogicalPlanState}
+import org.neo4j.cypher.internal.v3_5.frontend.phases.{Condition, Phase}
 import org.neo4j.cypher.internal.ir.v3_5._
 import org.neo4j.cypher.internal.v3_5.expressions._
+import org.neo4j.cypher.internal.v3_5.frontend.phases.CompilationPhaseTracer.CompilationPhase
+import org.neo4j.cypher.internal.v3_5.frontend.phases.CompilationPhaseTracer.CompilationPhase.LOGICAL_PLANNING
 
 import scala.annotation.tailrec
 import scala.collection.mutable.ListBuffer
@@ -38,20 +38,21 @@ case object OptionalMatchRemover extends PlannerQueryRewriter {
 
   override def postConditions: Set[Condition] = Set.empty
 
-  override def instance(ignored: CompilerContext): Rewriter = topDown(Rewriter.lift {
-    case RegularPlannerQuery(graph, proj@AggregatingQueryProjection(distinctExpressions, aggregations, _), tail)
+  override def instance(ignored: PlannerContext): Rewriter = topDown(Rewriter.lift {
+    case RegularPlannerQuery(graph, interestingOrder, proj@AggregatingQueryProjection(distinctExpressions, aggregations, _, _), tail)
       if validAggregations(aggregations) =>
       val projectionDeps: Iterable[LogicalVariable] = (distinctExpressions.values ++ aggregations.values).flatMap(_.dependencies)
-      rewrite(projectionDeps, graph, proj, tail)
+      rewrite(projectionDeps, graph, interestingOrder, proj, tail)
 
-    case RegularPlannerQuery(graph, proj@DistinctQueryProjection(distinctExpressions, _), tail) =>
+    case RegularPlannerQuery(graph, interestingOrder, proj@DistinctQueryProjection(distinctExpressions, _, _), tail) =>
       val projectionDeps: Iterable[LogicalVariable] = distinctExpressions.values.flatMap(_.dependencies)
-      rewrite(projectionDeps, graph, proj, tail)
+      rewrite(projectionDeps, graph, interestingOrder, proj, tail)
   })
 
-  private def rewrite(projectionDeps: Iterable[LogicalVariable], graph: QueryGraph, proj: QueryProjection, tail: Option[PlannerQuery]): RegularPlannerQuery = {
+  private def rewrite(projectionDeps: Iterable[LogicalVariable], graph: QueryGraph, interestingOrder: InterestingOrder, proj: QueryProjection, tail: Option[PlannerQuery]): RegularPlannerQuery = {
     val updateDeps = graph.mutatingPatterns.flatMap(_.dependencies)
     val dependencies: Set[String] = projectionDeps.map(_.name).toSet ++ updateDeps
+    val gen = new PositionGenerator
 
     val optionalMatches = graph.optionalMatches.flatMapWithTail {
       (original: QueryGraph, tail: Seq[QueryGraph]) =>
@@ -73,20 +74,15 @@ case object OptionalMatchRemover extends PlannerQueryRewriter {
         // and it can't change cardinality, it's safe to ignore it
           None
         else {
-          val (predicatesForPatterns, remaining) = {
+          val (predicatesForPatterns, remaining, elementsToKeep) = {
             val elementsToKeep1 = smallestGraphIncluding(original, mustInclude ++ original.argumentIds)
-            partitionPredicates(original.selections.predicates, elementsToKeep1)
-          }
-
-          val elementsToKeep = {
-            val variablesNeededForPredicates =
-              remaining.flatMap(expression => expression.dependencies.map(_.name))
-            smallestGraphIncluding(original, mustInclude ++ original.argumentIds ++ variablesNeededForPredicates)
+            extractElementsAndPatterns(original, mustInclude, elementsToKeep1)
           }
 
           val (patternsToKeep, patternsToFilter) = original.patternRelationships.partition(r => elementsToKeep(r.name))
           val patternNodes = original.patternNodes.filter(elementsToKeep.apply)
-          val patternPredicates = patternsToFilter.map(toAst(elementsToKeep, predicatesForPatterns, _))
+
+          val patternPredicates = patternsToFilter.map(toAst(elementsToKeep, predicatesForPatterns, gen, _))
 
           val newOptionalGraph = original.
             withPatternRelationships(patternsToKeep).
@@ -98,8 +94,23 @@ case object OptionalMatchRemover extends PlannerQueryRewriter {
     }
 
     val matches = graph.withOptionalMatches(optionalMatches)
-    RegularPlannerQuery(matches, horizon = proj, tail = tail)
+    RegularPlannerQuery(matches, interestingOrder, horizon = proj, tail = tail)
 
+  }
+
+  private def extractElementsAndPatterns(original: QueryGraph, mustInclude: Set[String], elementsToKeepInitial: Set[String]):
+  (Map[String, LabelsAndEquality], Set[Expression], Set[String]) = {
+    val (predicatesForPatterns, remaining) =
+      partitionPredicates(original.selections.predicates, elementsToKeepInitial)
+
+    val variablesNeededForPredicates = remaining.flatMap(expression => expression.dependencies.map(_.name))
+    val elementsToKeep = smallestGraphIncluding(original, mustInclude ++ original.argumentIds ++ variablesNeededForPredicates)
+
+    if ( elementsToKeep.equals(elementsToKeepInitial) ) {
+      (predicatesForPatterns, remaining, elementsToKeep)
+    } else {
+      extractElementsAndPatterns(original, mustInclude, elementsToKeep)
+    }
   }
 
   private object LabelsAndEquality {
@@ -153,27 +164,39 @@ case object OptionalMatchRemover extends PlannerQueryRewriter {
         case _ => false
       }
 
-  private def toAst(elementsToKeep: Set[String], predicates: Map[String, LabelsAndEquality], pattern: PatternRelationship) = {
-    val pos = InputPosition.NONE
+  private class PositionGenerator {
+    private var pos: InputPosition = InputPosition.NONE
+
+    def nextPosition(): InputPosition = {
+      val current = pos
+      //this is not nice but we want to make sure don't collide with "real positions"
+      pos = pos.copy(offset = current.offset - 1)
+      current
+    }
+  }
+
+  private def toAst(elementsToKeep: Set[String], predicates: Map[String, LabelsAndEquality], gen: PositionGenerator, pattern: PatternRelationship) = {
     def createVariable(name: String): Option[Variable] =
       if (!elementsToKeep(name))
         None
       else {
-        Some(Variable(name)(pos))
+        Some(Variable(name)(gen.nextPosition()))
       }
 
     def createNode(name: String): NodePattern = {
       val labelsAndProps = predicates.getOrElse(name, LabelsAndEquality.empty)
-      val props = if (labelsAndProps.equality.isEmpty) None else Some(MapExpression(labelsAndProps.equality)(pos))
-      NodePattern(createVariable(name), labels = labelsAndProps.labels, properties = props)(pos)
+      val props = if (labelsAndProps.equality.isEmpty) None else Some(MapExpression(labelsAndProps.equality)(
+        gen.nextPosition()))
+      NodePattern(createVariable(name), labels = labelsAndProps.labels, properties = props)(gen.nextPosition())
     }
 
     val relName = createVariable(pattern.name)
     val leftNode = createNode(pattern.nodes._1)
     val rightNode = createNode(pattern.nodes._2)
-    val relPattern = RelationshipPattern(relName, pattern.types, length = None, properties = None, pattern.dir)(pos)
-    val chain = RelationshipChain(leftNode, relPattern, rightNode)(pos)
-    PatternExpression(RelationshipsPattern(chain)(pos))
+    val relPattern = RelationshipPattern(relName, pattern.types, length = None, properties = None, pattern.dir)(
+      gen.nextPosition())
+    val chain = RelationshipChain(leftNode, relPattern, rightNode)(gen.nextPosition())
+    PatternExpression(RelationshipsPattern(chain)(gen.nextPosition()))
   }
 
   implicit class FlatMapWithTailable(in: IndexedSeq[QueryGraph]) {
@@ -259,12 +282,12 @@ case object OptionalMatchRemover extends PlannerQueryRewriter {
 
 }
 
-trait PlannerQueryRewriter extends Phase[CompilerContext, LogicalPlanState, LogicalPlanState] {
+trait PlannerQueryRewriter extends Phase[PlannerContext, LogicalPlanState, LogicalPlanState] {
   override def phase: CompilationPhase = LOGICAL_PLANNING
 
-  def instance(context: CompilerContext): Rewriter
+  def instance(context: PlannerContext): Rewriter
 
-  override def process(from: LogicalPlanState, context: CompilerContext): LogicalPlanState = {
+  override def process(from: LogicalPlanState, context: PlannerContext): LogicalPlanState = {
     val query: UnionQuery = from.unionQuery
     val rewritten = query.endoRewrite(instance(context))
     from.copy(maybeUnionQuery = Some(rewritten))

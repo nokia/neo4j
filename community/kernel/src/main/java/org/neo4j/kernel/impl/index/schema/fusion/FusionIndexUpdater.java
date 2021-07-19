@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,34 +19,33 @@
  */
 package org.neo4j.kernel.impl.index.schema.fusion;
 
-import java.io.IOException;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.neo4j.kernel.api.exceptions.index.IndexEntryConflictException;
 import org.neo4j.kernel.api.index.IndexEntryUpdate;
 import org.neo4j.kernel.api.index.IndexUpdater;
-import org.neo4j.kernel.impl.index.schema.fusion.FusionIndexProvider.Selector;
 
 class FusionIndexUpdater extends FusionIndexBase<IndexUpdater> implements IndexUpdater
 {
-    FusionIndexUpdater( IndexUpdater[] updaters, Selector selector )
+    FusionIndexUpdater( SlotSelector slotSelector, LazyInstanceSelector<IndexUpdater> instanceSelector )
     {
-        super( updaters, selector );
+        super( slotSelector, instanceSelector );
     }
 
     @Override
-    public void process( IndexEntryUpdate<?> update ) throws IOException, IndexEntryConflictException
+    public void process( IndexEntryUpdate<?> update ) throws IndexEntryConflictException
     {
         switch ( update.updateMode() )
         {
         case ADDED:
-            selector.select( instances, update.values() ).process( update );
+            instanceSelector.select( slotSelector.selectSlot( update.values(), GROUP_OF ) ).process( update );
             break;
         case CHANGED:
             // Hmm, here's a little conundrum. What if we change from a value that goes into native
             // to a value that goes into fallback, or vice versa? We also don't want to blindly pass
             // all CHANGED updates to both updaters since not all values will work in them.
-            IndexUpdater from = selector.select( instances, update.beforeValues() );
-            IndexUpdater to = selector.select( instances, update.values() );
+            IndexUpdater from = instanceSelector.select( slotSelector.selectSlot( update.beforeValues(), GROUP_OF ) );
+            IndexUpdater to = instanceSelector.select( slotSelector.selectSlot( update.values(), GROUP_OF ) );
             // There are two cases:
             // - both before/after go into the same updater --> pass update into that updater
             if ( from == to )
@@ -61,7 +60,7 @@ class FusionIndexUpdater extends FusionIndexBase<IndexUpdater> implements IndexU
             }
             break;
         case REMOVED:
-            selector.select( instances, update.values() ).process( update );
+            instanceSelector.select( slotSelector.selectSlot( update.values(), GROUP_OF ) ).process( update );
             break;
         default:
             throw new IllegalArgumentException( "Unknown update mode" );
@@ -69,20 +68,28 @@ class FusionIndexUpdater extends FusionIndexBase<IndexUpdater> implements IndexU
     }
 
     @Override
-    public void close() throws IOException, IndexEntryConflictException
+    public void close() throws IndexEntryConflictException
     {
-        try
+        AtomicReference<IndexEntryConflictException> chainedExceptions = new AtomicReference<>();
+
+        instanceSelector.close( indexUpdater ->
         {
-            forAll( IndexUpdater::close, instances );
-        }
-        catch ( IOException | IndexEntryConflictException | RuntimeException e )
+            try
+            {
+                indexUpdater.close();
+            }
+            catch ( IndexEntryConflictException e )
+            {
+                if ( !chainedExceptions.compareAndSet( null, e ) )
+                {
+                    chainedExceptions.get().addSuppressed( e );
+                }
+            }
+        } );
+
+        if ( chainedExceptions.get() != null )
         {
-            throw e;
-        }
-        catch ( Exception e )
-        {
-            // This catch-clause is basically only here to satisfy the compiler
-            throw new RuntimeException( e );
+            throw chainedExceptions.get();
         }
     }
 }

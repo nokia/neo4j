@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -202,7 +202,7 @@ public class CypherIT extends AbstractRestFunctionalTestBase
             "with the query." )
     @Title( "Create multiple nodes with properties" )
     @Graph
-    public void send_query_to_create_multipe_nodes_from_a_map()
+    public void send_query_to_create_multiple_nodes_from_a_map()
     {
         data.get();
         String script = "UNWIND {props} AS properties CREATE (n:Person) SET n = properties RETURN n";

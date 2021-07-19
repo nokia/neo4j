@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,14 +19,17 @@
  */
 package org.neo4j.kernel.info;
 
+import java.util.stream.Stream;
 import org.neo4j.logging.Log;
 
 public class JvmChecker
 {
     public static final String INCOMPATIBLE_JVM_WARNING = "You are using an unsupported Java runtime. Please" +
-            " use Oracle(R) Java(TM) Runtime Environment 8, OpenJDK(TM) 8 or IBM J9.";
+            " use Oracle(R) Java(TM) Runtime Environment 8 or 11, OpenJDK(TM) 8 or 11 or IBM J9.";
     public static final String INCOMPATIBLE_JVM_VERSION_WARNING = "You are using an unsupported version of " +
-            "the Java runtime. Please use Oracle(R) Java(TM) Runtime Environment 8, OpenJDK(TM) 8 or IBM J9.";
+            "the Java runtime. Please use Oracle(R) Java(TM) Runtime Environment 8 or 11, OpenJDK(TM) 8 or 11 or IBM J9.";
+    public static final String NO_SERIALIZATION_FILTER_WARNING = "The version of the Java runtime you are using " +
+            " does not include some important security features. Please use a JRE of version 8u121 or higher.";
 
     private final Log log;
     private final JvmMetadataRepository jvmMetadataRepository;
@@ -46,9 +49,33 @@ public class JvmChecker
         {
             log.warn( INCOMPATIBLE_JVM_WARNING );
         }
-        else if ( !javaVersion.matches( "^1\\.[8].*" ) )
+        else if ( !javaVersion.matches( "^(1\\.[8]|11).*" ) )
         {
             log.warn( INCOMPATIBLE_JVM_VERSION_WARNING );
         }
+
+        if ( !serializationFilterIsAvailable() )
+        {
+            log.warn( NO_SERIALIZATION_FILTER_WARNING );
+        }
+    }
+
+    public boolean serializationFilterIsAvailable()
+    {
+        //As part of JEP290 ObjectInputFilter was backported to JDK 8 in version 121, but under a different package.
+        Stream<String> classNames = Stream.of( "sun.misc.ObjectInputFilter", "java.io.ObjectInputFilter" );
+        return classNames.anyMatch( className ->
+        {
+            try
+            {
+                Class.forName( className );
+            }
+            catch ( ClassNotFoundException e )
+            {
+                return false;
+            }
+            return true;
+        } );
+
     }
 }

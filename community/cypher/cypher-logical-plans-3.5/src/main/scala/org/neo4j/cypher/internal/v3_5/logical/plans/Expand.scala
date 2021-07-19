@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,8 +20,8 @@
 package org.neo4j.cypher.internal.v3_5.logical.plans
 
 import org.neo4j.cypher.internal.ir.v3_5.VarPatternLength
-import org.neo4j.cypher.internal.util.v3_5.attribution.IdGen
 import org.neo4j.cypher.internal.v3_5.expressions._
+import org.neo4j.cypher.internal.v3_5.util.attribution.IdGen
 
 /**
   * For every source row, traverse all the relationships of 'from' which fulfill the
@@ -67,7 +67,7 @@ case class OptionalExpand(source: LogicalPlan,
 /**
   * For every source row, explore all homogeneous paths starting in 'from', that fulfill the provided
   * criteria. Paths are homogeneous in that all relationships have to fulfill the same relationship
-  * predicate, and all nodes except 'from' have to fulfill the same node predicate. For each explored
+  * predicate, and all nodes have to fulfill the same node predicate. For each explored
   * path that is longer or equal to length.min, and shorter than length.max, a row is produced.
   *
   * The relationships and end node of the corresponding path are added to the produced row.
@@ -82,9 +82,9 @@ case class VarExpand(source: LogicalPlan,
                      length: VarPatternLength,
                      mode: ExpansionMode = ExpandAll,
                      tempNode: String,
-                     tempEdge: String,
+                     tempRelationship: String,
                      nodePredicate: Expression,
-                     edgePredicate: Expression,
+                     relationshipPredicate: Expression,
                      legacyPredicates: Seq[(LogicalVariable, Expression)])
                     (implicit idGen: IdGen) extends LogicalPlan(idGen) with LazyLogicalPlan {
   override val lhs = Some(source)

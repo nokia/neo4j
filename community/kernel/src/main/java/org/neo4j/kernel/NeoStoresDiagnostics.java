@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,9 +19,9 @@
  */
 package org.neo4j.kernel;
 
+import org.neo4j.internal.diagnostics.DiagnosticsExtractor;
+import org.neo4j.internal.diagnostics.DiagnosticsPhase;
 import org.neo4j.kernel.impl.store.NeoStores;
-import org.neo4j.kernel.info.DiagnosticsExtractor;
-import org.neo4j.kernel.info.DiagnosticsPhase;
 import org.neo4j.logging.Logger;
 
 public enum NeoStoresDiagnostics implements DiagnosticsExtractor<NeoStores>

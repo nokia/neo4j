@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,8 +20,8 @@
 package org.neo4j.cypher.internal.runtime.interpreted.pipes
 
 import org.neo4j.cypher.internal.runtime.interpreted.ExecutionContext
-import org.neo4j.cypher.internal.util.v3_5.Unchangeable
-import org.neo4j.cypher.internal.util.v3_5.attribution.Id
+import org.neo4j.cypher.internal.v3_5.util.Unchangeable
+import org.neo4j.cypher.internal.v3_5.util.attribution.Id
 
 /**
   * Pipe is a central part of Cypher. Most pipes are decorators - they
@@ -49,7 +49,7 @@ trait Pipe {
   protected def internalCreateResults(state: QueryState): Iterator[ExecutionContext]
 
   // Used by profiling to identify where to report dbhits and rows
-  def id(): Id
+  def id: Id
 
   // TODO: Alternatively we could pass the logicalPlanId when we create contexts, and in the SlottedQueryState use the
   // SlotConfigurations map to get the slot configuration needed for the context creation,
@@ -64,7 +64,7 @@ trait Pipe {
 case class ArgumentPipe()(val id: Id = Id.INVALID_ID) extends Pipe {
 
   def internalCreateResults(state: QueryState) =
-    Iterator(state.createOrGetInitialContext(executionContextFactory))
+    Iterator(state.newExecutionContext(executionContextFactory))
 }
 
 abstract class PipeWithSource(source: Pipe) extends Pipe {
@@ -81,4 +81,6 @@ abstract class PipeWithSource(source: Pipe) extends Pipe {
     throw new UnsupportedOperationException("This method should never be called on PipeWithSource")
 
   protected def internalCreateResults(input:Iterator[ExecutionContext], state: QueryState): Iterator[ExecutionContext]
+  private[pipes] def testCreateResults(input:Iterator[ExecutionContext], state: QueryState): Iterator[ExecutionContext] =
+    internalCreateResults(input, state)
 }

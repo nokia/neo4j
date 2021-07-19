@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -27,17 +27,24 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.net.Socket;
 import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
 
+import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.config.Setting;
 import org.neo4j.graphdb.factory.GraphDatabaseSettings;
-import org.neo4j.kernel.configuration.Settings;
+import org.neo4j.helpers.HostnamePort;
+import org.neo4j.kernel.configuration.ConnectorPortRegister;
 import org.neo4j.kernel.configuration.ssl.LegacySslPolicyConfig;
-import org.neo4j.server.configuration.ServerSettings;
+import org.neo4j.kernel.internal.GraphDatabaseAPI;
+
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class ServerTestUtils
 {
@@ -88,9 +95,6 @@ public class ServerTestUtils
         addRelativeProperty( temporaryFolder, properties, GraphDatabaseSettings.logs_directory );
         addRelativeProperty( temporaryFolder, properties, LegacySslPolicyConfig.certificates_directory );
         properties.put( GraphDatabaseSettings.pagecache_memory.name(), "8m" );
-        // Needed to allow testing traversal endpoint scripting, which needs the JVM-wide "global" javascript context
-        // to be initialised to sandboxed mode:
-        properties.put( ServerSettings.script_enabled.name(), Settings.TRUE );
     }
 
     private static void addRelativeProperty( File temporaryFolder, Map<String,String> properties,
@@ -207,6 +211,39 @@ public class ServerTestUtils
         finally
         {
             file.delete();
+        }
+    }
+
+    public static void verifyConnector( GraphDatabaseService db, String name, boolean enabled )
+    {
+        HostnamePort address = connectorAddress( db, name );
+        if ( enabled )
+        {
+            assertNotNull( address );
+            assertTrue( canConnectToSocket( address.getHost(), address.getPort() ) );
+        }
+        else
+        {
+            assertNull( address );
+        }
+    }
+
+    public static HostnamePort connectorAddress( GraphDatabaseService db, String name )
+    {
+        ConnectorPortRegister portRegister = ((GraphDatabaseAPI) db).getDependencyResolver().resolveDependency( ConnectorPortRegister.class );
+        return portRegister.getLocalAddress( name );
+    }
+
+    private static boolean canConnectToSocket( String host, int port )
+    {
+        try
+        {
+            new Socket( host, port ).close();
+            return true;
+        }
+        catch ( Throwable ignore )
+        {
+            return false;
         }
     }
 }

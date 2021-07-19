@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -27,11 +27,12 @@ import java.util.zip.{GZIPInputStream, InflaterInputStream}
 
 import org.neo4j.csv.reader._
 import org.neo4j.cypher.internal.runtime.interpreted.pipes.ExternalCSVResource
-import org.neo4j.cypher.internal.util.v3_5.{LoadExternalResourceException, TaskCloser}
+import org.neo4j.cypher.internal.v3_5.util.{LoadExternalResourceException, TaskCloser}
+import org.neo4j.cypher.CypherExecutionException
+import org.neo4j.cypher.internal.runtime.ResourceManager
 import sun.net.www.protocol.http.HttpURLConnection
 
 import scala.collection.mutable.ArrayBuffer
-import scala.util.control.Breaks._
 
 object CSVResources {
   val NEO_USER_AGENT_PREFIX = "NeoLoadCSV_"
@@ -39,10 +40,10 @@ object CSVResources {
   val DEFAULT_BUFFER_SIZE: Int = 2 * 1024 * 1024
   val DEFAULT_QUOTE_CHAR: Char = '"'
 
-  private def config(legacyCsvQuoteEscaping: Boolean) = new Configuration {
+  private def config(legacyCsvQuoteEscaping: Boolean, csvBufferSize: Int) = new Configuration {
     override def quotationCharacter(): Char = DEFAULT_QUOTE_CHAR
 
-    override def bufferSize(): Int = DEFAULT_BUFFER_SIZE
+    override def bufferSize(): Int = csvBufferSize
 
     override def multilineFields(): Boolean = true
 
@@ -54,30 +55,37 @@ object CSVResources {
   }
 }
 
-class CSVResources(cleaner: TaskCloser) extends ExternalCSVResource {
+case class CSVResource(url: URL, resource: AutoCloseable) extends AutoCloseable {
+  override def close(): Unit = resource.close()
+}
 
-  def getCsvIterator(url: URL, fieldTerminator: Option[String], legacyCsvQuoteEscaping: Boolean, headers: Boolean = false): Iterator[Array[String]] = {
+class CSVResources(resourceManager: ResourceManager) extends ExternalCSVResource {
+
+  def getCsvIterator(url: URL, fieldTerminator: Option[String], legacyCsvQuoteEscaping: Boolean, bufferSize: Int,
+                     headers: Boolean = false): Iterator[Array[String]] = {
 
     val reader: CharReadable = getReader(url)
     val delimiter: Char = fieldTerminator.map(_.charAt(0)).getOrElse(CSVResources.DEFAULT_FIELD_TERMINATOR)
-    val seeker = CharSeekers.charSeeker(reader, CSVResources.config(legacyCsvQuoteEscaping), true)
+    val seeker = CharSeekers.charSeeker(reader, CSVResources.config(legacyCsvQuoteEscaping, bufferSize), false)
     val extractor = new Extractors(delimiter).string()
     val intDelimiter = delimiter.toInt
     val mark = new Mark
 
-    cleaner.addTask(_ => {
-      seeker.close()
-    })
+    resourceManager.trace(CSVResource(url, seeker))
 
     new Iterator[Array[String]] {
       private def readNextRow: Array[String] = {
         val buffer = new ArrayBuffer[String]
-        breakable {
+
+        try {
           while (seeker.seek(mark, intDelimiter)) {
             val success = seeker.tryExtract(mark, extractor)
             buffer += (if (success) extractor.value() else null)
-            if (mark.isEndOfLine) break()
+            if (mark.isEndOfLine) return if (buffer.isEmpty) null else buffer.toArray
           }
+        } catch {
+          //TODO change to error message mentioning `dbms.import.csv.buffer_size` in 3.5
+          case e: BufferOverflowException => throw new CypherExecutionException(e.getMessage, e)
         }
 
         if (buffer.isEmpty) {

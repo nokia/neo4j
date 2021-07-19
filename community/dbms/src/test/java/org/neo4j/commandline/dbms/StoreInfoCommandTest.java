@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -37,11 +37,13 @@ import java.util.function.Consumer;
 
 import org.neo4j.commandline.admin.CommandLocator;
 import org.neo4j.commandline.admin.Usage;
+import org.neo4j.io.layout.DatabaseLayout;
 import org.neo4j.io.pagecache.PageCache;
 import org.neo4j.kernel.impl.store.MetaDataStore;
 import org.neo4j.kernel.impl.store.format.RecordFormatSelector;
 import org.neo4j.kernel.impl.store.format.RecordFormats;
 import org.neo4j.kernel.impl.store.format.standard.StandardV2_3;
+import org.neo4j.test.mockito.matcher.RootCauseMatcher;
 import org.neo4j.test.rule.PageCacheRule;
 import org.neo4j.test.rule.TestDirectory;
 import org.neo4j.test.rule.fs.DefaultFileSystemRule;
@@ -67,12 +69,14 @@ public class StoreInfoCommandTest
     private ArgumentCaptor<String> outCaptor;
     private StoreInfoCommand command;
     private Consumer<String> out;
+    private DatabaseLayout databaseLayout;
 
     @Before
     public void setUp() throws Exception
     {
         Path homeDir = testDirectory.directory( "home-dir" ).toPath();
         databaseDirectory = homeDir.resolve( "data/databases/foo.db" );
+        databaseLayout = DatabaseLayout.of( databaseDirectory.toFile() );
         Files.createDirectories( databaseDirectory );
 
         outCaptor = ArgumentCaptor.forClass( String.class );
@@ -174,7 +178,7 @@ public class StoreInfoCommandTest
     {
         prepareNeoStoreFile( "v9.9.9" );
 
-        expected.expect( IllegalArgumentException.class );
+        expected.expect( new RootCauseMatcher( IllegalArgumentException.class ) );
         expected.expectMessage( "Unknown store version 'v9.9.9'" );
 
         execute( databaseDirectory.toString() );
@@ -197,8 +201,7 @@ public class StoreInfoCommandTest
 
     private File createNeoStoreFile() throws IOException
     {
-        fsRule.get().mkdir( databaseDirectory.toFile() );
-        File neoStoreFile = new File( databaseDirectory.toFile(), MetaDataStore.DEFAULT_NAME );
+        File neoStoreFile = databaseLayout.metadataStore();
         fsRule.get().create( neoStoreFile ).close();
         return neoStoreFile;
     }

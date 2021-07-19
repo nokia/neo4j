@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,14 +19,14 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.idp
 
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
 import org.neo4j.cypher.internal.compiler.v3_5.planner.LogicalPlanningTestSupport
-import org.neo4j.cypher.internal.frontend.v3_5.ast._
 import org.neo4j.cypher.internal.ir.v3_5.{PatternRelationship, QueryGraph, SimplePatternLength}
 import org.neo4j.cypher.internal.planner.v3_5.spi.PlanContext
 import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.Solveds
 import org.neo4j.cypher.internal.v3_5.logical.plans._
+import org.neo4j.cypher.internal.v3_5.ast._
 import org.neo4j.cypher.internal.v3_5.expressions.{PropertyKeyName, SemanticDirection}
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
 
 class SingleComponentPlannerTest extends CypherFunSuite with LogicalPlanningTestSupport with AstConstructionTestSupport {
   test("plans expands for queries with single pattern rel") {
@@ -35,12 +35,12 @@ class SingleComponentPlannerTest extends CypherFunSuite with LogicalPlanningTest
     val bNode = "b"
     val pattern = PatternRelationship("r1", (aNode, bNode), SemanticDirection.OUTGOING, Seq.empty, SimplePatternLength)
     val qg = QueryGraph(patternRelationships = Set(pattern), patternNodes = Set(aNode, bNode))
-    val (context, solveds, cardinalities) = newMockedLogicalPlanningContext(planContext = mock[PlanContext])
-    val aPlan = newMockedLogicalPlan(solveds, cardinalities,  "a")
-    val bPlan = newMockedLogicalPlan(solveds, cardinalities, "b")
+    val context = newMockedLogicalPlanningContext(planContext = mock[PlanContext])
+    val aPlan = newMockedLogicalPlan(context.planningAttributes,  "a")
+    val bPlan = newMockedLogicalPlan(context.planningAttributes, "b")
 
     // when
-    val logicalPlans = SingleComponentPlanner.planSinglePattern(qg, pattern, Set(aPlan, bPlan), context, solveds)
+    val logicalPlans = SingleComponentPlanner.planSinglePattern(qg, pattern, Set(aPlan, bPlan), context)
 
     // then
     val plan1 = Expand(aPlan, "a", SemanticDirection.OUTGOING, Seq.empty, "b", "r1", ExpandAll)
@@ -57,12 +57,12 @@ class SingleComponentPlannerTest extends CypherFunSuite with LogicalPlanningTest
     val hint1 = UsingIndexHint(varFor("a"), lblName("X"), Seq(PropertyKeyName("p")(pos)))(pos)
     val hint2 = UsingIndexHint(varFor("b"), lblName("X"), Seq(PropertyKeyName("p")(pos)))(pos)
     val qg = QueryGraph(patternRelationships = Set(pattern), patternNodes = Set(aNode, bNode), hints = Seq(hint1, hint2))
-    val (context, solveds, cardinalities) = newMockedLogicalPlanningContext(planContext = mock[PlanContext])
-    val aPlan = newMockedLogicalPlan(solveds, cardinalities, "a")
-    val bPlan = newMockedLogicalPlan(solveds, cardinalities, "b")
+    val context = newMockedLogicalPlanningContext(planContext = mock[PlanContext])
+    val aPlan = newMockedLogicalPlan(context.planningAttributes, "a")
+    val bPlan = newMockedLogicalPlan(context.planningAttributes, "b")
 
     // when
-    val logicalPlans = SingleComponentPlanner.planSinglePattern(qg, pattern, Set(aPlan, bPlan), context, solveds)
+    val logicalPlans = SingleComponentPlanner.planSinglePattern(qg, pattern, Set(aPlan, bPlan), context)
 
     // then
 
@@ -83,12 +83,12 @@ class SingleComponentPlannerTest extends CypherFunSuite with LogicalPlanningTest
     val pattern = PatternRelationship("r1", (aNode, bNode), SemanticDirection.OUTGOING, Seq.empty, SimplePatternLength)
     val hint = UsingJoinHint(Seq(varFor("a")))(pos)
     val qg = QueryGraph(patternRelationships = Set(pattern), patternNodes = Set(aNode, bNode), hints = Seq(hint))
-    val (context, solveds, cardinalities) = newMockedLogicalPlanningContext(planContext = mock[PlanContext])
-    val aPlan = newMockedLogicalPlan(solveds, cardinalities, "a")
-    val bPlan = newMockedLogicalPlan(solveds, cardinalities, "b")
+    val context = newMockedLogicalPlanningContext(planContext = mock[PlanContext])
+    val aPlan = newMockedLogicalPlan(context.planningAttributes, "a")
+    val bPlan = newMockedLogicalPlan(context.planningAttributes, "b")
 
     // when
-    val logicalPlans = SingleComponentPlanner.planSinglePattern(qg, pattern, Set(aPlan, bPlan), context, solveds)
+    val logicalPlans = SingleComponentPlanner.planSinglePattern(qg, pattern, Set(aPlan, bPlan), context)
 
     // then
     val plan1 = Expand(aPlan, "a", SemanticDirection.OUTGOING, Seq.empty, "b", "r1", ExpandAll)
@@ -103,7 +103,7 @@ class SingleComponentPlannerTest extends CypherFunSuite with LogicalPlanningTest
     assertPlanSolvesHints(logicalPlans.filter {
       case join: NodeHashJoin if join.nodes == Set(aNode) => true
       case _ => false
-    }, solveds, hint)
+    }, context.planningAttributes.solveds, hint)
   }
 
   test("plans hashjoins and cartesian product for queries with single pattern rel and a join hint on the end node") {
@@ -113,12 +113,12 @@ class SingleComponentPlannerTest extends CypherFunSuite with LogicalPlanningTest
     val pattern = PatternRelationship("r1", (aNode, bNode), SemanticDirection.OUTGOING, Seq.empty, SimplePatternLength)
     val hint = UsingJoinHint(Seq(varFor("b")))(pos)
     val qg = QueryGraph(patternRelationships = Set(pattern), patternNodes = Set(aNode, bNode), hints = Seq(hint))
-    val (context, solveds, cardinalities) = newMockedLogicalPlanningContext(planContext = mock[PlanContext])
-    val aPlan = newMockedLogicalPlan(solveds, cardinalities, "a")
-    val bPlan = newMockedLogicalPlan(solveds, cardinalities, "b")
+    val context = newMockedLogicalPlanningContext(planContext = mock[PlanContext])
+    val aPlan = newMockedLogicalPlan(context.planningAttributes, "a")
+    val bPlan = newMockedLogicalPlan(context.planningAttributes, "b")
 
     // when
-    val logicalPlans = SingleComponentPlanner.planSinglePattern(qg, pattern, Set(aPlan, bPlan), context, solveds)
+    val logicalPlans = SingleComponentPlanner.planSinglePattern(qg, pattern, Set(aPlan, bPlan), context)
 
     // then
     val plan1 = Expand(aPlan, "a", SemanticDirection.OUTGOING, Seq.empty, "b", "r1", ExpandAll)
@@ -133,7 +133,7 @@ class SingleComponentPlannerTest extends CypherFunSuite with LogicalPlanningTest
     assertPlanSolvesHints(logicalPlans.filter {
       case join: NodeHashJoin if join.nodes == Set(bNode) => true
       case _ => false
-    }, solveds, hint)
+    }, context.planningAttributes.solveds, hint)
   }
 
   private def assertPlansMatch(expected: Set[LogicalPlan], actualPlans: Set[LogicalPlan]) {

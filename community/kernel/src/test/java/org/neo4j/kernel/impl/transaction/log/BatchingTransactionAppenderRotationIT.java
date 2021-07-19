@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -78,8 +78,8 @@ public class BatchingTransactionAppenderRotationIT
 
         LogRotationImpl logRotation =
                 new LogRotationImpl( monitors.newMonitor( LogRotation.Monitor.class ), logFiles, databaseHealth );
-        TransactionMetadataCache transactionMetadataCache = new TransactionMetadataCache( 1024 );
-        SynchronizedArrayIdOrderingQueue idOrderingQueue = new SynchronizedArrayIdOrderingQueue( 20 );
+        TransactionMetadataCache transactionMetadataCache = new TransactionMetadataCache();
+        SynchronizedArrayIdOrderingQueue idOrderingQueue = new SynchronizedArrayIdOrderingQueue();
 
         BatchingTransactionAppender transactionAppender =
                 new BatchingTransactionAppender( logFiles, logRotation, transactionMetadataCache, transactionIdStore,
@@ -97,7 +97,7 @@ public class BatchingTransactionAppenderRotationIT
         assertEquals( 2, logHeader.lastCommittedTxId );
     }
 
-    private TransactionToApply prepareTransaction()
+    private static TransactionToApply prepareTransaction()
     {
         List<StorageCommand> commands = createCommands();
         PhysicalTransactionRepresentation transactionRepresentation = new PhysicalTransactionRepresentation( commands );
@@ -105,7 +105,7 @@ public class BatchingTransactionAppenderRotationIT
         return new TransactionToApply( transactionRepresentation );
     }
 
-    private List<StorageCommand> createCommands()
+    private static List<StorageCommand> createCommands()
     {
         return singletonList( new Command.NodeCommand( new NodeRecord( 1L ), new NodeRecord( 2L ) ) );
     }
@@ -113,11 +113,11 @@ public class BatchingTransactionAppenderRotationIT
     private LogFiles getLogFiles( SimpleLogVersionRepository logVersionRepository,
             SimpleTransactionIdStore transactionIdStore ) throws IOException
     {
-        return LogFilesBuilder.builder( testDirectory.directory(), fileSystem.get() )
+        return LogFilesBuilder.builder( testDirectory.databaseLayout(), fileSystem.get() )
                 .withLogVersionRepository( logVersionRepository ).withTransactionIdStore( transactionIdStore ).build();
     }
 
-    private DatabaseHealth getDatabaseHealth()
+    private static DatabaseHealth getDatabaseHealth()
     {
         DatabasePanicEventGenerator databasePanicEventGenerator =
                 new DatabasePanicEventGenerator( new KernelEventHandlers( NullLog.getInstance() ) );

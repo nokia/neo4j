@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,34 +19,46 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.steps
 
-import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.steps.solveOptionalMatches.OptionalSolver
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.LogicalPlanningContext
-import org.neo4j.cypher.internal.frontend.v3_5.ast.UsingJoinHint
-import org.neo4j.cypher.internal.ir.v3_5.QueryGraph
-import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.{Cardinalities, Solveds}
+import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.plans.rewriter.unnestOptional
+import org.neo4j.cypher.internal.ir.v3_5.{InterestingOrder, QueryGraph}
 import org.neo4j.cypher.internal.v3_5.logical.plans.LogicalPlan
+import org.neo4j.cypher.internal.v3_5.ast.UsingJoinHint
+import org.neo4j.cypher.internal.v3_5.logical.plans.Argument
 
-object solveOptionalMatches {
-  type OptionalSolver = ((QueryGraph, LogicalPlan, LogicalPlanningContext, Solveds, Cardinalities) => Option[LogicalPlan])
+trait OptionalSolver {
+  def apply(qg: QueryGraph, lp: LogicalPlan, interestingOrder: InterestingOrder, context: LogicalPlanningContext): Option[LogicalPlan]
 }
 
 case object applyOptional extends OptionalSolver {
-  override def apply(optionalQg: QueryGraph, lhs: LogicalPlan, context: LogicalPlanningContext, solveds: Solveds, cardinalities: Cardinalities) = {
-    val innerContext: LogicalPlanningContext = context.withUpdatedCardinalityInformation(lhs, solveds, cardinalities)
-    val inner = context.strategy.plan(optionalQg, innerContext, solveds, cardinalities)
+  override def apply(optionalQg: QueryGraph, lhs: LogicalPlan, interestingOrder: InterestingOrder, context: LogicalPlanningContext): Option[LogicalPlan] = {
+    val innerContext: LogicalPlanningContext = context.withUpdatedCardinalityInformation(lhs)
+    val inner = context.strategy.plan(optionalQg, interestingOrder, innerContext)
     val rhs = context.logicalPlanProducer.planOptional(inner, lhs.availableSymbols, innerContext)
-    Some(context.logicalPlanProducer.planApply(lhs, rhs, context))
+    val applied = context.logicalPlanProducer.planApply(lhs, rhs, context)
+
+    // Often the Apply can be rewritten into an OptionalExpand. We want to do that before cost estimating against the hash joins, otherwise that
+    // is not a fair comparison (as they cannot be rewritten to something cheaper).
+    Some(unnestOptional(applied).asInstanceOf[LogicalPlan])
   }
 }
 
 abstract class outerHashJoin extends OptionalSolver {
-  override def apply(optionalQg: QueryGraph, side1: LogicalPlan, context: LogicalPlanningContext, solveds: Solveds, cardinalities: Cardinalities) = {
+  override def apply(optionalQg: QueryGraph, side1: LogicalPlan, interestingOrder: InterestingOrder, context: LogicalPlanningContext): Option[LogicalPlan] = {
     val joinNodes = optionalQg.argumentIds
     val solvedHints = optionalQg.joinHints.filter { hint =>
       val hintVariables = hint.variables.map(_.name).toSet
       hintVariables.subsetOf(joinNodes)
     }
-    val side2 = context.strategy.plan(optionalQg.withoutArguments().withoutHints(solvedHints), context, solveds, cardinalities)
+
+    // If side1 is just an Argument, any Apply above this will get written out so the incoming cardinality should be 1
+    // This will be the case as [AssumeIndependenceQueryGraphCardinalityModel] will always use a cardinality of 1 if there are no
+    // arguments and we delete the arguments below.
+    // If not, then we're probably under an apply that will stay, so we need to force the cardinality to be multiplied by the incoming
+    // cardinality.
+    val side2Context = if (!side1.isInstanceOf[Argument]) context.copy(input = context.input.copy(alwaysMultiply = true)) else context
+
+    val side2 = context.strategy.plan(optionalQg.withoutArguments().withoutHints(solvedHints), interestingOrder, side2Context)
 
     if (joinNodes.nonEmpty &&
       joinNodes.forall(side1.availableSymbols) &&

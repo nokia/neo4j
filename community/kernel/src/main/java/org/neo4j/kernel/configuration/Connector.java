@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -24,7 +24,7 @@ import org.neo4j.graphdb.config.Setting;
 
 import static org.neo4j.kernel.configuration.Settings.BOOLEAN;
 import static org.neo4j.kernel.configuration.Settings.NO_DEFAULT;
-import static org.neo4j.kernel.configuration.Settings.options;
+import static org.neo4j.kernel.configuration.Settings.optionsObeyCase;
 import static org.neo4j.kernel.configuration.Settings.setting;
 
 @Group( "dbms.connector" )
@@ -58,7 +58,7 @@ public class Connector
     {
         group = new GroupSettingSupport( Connector.class, key );
         enabled = group.scope( setting( "enabled", BOOLEAN, "false" ) );
-        type = group.scope( setting( "type", options( ConnectorType.class ), NO_DEFAULT ) );
+        type = group.scope( setting( "type", optionsObeyCase( ConnectorType.class ), NO_DEFAULT ) );
     }
 
     public enum ConnectorType

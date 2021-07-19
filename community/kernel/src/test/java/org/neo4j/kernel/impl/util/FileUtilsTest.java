@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -47,9 +47,9 @@ import static org.neo4j.io.fs.FileUtils.size;
 
 public class FileUtilsTest
 {
-    public TestDirectory testDirectory = TestDirectory.testDirectory();
-    public ExpectedException expected = ExpectedException.none();
-    public FileSystemAbstraction fs = new DefaultFileSystemAbstraction();
+    public final TestDirectory testDirectory = TestDirectory.testDirectory();
+    public final ExpectedException expected = ExpectedException.none();
+    public final FileSystemAbstraction fs = new DefaultFileSystemAbstraction();
 
     @Rule
     public RuleChain chain = RuleChain.outerRule( testDirectory ).around( expected );
@@ -240,13 +240,6 @@ public class FileUtilsTest
         // Future work: Maybe we should do like on Mac and assume true on Windows as well?
         assumeTrue( SystemUtils.IS_OS_WINDOWS );
         assertFalse( FileUtils.highIODevice( Paths.get( "." ), false ) );
-    }
-
-    @Test
-    public void onLinuxDevShmHasHighIO()
-    {
-        assumeTrue( SystemUtils.IS_OS_LINUX );
-        assertTrue( FileUtils.highIODevice( Paths.get( "/dev/shm" ), false ) );
     }
 
     @Test

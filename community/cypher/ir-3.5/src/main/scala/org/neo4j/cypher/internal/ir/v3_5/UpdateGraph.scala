@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,11 +19,13 @@
  */
 package org.neo4j.cypher.internal.ir.v3_5
 
-import org.neo4j.cypher.internal.util.v3_5.InternalException
-import org.neo4j.cypher.internal.frontend.v3_5.semantics.SemanticTable
-import org.neo4j.cypher.internal.util.v3_5.symbols._
+import org.neo4j.cypher.internal.v3_5.util.InternalException
+import org.neo4j.cypher.internal.v3_5.ast.semantics.SemanticTable
+import org.neo4j.cypher.internal.v3_5.util.symbols._
 import org.neo4j.cypher.internal.v3_5.expressions._
-import org.neo4j.cypher.internal.v3_5.functions.Labels
+
+import org.neo4j.cypher.internal.v3_5.expressions.functions.Labels
+
 
 import scala.annotation.tailrec
 
@@ -39,10 +41,10 @@ trait UpdateGraph {
     foreachPatterns.exists(_.innerUpdates.allQueryGraphs.exists(_.containsMergeRecursive))
 
   /*
-   * Finds all nodes being created with CREATE (a)
+   * Finds all nodes being created with CREATE ...
    */
-  def createNodePatterns: Seq[CreateNodePattern] = mutatingPatterns.collect {
-    case p: CreateNodePattern => p
+  def createPatterns: Seq[CreatePattern] = mutatingPatterns.collect {
+    case p: CreatePattern => p
   }
 
   def mergeNodePatterns: Seq[MergeNodePattern] = mutatingPatterns.collect {
@@ -58,52 +60,37 @@ trait UpdateGraph {
   }
 
   /*
-   * Finds all nodes being created with CREATE ()-[r]->()
-   */
-  def createRelationshipPatterns: Seq[CreateRelationshipPattern] = mutatingPatterns.collect {
-    case p: CreateRelationshipPattern => p
-  }
-
-  /*
    * Finds all identifiers being deleted.
    */
   def identifiersToDelete: Set[String] = (deleteExpressions flatMap {
     // DELETE n
-    case DeleteExpression(identifier: Variable, _) => Seq(identifier.name)
     // DELETE (n)-[r]-()
-    case DeleteExpression(PathExpression(e), _) => e.dependencies.map(_.asInstanceOf[Variable].name)
     // DELETE expr
-    case DeleteExpression(expr, _) => Seq(findVariableInNestedStructure(expr))
+    case DeleteExpression(expr, _) => expr.dependencies.map(_.name)
   }).toSet
-
-  @tailrec
-  private def findVariableInNestedStructure(e: Expression): String = e match {
-    case v: Variable => v.name
-    // DELETE coll[i]
-    case ContainerIndex(expr, _) => findVariableInNestedStructure(expr)
-    // DELETE map.key
-    case Property(expr, _) => findVariableInNestedStructure(expr)
-  }
 
   /*
    * Finds all node properties being created with CREATE (:L)
    */
-  def createLabels: Set[LabelName] = createNodePatterns.flatMap(_.labels).toSet ++
-    mergeNodePatterns.flatMap(_.createNodePattern.labels) ++
-    mergeRelationshipPatterns.flatMap(_.createNodePatterns.flatMap(_.labels))
+  def createLabels: Set[LabelName] =
+    createPatterns.flatMap(_.nodes.flatMap(_.labels)).toSet ++
+    mergeNodePatterns.flatMap(_.createNode.labels) ++
+    mergeRelationshipPatterns.flatMap(_.createNodes.flatMap(_.labels))
 
   /*
    * Finds all node properties being created with CREATE ({prop...})
    */
-  def createNodeProperties: CreatesPropertyKeys = CreatesPropertyKeys(createNodePatterns.flatMap(_.properties):_*) +
-    CreatesPropertyKeys(mergeNodePatterns.flatMap(_.createNodePattern.properties):_*) +
-    CreatesPropertyKeys(mergeRelationshipPatterns.flatMap(_.createNodePatterns.flatMap(c => c.properties)):_*)
+  def createNodeProperties: CreatesPropertyKeys =
+    CreatesPropertyKeys(createPatterns.flatMap(_.nodes.flatMap(_.properties)):_*) +
+    CreatesPropertyKeys(mergeNodePatterns.flatMap(_.createNode.properties):_*) +
+    CreatesPropertyKeys(mergeRelationshipPatterns.flatMap(_.createNodes.flatMap(c => c.properties)):_*)
 
   /*
    * Finds all rel properties being created with CREATE
    */
-  def createRelProperties: CreatesPropertyKeys = CreatesPropertyKeys(createRelationshipPatterns.flatMap(_.properties):_*) +
-    CreatesPropertyKeys(mergeRelationshipPatterns.flatMap(_.createRelPatterns.flatMap(c => c.properties)):_*)
+  def createRelProperties: CreatesPropertyKeys =
+    CreatesPropertyKeys(createPatterns.flatMap(_.relationships.flatMap(_.properties)):_*) +
+    CreatesPropertyKeys(mergeRelationshipPatterns.flatMap(_.createRelationships.flatMap(c => c.properties)):_*)
 
   /*
    * finds all label names being removed on given node, REMOVE a:L
@@ -115,15 +102,21 @@ trait UpdateGraph {
   /*
    * Relationship types being created with, CREATE/MERGE ()-[:T]->()
    */
-  def createRelTypes: Set[RelTypeName] = (createRelationshipPatterns.map(_.relType) ++
-    mergeRelationshipPatterns.flatMap(_.createRelPatterns.map(_.relType))).toSet
+  def createRelTypes: Set[RelTypeName] =
+    (createPatterns.flatMap(_.relationships.map(_.relType)) ++
+     mergeRelationshipPatterns.flatMap(_.createRelationships.map(_.relType))).toSet
 
   /*
    * Does this UpdateGraph update nodes?
    */
   // NOTE: Put foreachPatterns first to shortcut unnecessary recursion
-  def updatesNodes: Boolean = foreachPatterns.nonEmpty || createNodePatterns.nonEmpty || removeLabelPatterns.nonEmpty ||
-    mergeNodePatterns.nonEmpty || mergeRelationshipPatterns.nonEmpty || setLabelPatterns.nonEmpty ||
+  def updatesNodes: Boolean =
+    foreachPatterns.nonEmpty ||
+    createPatterns.exists(_.nodes.nonEmpty) ||
+    removeLabelPatterns.nonEmpty ||
+    mergeNodePatterns.nonEmpty ||
+    mergeRelationshipPatterns.nonEmpty ||
+    setLabelPatterns.nonEmpty ||
     setNodePropertyPatterns.nonEmpty
 
   def foreachOverlap(qg: QueryGraph): Boolean =
@@ -181,7 +174,7 @@ trait UpdateGraph {
   }
 
   def createsNodes: Boolean = mutatingPatterns.exists {
-    case _: CreateNodePattern => true
+    case c: CreatePattern if c.nodes.nonEmpty => true
     case _: MergeNodePattern => true
     case MergeRelationshipPattern(nodesToCreate, _, _, _, _) => nodesToCreate.nonEmpty
     case _ => false
@@ -243,7 +236,9 @@ trait UpdateGraph {
   }
 
   private def allRelPatternsWrittenNonEmpty: Boolean = {
-    val allRelPatternsWritten = createRelationshipPatterns ++ mergeRelationshipPatterns.flatMap(_.createRelPatterns)
+    val allRelPatternsWritten =
+      createPatterns.filter(_.relationships.nonEmpty) ++ mergeRelationshipPatterns.flatMap(_.createRelationships)
+
     allRelPatternsWritten.nonEmpty
   }
 
@@ -337,7 +332,7 @@ trait UpdateGraph {
         val actualType = expressionTypeInfo.actual
         actualType == typeSpec || actualType == CTAny.invariant
 
-      case None => throw new InternalException(s"Expression ${p.map} has to type from semantic analysis")
+      case None => throw new InternalException(s"Expression ${p.map} has no type from semantic analysis")
     }
 
   /*
@@ -352,11 +347,13 @@ trait UpdateGraph {
       def extractPropertyKey(patterns: Seq[SetMutatingPattern]): CreatesPropertyKeys = patterns.collect {
         case SetNodePropertyPattern(_, key, _) => CreatesKnownPropertyKeys(key)
         case SetNodePropertiesFromMapPattern(_, expression, _) => CreatesPropertyKeys(expression)
+        case SetPropertiesFromMapPattern(_, expression, _) => CreatesPropertyKeys(expression)
       }.foldLeft[CreatesPropertyKeys](CreatesNoPropertyKeys)(_ + _)
 
       if (patterns.isEmpty) acc
       else patterns.head match {
         case SetNodePropertiesFromMapPattern(_, expression, _)  => CreatesPropertyKeys(expression)
+        case SetPropertiesFromMapPattern(_, expression, _) => CreatesPropertyKeys(expression)
         case SetNodePropertyPattern(_, key, _)  => toNodePropertyPattern(patterns.tail, acc + CreatesKnownPropertyKeys(key))
         case MergeNodePattern(_, _, onCreate, onMatch) =>
           toNodePropertyPattern(patterns.tail, acc + extractPropertyKey(onCreate) + extractPropertyKey(onMatch))
@@ -373,7 +370,7 @@ trait UpdateGraph {
 
   /*
    * Checks for overlap between what relationship props are read in query graph
-   * and what is updated with SET her
+   * and what is updated with SET here
    */
   private def setRelPropertyOverlap(propertiesToRead: Set[PropertyKeyName]): Boolean = {
     @tailrec
@@ -382,11 +379,13 @@ trait UpdateGraph {
       def extractPropertyKey(patterns: Seq[SetMutatingPattern]): CreatesPropertyKeys = patterns.collect {
         case SetRelationshipPropertyPattern(_, key, _) => CreatesKnownPropertyKeys(key)
         case SetRelationshipPropertiesFromMapPattern(_, expression, _) => CreatesPropertyKeys(expression)
+        case SetPropertiesFromMapPattern(_, expression, _) => CreatesPropertyKeys(expression)
       }.foldLeft[CreatesPropertyKeys](CreatesNoPropertyKeys)(_ + _)
 
       if (patterns.isEmpty) acc
       else patterns.head match {
         case SetRelationshipPropertiesFromMapPattern(_, expression, _) => CreatesPropertyKeys(expression)
+        case SetPropertiesFromMapPattern(_, expression, _) => CreatesPropertyKeys(expression)
         case SetRelationshipPropertyPattern(_, key, _) =>
           toRelPropertyPattern(patterns.tail, acc + CreatesKnownPropertyKeys(key))
         case MergeNodePattern(_, _, onCreate, onMatch) =>

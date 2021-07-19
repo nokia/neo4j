@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,7 +19,7 @@
  */
 package org.neo4j.consistency.checking.full;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.io.File;
 
@@ -37,17 +37,17 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @SuppressWarnings( "unchecked" )
-public class StoreProcessorTaskTest
+class StoreProcessorTaskTest
 {
     @Test
-    public void singlePassShouldOnlyProcessTheStoreOnce()
+    void singlePassShouldOnlyProcessTheStoreOnce()
     {
         // given
         StoreProcessor singlePassProcessor = mock( StoreProcessor.class );
         when( singlePassProcessor.getStage() ).thenReturn( Stage.SEQUENTIAL_FORWARD );
 
         NodeStore store = mock( NodeStore.class );
-        when( store.getStorageFileName() ).thenReturn( new File( "node-store" ) );
+        when( store.getStorageFile() ).thenReturn( new File( "node-store" ) );
 
         StoreProcessorTask<NodeRecord> task = new StoreProcessorTask<>( "nodes", Statistics.NONE, 1,
                 store, null, "nodes", ProgressMonitorFactory.NONE.multipleParts( "check" ),

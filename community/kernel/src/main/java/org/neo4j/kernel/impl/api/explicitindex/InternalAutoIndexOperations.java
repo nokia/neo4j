@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -31,7 +31,7 @@ import org.neo4j.internal.kernel.api.exceptions.PropertyKeyIdNotFoundKernelExcep
 import org.neo4j.internal.kernel.api.exceptions.explicitindex.AutoIndexingKernelException;
 import org.neo4j.internal.kernel.api.exceptions.explicitindex.ExplicitIndexNotFoundKernelException;
 import org.neo4j.kernel.api.explicitindex.AutoIndexOperations;
-import org.neo4j.kernel.impl.core.PropertyKeyTokenHolder;
+import org.neo4j.kernel.impl.core.TokenHolder;
 import org.neo4j.kernel.impl.core.TokenNotFoundException;
 import org.neo4j.values.storable.Value;
 
@@ -133,13 +133,13 @@ public class InternalAutoIndexOperations implements AutoIndexOperations
 
     private AtomicReference<Set<String>> propertyKeysToInclude = new AtomicReference<>( Collections.emptySet() );
 
-    private final PropertyKeyTokenHolder propertyKeyLookup;
+    private final TokenHolder propertyKeyLookup;
     private final EntityType type;
 
     private volatile boolean enabled;
     private volatile boolean indexCreated;
 
-    public InternalAutoIndexOperations( PropertyKeyTokenHolder propertyKeyLookup, EntityType type )
+    public InternalAutoIndexOperations( TokenHolder propertyKeyLookup, EntityType type )
     {
         this.propertyKeyLookup = propertyKeyLookup;
         this.type = type;

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,20 +19,22 @@
  */
 package org.neo4j.kernel.impl.store.counts.keys;
 
+import static java.lang.Math.toIntExact;
+
 public class CountsKeyFactory
 {
     private CountsKeyFactory()
     {
     }
 
-    public static NodeKey nodeKey( int labelId )
+    public static NodeKey nodeKey( long labelId )
     {
-        return new NodeKey( labelId );
+        return new NodeKey( toIntExact( labelId ) );
     }
 
-    public static RelationshipKey relationshipKey( int startLabelId, int typeId, int endLabelId )
+    public static RelationshipKey relationshipKey( long startLabelId, int typeId, long endLabelId )
     {
-        return new RelationshipKey( startLabelId, typeId, endLabelId );
+        return new RelationshipKey( toIntExact( startLabelId ), typeId, toIntExact( endLabelId ) );
     }
 
     public static IndexStatisticsKey indexStatisticsKey( long indexId )

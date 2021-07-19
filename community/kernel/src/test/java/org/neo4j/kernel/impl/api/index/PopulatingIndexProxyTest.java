@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -25,13 +25,15 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import org.neo4j.storageengine.api.schema.CapableIndexDescriptor;
+
 import static org.mockito.Mockito.verify;
 
 @RunWith( MockitoJUnitRunner.class )
 public class PopulatingIndexProxyTest
 {
     @Mock
-    private IndexMeta indexMeta;
+    private CapableIndexDescriptor capableIndexDescriptor;
     @Mock
     private IndexPopulationJob indexPopulationJob;
     @Mock
@@ -41,7 +43,7 @@ public class PopulatingIndexProxyTest
     @Before
     public void setUp()
     {
-        populatingIndexProxy = new PopulatingIndexProxy( indexMeta, indexPopulationJob, indexPopulation );
+        populatingIndexProxy = new PopulatingIndexProxy( capableIndexDescriptor, indexPopulationJob, indexPopulation );
     }
 
     @Test
@@ -57,6 +59,6 @@ public class PopulatingIndexProxyTest
     {
         populatingIndexProxy.drop();
 
-        verify( indexPopulationJob ).cancelPopulation( indexPopulation );
+        verify( indexPopulationJob ).dropPopulation( indexPopulation );
     }
 }

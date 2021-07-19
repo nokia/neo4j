@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,13 +21,20 @@ package org.neo4j.bolt.v1.messaging;
 
 import java.io.IOException;
 
+import org.neo4j.bolt.messaging.BoltIOException;
+import org.neo4j.bolt.messaging.Neo4jPack;
+import org.neo4j.bolt.runtime.Neo4jError;
+import org.neo4j.bolt.messaging.BoltResponseMessageWriter;
+import org.neo4j.bolt.v1.messaging.response.FailureMessage;
+import org.neo4j.bolt.v1.messaging.response.IgnoredMessage;
+import org.neo4j.bolt.v1.messaging.response.RecordMessage;
+import org.neo4j.bolt.v1.messaging.response.SuccessMessage;
 import org.neo4j.bolt.v1.packstream.PackStream;
 import org.neo4j.kernel.api.exceptions.Status;
 import org.neo4j.values.AnyValue;
 import org.neo4j.values.storable.StringValue;
 import org.neo4j.values.virtual.MapValue;
 
-import static org.neo4j.bolt.v1.runtime.Neo4jError.codeFromString;
 import static org.neo4j.bolt.v1.runtime.spi.Records.record;
 
 public class BoltResponseMessageReader
@@ -39,7 +46,7 @@ public class BoltResponseMessageReader
         this.unpacker = unpacker;
     }
 
-    public <E extends Exception> void read( BoltResponseMessageHandler<E> handler ) throws IOException, E
+    public void read( BoltResponseMessageWriter messageWriter ) throws IOException
     {
         try
         {
@@ -52,7 +59,7 @@ public class BoltResponseMessageReader
                 {
                 case SUCCESS:
                     MapValue successMetadata = unpacker.unpackMap();
-                    handler.onSuccess( successMetadata );
+                    messageWriter.write( new SuccessMessage( successMetadata ) );
                     break;
                 case RECORD:
                     long length = unpacker.unpackListHeader();
@@ -61,10 +68,10 @@ public class BoltResponseMessageReader
                     {
                         fields[i] = unpacker.unpack();
                     }
-                    handler.onRecord( record( fields ) );
+                    messageWriter.write( new RecordMessage( record( fields ) ) );
                     break;
                 case IGNORED:
-                    handler.onIgnored();
+                    messageWriter.write( IgnoredMessage.IGNORED_MESSAGE );
                     break;
                 case FAILURE:
                     MapValue failureMetadata = unpacker.unpackMap();
@@ -74,7 +81,7 @@ public class BoltResponseMessageReader
                     String msg = failureMetadata.containsKey( "message" ) ?
                                  ((StringValue) failureMetadata.get( "message" )).stringValue() :
                             "<No message supplied>";
-                    handler.onFailure( codeFromString( code ), msg );
+                    messageWriter.write( new FailureMessage( Neo4jError.codeFromString( code ), msg ) );
                     break;
                 default:
                     throw new BoltIOException( Status.Request.InvalidFormat,

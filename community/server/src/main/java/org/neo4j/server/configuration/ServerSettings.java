@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -67,13 +67,16 @@ public class ServerSettings implements LoadableConfig
     public static final Setting<Integer> maximum_response_header_size =
             setting( "unsupported.dbms.max_http_response_header_size", INTEGER, "20480" );
 
-    @Description( "Comma-seperated list of custom security rules for Neo4j to use." )
+    @Description( "Comma-separated list of custom security rules for Neo4j to use." )
     public static final Setting<List<String>> security_rules =
             setting( "dbms.security.http_authorization_classes", STRING_LIST, EMPTY );
 
-    @Description( "Number of Neo4j worker threads, your OS might enforce a lower limit than the maximum value " +
-            "specified here." )
-    @DocumentedDefaultValue( "Number of available processors (max 500)." )
+    @Description( "Number of Neo4j worker threads. This setting is only valid for REST, and does not influence bolt-server. " +
+            "It sets the amount of worker threads for the Jetty server used by neo4j-server. " +
+            "This option can be tuned when you plan to execute multiple, concurrent REST requests, " +
+            "with the aim of getting more throughput from the database. " +
+            "Your OS might enforce a lower limit than the maximum value specified here." )
+    @DocumentedDefaultValue( "Number of available processors, or 500 for machines which have more than 500 processors." )
     public static final Setting<Integer> webserver_max_threads = buildSetting( "dbms.threads.worker_count", INTEGER,
             "" + Math.min( Runtime.getRuntime().availableProcessors(), 500 ) ).constraint(
             range( 1, JettyThreadCalculator.MAX_THREADS ) ).build();
@@ -112,16 +115,16 @@ public class ServerSettings implements LoadableConfig
                 @Override
                 public String toString()
                 {
-                    return "a comma-seperated list of <classname>=<mount point> strings";
+                    return "a comma-separated list of <classname>=<mount point> strings";
                 }
 
-                private ThirdPartyJaxRsPackage createThirdPartyJaxRsPackage( String packageAndMoutpoint )
+                private ThirdPartyJaxRsPackage createThirdPartyJaxRsPackage( String packageAndMountpoint )
                 {
-                    String[] parts = packageAndMoutpoint.split( "=" );
+                    String[] parts = packageAndMountpoint.split( "=" );
                     if ( parts.length != 2 )
                     {
                         throw new IllegalArgumentException( "config for " + ServerSettings.third_party_packages.name()
-                                + " is wrong: " + packageAndMoutpoint );
+                                + " is wrong: " + packageAndMountpoint );
                     }
                     String pkg = parts[0];
                     String mountPoint = parts[1];
@@ -129,6 +132,12 @@ public class ServerSettings implements LoadableConfig
                 }
             },
             EMPTY );
+
+    @Description( "Value of the Access-Control-Allow-Origin header sent over any HTTP or HTTPS " +
+            "connector. This defaults to '*', which allows broadest compatibility. Note " +
+            "that any URI provided here limits HTTP/HTTPS access to that URI only." )
+    public static final Setting<String> http_access_control_allow_origin =
+            setting( "dbms.security.http_access_control_allow_origin", STRING, "*" );
 
     @Description( "Enable HTTP request logging." )
     public static final Setting<Boolean> http_logging_enabled = setting( "dbms.logs.http.enabled", BOOLEAN, FALSE );
@@ -180,6 +189,21 @@ public class ServerSettings implements LoadableConfig
     public static final Setting<Duration> transaction_idle_timeout = setting( "dbms.rest.transaction.idle_timeout",
             DURATION, "60s" );
 
+    @Description( "Value of the HTTP Strict-Transport-Security (HSTS) response header. " +
+                  "This header tells browsers that a webpage should only be accessed using HTTPS instead of HTTP. It is attached to every HTTPS response. " +
+                  "Setting is not set by default so 'Strict-Transport-Security' header is not sent. " +
+                  "Value is expected to contain directives like 'max-age', 'includeSubDomains' and 'preload'." )
+    public static final Setting<String> http_strict_transport_security = setting( "dbms.security.http_strict_transport_security", STRING, NO_DEFAULT );
+
+    @Internal
+    @Description( "Publicly discoverable bolt:// URI to use for Neo4j Drivers wanting to access the data in this " +
+            "particular database instance. Normally this is the same as the advertised address configured for the " +
+            "connector, but this allows manually overriding that default." )
+    @DocumentedDefaultValue(
+            "Defaults to a bolt://-schemed version of the advertised address " + "of the first found bolt connector." )
+    public static final Setting<URI> bolt_discoverable_address =
+            setting( "unsupported.dbms.discoverable_bolt_address", Settings.URI, "" );
+
     @SuppressWarnings( "unused" ) // accessed from the browser
     @Description( "Commands to be run when Neo4j Browser successfully connects to this server. Separate multiple " +
                   "commands with semi-colon." )
@@ -202,18 +226,6 @@ public class ServerSettings implements LoadableConfig
 
     @Internal
     public static final Setting<URI> browser_path = setting( "unsupported.dbms.uris.browser", Settings.URI, "/browser/" );
-
-    @Deprecated
-    @Description( "Whether to allow executing scripts inside the server, from external sources, e.g. via traversal " +
-                  "endpoints. This setting is in the 'unsupported' namespace, because the scripting feature will be " +
-                  "removed entirely in a future release." )
-    public static final Setting<Boolean> script_enabled =
-            setting( "unsupported.dbms.security.script_enabled", BOOLEAN, FALSE );
-
-    @Deprecated
-    @Internal
-    public static final Setting<Boolean> script_sandboxing_enabled =
-            setting( "unsupported.dbms.security.script_sandboxing_enabled", BOOLEAN, TRUE );
 
     @Internal
     public static final Setting<Boolean> wadl_enabled = setting( "unsupported.dbms.wadl_generation_enabled", BOOLEAN,

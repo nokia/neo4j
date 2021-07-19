@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,23 +19,23 @@
  */
 package org.neo4j.dbms;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.io.File;
 
 import org.neo4j.graphdb.factory.GraphDatabaseSettings;
 import org.neo4j.kernel.configuration.Config;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.IsEqual.equalTo;
-import static org.junit.Assert.assertThat;
 
-public class DatabaseManagementSystemSettingsTest
+class DatabaseManagementSystemSettingsTest
 {
     @Test
-    public void shouldPutDatabaseDirectoriesIntoDataDatabases()
+    void shouldPutDatabaseDirectoriesIntoDataDatabases()
     {
         Config config = Config.defaults( GraphDatabaseSettings.data_directory, "the-data-directory" );
         assertThat( config.get( GraphDatabaseSettings.database_path ),
-                equalTo( new File( "the-data-directory/databases/graph.db" ) ) );
+                equalTo( new File( "the-data-directory/databases/" + GraphDatabaseSettings.DEFAULT_DATABASE_NAME ) ) );
     }
 }

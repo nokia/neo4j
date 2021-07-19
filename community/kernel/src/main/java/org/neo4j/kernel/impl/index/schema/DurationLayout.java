@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -25,7 +25,7 @@ import org.neo4j.io.pagecache.PageCursor;
 /**
  * {@link Layout} for durations.
  */
-class DurationLayout extends SchemaLayout<DurationSchemaKey>
+class DurationLayout extends IndexLayout<DurationIndexKey,NativeIndexValue>
 {
     DurationLayout()
     {
@@ -33,13 +33,13 @@ class DurationLayout extends SchemaLayout<DurationSchemaKey>
     }
 
     @Override
-    public DurationSchemaKey newKey()
+    public DurationIndexKey newKey()
     {
-        return new DurationSchemaKey();
+        return new DurationIndexKey();
     }
 
     @Override
-    public DurationSchemaKey copyKey( DurationSchemaKey key, DurationSchemaKey into )
+    public DurationIndexKey copyKey( DurationIndexKey key, DurationIndexKey into )
     {
         into.totalAvgSeconds = key.totalAvgSeconds;
         into.nanosOfSecond = key.nanosOfSecond;
@@ -51,13 +51,13 @@ class DurationLayout extends SchemaLayout<DurationSchemaKey>
     }
 
     @Override
-    public int keySize( DurationSchemaKey key )
+    public int keySize( DurationIndexKey key )
     {
-        return DurationSchemaKey.SIZE;
+        return DurationIndexKey.SIZE;
     }
 
     @Override
-    public void writeKey( PageCursor cursor, DurationSchemaKey key )
+    public void writeKey( PageCursor cursor, DurationIndexKey key )
     {
         cursor.putLong( key.totalAvgSeconds );
         cursor.putInt( key.nanosOfSecond );
@@ -67,7 +67,7 @@ class DurationLayout extends SchemaLayout<DurationSchemaKey>
     }
 
     @Override
-    public void readKey( PageCursor cursor, DurationSchemaKey into, int keySize )
+    public void readKey( PageCursor cursor, DurationIndexKey into, int keySize )
     {
         into.totalAvgSeconds = cursor.getLong();
         into.nanosOfSecond = cursor.getInt();

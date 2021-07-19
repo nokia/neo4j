@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -28,10 +28,11 @@ import java.util.function.IntPredicate;
 import org.neo4j.collection.PrimitiveLongResourceCollections;
 import org.neo4j.collection.PrimitiveLongResourceIterator;
 import org.neo4j.helpers.collection.Visitor;
+import org.neo4j.io.pagecache.PageCursor;
 import org.neo4j.kernel.api.labelscan.AllEntriesLabelScanReader;
 import org.neo4j.kernel.api.labelscan.LabelScanStore;
 import org.neo4j.kernel.api.labelscan.NodeLabelUpdate;
-import org.neo4j.kernel.impl.api.index.NodeUpdates;
+import org.neo4j.kernel.impl.api.index.EntityUpdates;
 import org.neo4j.kernel.impl.api.index.StoreScan;
 import org.neo4j.kernel.impl.locking.LockService;
 import org.neo4j.kernel.impl.store.NeoStores;
@@ -47,6 +48,7 @@ import org.neo4j.storageengine.api.schema.LabelScanReader;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
@@ -57,7 +59,7 @@ public class DynamicIndexStoreViewTest
     private final NeoStores neoStores = mock( NeoStores.class );
     private final NodeStore nodeStore = mock( NodeStore.class );
     private final CountsTracker countStore = mock( CountsTracker.class );
-    private final Visitor<NodeUpdates,Exception> propertyUpdateVisitor = mock( Visitor.class );
+    private final Visitor<EntityUpdates,Exception> propertyUpdateVisitor = mock( Visitor.class );
     private final Visitor<NodeLabelUpdate,Exception> labelUpdateVisitor = mock( Visitor.class );
     private final IntPredicate propertyKeyIdFilter = mock( IntPredicate.class );
     private final AllEntriesLabelScanReader nodeLabelRanges = mock( AllEntriesLabelScanReader.class );
@@ -70,7 +72,20 @@ public class DynamicIndexStoreViewTest
         when( neoStores.getCounts() ).thenReturn( countStore );
         when( neoStores.getNodeStore() ).thenReturn( nodeStore );
         when( nodeStore.newRecord() ).thenReturn( nodeRecord );
-        when( nodeStore.getRecord( anyLong(), any( NodeRecord.class ), any( RecordLoad.class ) ) ).thenReturn( nodeRecord );
+        doAnswer( invocation ->
+        {
+            NodeRecord record = invocation.getArgument( 1 );
+            record.initialize( true, 1L, false, 1L, 0L );
+            record.setId( invocation.getArgument( 0 ) );
+            return null;
+        } ).when( nodeStore ).getRecordByCursor( anyLong(), any( NodeRecord.class ), any( RecordLoad.class ), any( PageCursor.class ) );
+        doAnswer( invocation ->
+        {
+            NodeRecord record = invocation.getArgument( 0 );
+            record.initialize( true, 1L, false, 1L, 0L );
+            record.setId( record.getId() + 1 );
+            return null;
+        } ).when( nodeStore ).nextRecordByCursor( any( NodeRecord.class ), any( RecordLoad.class ), any( PageCursor.class ) );
     }
 
     @Test
@@ -83,7 +98,8 @@ public class DynamicIndexStoreViewTest
         PrimitiveLongResourceIterator labeledNodesIterator = PrimitiveLongResourceCollections.iterator( null, 1, 2, 3, 4, 5, 6, 7, 8 );
         when( nodeStore.getHighestPossibleIdInUse() ).thenReturn( 200L );
         when( nodeStore.getHighId() ).thenReturn( 20L );
-        when( labelScanReader.nodesWithAnyOfLabels( 2, 6)).thenReturn( labeledNodesIterator );
+        when( labelScanReader.nodesWithAnyOfLabels( new int[] {2, 6} ) ).thenReturn( labeledNodesIterator );
+        when( nodeStore.openPageCursorForReading( anyLong() ) ).thenReturn( mock( PageCursor.class ) );
 
         mockLabelNodeCount( countStore, 2 );
         mockLabelNodeCount( countStore, 6 );
@@ -96,7 +112,7 @@ public class DynamicIndexStoreViewTest
         storeScan.run();
 
         Mockito.verify( nodeStore, times( 8 ) )
-                .getRecord( anyLong(), any( NodeRecord.class ), any( RecordLoad.class ) );
+                .getRecordByCursor( anyLong(), any( NodeRecord.class ), any( RecordLoad.class ), any( PageCursor.class ) );
     }
 
     @Test
@@ -106,6 +122,7 @@ public class DynamicIndexStoreViewTest
 
         when( nodeStore.getHighestPossibleIdInUse() ).thenReturn( 200L );
         when( nodeStore.getHighId() ).thenReturn( 20L );
+        when( nodeStore.openPageCursorForReading( anyLong() ) ).thenReturn( mock( PageCursor.class ) );
 
         mockLabelNodeCount( countStore, 2 );
         mockLabelNodeCount( countStore, 6 );
@@ -117,8 +134,10 @@ public class DynamicIndexStoreViewTest
 
         storeScan.run();
 
-        Mockito.verify( nodeStore, times( 20 ) )
-                .getRecord( anyLong(), any( NodeRecord.class ), any( RecordLoad.class ) );
+        Mockito.verify( nodeStore, times( 1 ) )
+                .getRecordByCursor( anyLong(), any( NodeRecord.class ), any( RecordLoad.class ), any( PageCursor.class ) );
+        Mockito.verify( nodeStore, times( 200 ) )
+                .nextRecordByCursor( any( NodeRecord.class ), any( RecordLoad.class ), any( PageCursor.class ) );
     }
 
     private DynamicIndexStoreView dynamicIndexStoreView()

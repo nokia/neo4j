@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -76,7 +76,7 @@ public class HttpHeaderUtilsTest
         Log log = logProvider.getLog( HttpServletRequest.class );
         long transactionTimeout = getTransactionTimeout( request, log );
         assertEquals( "Transaction timeout not specified.", 0, transactionTimeout );
-        logProvider.assertContainsMessageContaining("Fail to parse `max-execution-time` " +
+        logProvider.rawMessageMatcher().assertContains("Fail to parse `max-execution-time` " +
                 "header with value: 'aa'. Should be a positive number.");
     }
 

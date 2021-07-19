@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -33,6 +33,7 @@ import org.neo4j.consistency.report.ConsistencyReport;
 import org.neo4j.consistency.report.ConsistencyReporter;
 import org.neo4j.internal.kernel.api.schema.LabelSchemaDescriptor;
 import org.neo4j.internal.kernel.api.schema.RelationTypeSchemaDescriptor;
+import org.neo4j.internal.kernel.api.schema.SchemaDescriptor;
 import org.neo4j.internal.kernel.api.schema.SchemaProcessor;
 import org.neo4j.kernel.impl.store.SchemaStorage;
 import org.neo4j.kernel.impl.store.StoreAccess;
@@ -80,6 +81,12 @@ public class MandatoryProperties
             {
                 recordConstraint( schema.getRelTypeId(), propertyId, relationships );
             }
+        }
+
+        @Override
+        public void processSpecific( SchemaDescriptor schema )
+        {
+            throw new IllegalStateException( "General SchemaDescriptors cannot support constraints" );
         }
     };
 

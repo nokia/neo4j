@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,40 +21,52 @@ package org.neo4j.server;
 
 import sun.misc.Signal;
 
+import java.io.Closeable;
 import java.io.File;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.annotation.Nonnull;
 
 import org.neo4j.graphdb.TransactionFailureException;
+import org.neo4j.graphdb.facade.GraphDatabaseDependencies;
 import org.neo4j.graphdb.factory.GraphDatabaseSettings;
-import org.neo4j.kernel.GraphDatabaseDependencies;
+import org.neo4j.io.IOUtils;
+import org.neo4j.io.fs.DefaultFileSystemAbstraction;
+import org.neo4j.io.fs.FileSystemAbstraction;
 import org.neo4j.kernel.configuration.Config;
 import org.neo4j.kernel.configuration.ConfigurationValidator;
 import org.neo4j.kernel.configuration.HttpConnector.Encryption;
+import org.neo4j.kernel.impl.scheduler.BufferingExecutor;
 import org.neo4j.kernel.info.JvmChecker;
 import org.neo4j.kernel.info.JvmMetadataRepository;
 import org.neo4j.logging.FormattedLogProvider;
 import org.neo4j.logging.Log;
 import org.neo4j.logging.LogProvider;
+import org.neo4j.logging.RotatingFileOutputStreamSupplier;
+import org.neo4j.scheduler.Group;
+import org.neo4j.server.database.GraphFactory;
 import org.neo4j.server.logging.JULBridge;
 import org.neo4j.server.logging.JettyLogBridge;
 
 import static java.lang.String.format;
 import static org.neo4j.commandline.Util.neo4jVersion;
+import static org.neo4j.io.file.Files.createOrOpenAsOutputStream;
 
 public abstract class ServerBootstrapper implements Bootstrapper
 {
     public static final int OK = 0;
-    public static final int WEB_SERVER_STARTUP_ERROR_CODE = 1;
-    public static final int GRAPH_DATABASE_STARTUP_ERROR_CODE = 2;
+    private static final int WEB_SERVER_STARTUP_ERROR_CODE = 1;
+    private static final int GRAPH_DATABASE_STARTUP_ERROR_CODE = 2;
     private static final String SIGTERM = "TERM";
     private static final String SIGINT = "INT";
 
     private volatile NeoServer server;
+    private volatile Closeable userLogFileStream;
     private Thread shutdownHook;
     private GraphDatabaseDependencies dependencies = GraphDatabaseDependencies.newDependencies();
     // in case we have errors loading/validating the configuration log to stdout
@@ -83,7 +95,7 @@ public abstract class ServerBootstrapper implements Bootstrapper
     public final int start( File homeDir, Optional<File> configFile, Map<String, String> configOverrides )
     {
         addShutdownHook();
-        installSignalHandler();
+        installSignalHandlers();
         try
         {
             // Create config file from arguments
@@ -92,6 +104,7 @@ public abstract class ServerBootstrapper implements Bootstrapper
                     .withSettings( configOverrides )
                     .withHome(homeDir)
                     .withValidators( configurationValidators() )
+                    .withNoThrowOnFileLoadFailure() // TODO 4.0: Remove this, and require a neo4j.conf file to be present?
                     .withServerDefaults().build();
 
             LogProvider userLogProvider = setupLogging( config );
@@ -107,7 +120,7 @@ public abstract class ServerBootstrapper implements Bootstrapper
 
             checkCompatibility();
 
-            server = createNeoServer( config, dependencies, userLogProvider );
+            server = createNeoServer( config, dependencies );
             server.start();
 
             return OK;
@@ -137,10 +150,7 @@ public abstract class ServerBootstrapper implements Bootstrapper
         String location = "unknown location";
         try
         {
-            if ( server != null )
-            {
-                server.stop();
-            }
+            doShutdown();
 
             removeShutdownHook();
 
@@ -164,18 +174,45 @@ public abstract class ServerBootstrapper implements Bootstrapper
         return server;
     }
 
-    protected abstract NeoServer createNeoServer( Config config, GraphDatabaseDependencies dependencies,
-                                                  LogProvider userLogProvider );
-
-    @Nonnull
-    protected abstract Collection<ConfigurationValidator> configurationValidators();
-
-    private static LogProvider setupLogging( Config config )
+    public Log getLog()
     {
-        LogProvider userLogProvider = FormattedLogProvider.withoutRenderingContext()
-                            .withZoneId( config.get( GraphDatabaseSettings.db_timezone ).getZoneId() )
-                            .withDefaultLogLevel( config.get( GraphDatabaseSettings.store_internal_log_level ) )
-                            .toOutputStream( System.out );
+        return log;
+    }
+
+    private NeoServer createNeoServer( Config config, GraphDatabaseDependencies dependencies )
+    {
+        GraphFactory graphFactory = createGraphFactory( config );
+
+        boolean httpAndHttpsDisabled = config.enabledHttpConnectors().isEmpty();
+        if ( httpAndHttpsDisabled )
+        {
+            return new DisabledNeoServer( graphFactory, dependencies, config );
+        }
+        return createNeoServer( graphFactory, config, dependencies );
+    }
+
+    protected abstract GraphFactory createGraphFactory( Config config );
+
+    /**
+     * Create a new server component. This method is invoked only when at least one HTTP connector is enabled.
+     */
+    protected abstract NeoServer createNeoServer( GraphFactory graphFactory, Config config, GraphDatabaseDependencies dependencies );
+
+    protected Collection<ConfigurationValidator> configurationValidators()
+    {
+        return Collections.emptyList();
+    }
+
+    private LogProvider setupLogging( Config config )
+    {
+        FormattedLogProvider.Builder builder = FormattedLogProvider
+                .withoutRenderingContext()
+                .withZoneId( config.get( GraphDatabaseSettings.db_timezone ).getZoneId() )
+                .withDefaultLogLevel( config.get( GraphDatabaseSettings.store_internal_log_level ) );
+
+        LogProvider userLogProvider = config.get( GraphDatabaseSettings.store_user_log_to_stdout ) ? builder.toOutputStream( System.out )
+                                                                                                   : createFileSystemUserLogProvider( config, builder );
+
         JULBridge.resetJUL();
         Logger.getLogger( "" ).setLevel( Level.WARNING );
         JULBridge.forwardTo( userLogProvider );
@@ -184,47 +221,52 @@ public abstract class ServerBootstrapper implements Bootstrapper
     }
 
     // Exit gracefully if possible
-    private void installSignalHandler()
+    private void installSignalHandlers()
+    {
+        installSignalHandler( SIGTERM, false ); // SIGTERM is invoked when system service is stopped
+        installSignalHandler( SIGINT, true ); // SIGINT is invoked when user hits ctrl-c  when running `neo4j console`
+    }
+
+    private void installSignalHandler( String sig, boolean tolerateErrors )
     {
         try
         {
-            /*
-             * We want to interrupt the main thread which has start()ed lifecycle instances that may be blocked
-             * somewhere. If we don't do that, then the JVM will hang on the final join() for non daemon threads.
-             */
-            Thread t = Thread.currentThread();
-            log.debug( "Installing signal handler to interrupt thread named " + t.getName() );
-            // SIGTERM is invoked when system service is stopped
-            Signal.handle( new Signal( SIGTERM ), signal ->
+            // System.exit() will trigger the shutdown hook
+            Signal.handle( new Signal( sig ), signal -> System.exit( 0 ) );
+        }
+        catch ( Throwable e )
+        {
+            if ( !tolerateErrors )
             {
-                t.interrupt();
-                System.exit( 0 );
-            } );
+                throw e;
+            }
+            // Errors occur on IBM JDK with IllegalArgumentException: Signal already used by VM: INT
+            // I can't find anywhere where we send a SIGINT to neo4j process so I don't think this is that important
         }
-        catch ( Throwable e )
+    }
+
+    private void doShutdown()
+    {
+        if ( server != null )
         {
-            log.warn( "Unable to install signal handler. Exit code may not be 0 on graceful shutdown.", e );
+            server.stop();
         }
-        try
+        if ( userLogFileStream != null )
         {
-            // SIGINT is invoked when user hits ctrl-c  when running `neo4j console`
-            Signal.handle( new Signal( SIGINT ), signal -> System.exit( 0 ) );
+            closeUserLogFileStream();
         }
-        catch ( Throwable e )
-        {
-            // Happens on IBM JDK with IllegalArgumentException: Signal already used by VM: INT
-            log.warn( "Unable to install signal handler. Exit code may not be 0 on graceful shutdown.", e );
-        }
+    }
+
+    private void closeUserLogFileStream()
+    {
+        IOUtils.closeAllUnchecked( userLogFileStream );
     }
 
     private void addShutdownHook()
     {
         shutdownHook = new Thread( () -> {
             log.info( "Neo4j Server shutdown initiated by request" );
-            if ( server != null )
-            {
-                server.stop();
-            }
+            doShutdown();
         } );
         Runtime.getRuntime().addShutdownHook( shutdownHook );
     }
@@ -237,6 +279,36 @@ public abstract class ServerBootstrapper implements Bootstrapper
             {
                 log.warn( "Unable to remove shutdown hook" );
             }
+        }
+    }
+
+    private LogProvider createFileSystemUserLogProvider( Config config, FormattedLogProvider.Builder builder )
+    {
+        BufferingExecutor deferredExecutor = new BufferingExecutor();
+        dependencies = dependencies.withDeferredExecutor( deferredExecutor, Group.LOG_ROTATION );
+
+        FileSystemAbstraction fs = new DefaultFileSystemAbstraction();
+        File destination = config.get( GraphDatabaseSettings.store_user_log_path );
+        Long rotationThreshold = config.get( GraphDatabaseSettings.store_user_log_rotation_threshold );
+        try
+        {
+            if ( rotationThreshold == 0L )
+            {
+                OutputStream userLog = createOrOpenAsOutputStream( fs, destination, true );
+                // Assign it to the server instance so that it gets closed when the server closes
+                this.userLogFileStream = userLog;
+                return builder.toOutputStream( userLog );
+            }
+            RotatingFileOutputStreamSupplier rotatingUserLogSupplier = new RotatingFileOutputStreamSupplier( fs, destination, rotationThreshold,
+                    config.get( GraphDatabaseSettings.store_user_log_rotation_delay ).toMillis(),
+                    config.get( GraphDatabaseSettings.store_user_log_max_archives ), deferredExecutor );
+            // Assign it to the server instance so that it gets closed when the server closes
+            this.userLogFileStream = rotatingUserLogSupplier;
+            return builder.toOutputStream( rotatingUserLogSupplier );
+        }
+        catch ( IOException e )
+        {
+            throw new RuntimeException( e );
         }
     }
 

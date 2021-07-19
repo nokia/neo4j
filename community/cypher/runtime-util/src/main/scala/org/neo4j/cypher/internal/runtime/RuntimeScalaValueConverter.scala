@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -23,7 +23,7 @@ import java.lang.{Iterable => JavaIterable}
 import java.util
 import java.util.{Map => JavaMap}
 
-import org.neo4j.cypher.internal.util.v3_5.Eagerly.immutableMapValues
+import org.neo4j.cypher.internal.v3_5.util.Eagerly.immutableMapValues
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable

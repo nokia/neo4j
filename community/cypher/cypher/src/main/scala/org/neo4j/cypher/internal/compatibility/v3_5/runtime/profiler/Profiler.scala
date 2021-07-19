@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -23,80 +23,60 @@ import org.eclipse.collections.api.iterator.LongIterator
 import org.neo4j.cypher.internal.compatibility.v3_5.runtime.helpers.PrimitiveLongHelper
 import org.neo4j.cypher.internal.runtime.interpreted.pipes.{Pipe, PipeDecorator, QueryState}
 import org.neo4j.cypher.internal.runtime.interpreted.{DelegatingOperations, DelegatingQueryContext, ExecutionContext}
-import org.neo4j.cypher.internal.runtime.planDescription.InternalPlanDescription
-import org.neo4j.cypher.internal.runtime.planDescription.InternalPlanDescription.Arguments
 import org.neo4j.cypher.internal.runtime.{Operations, QueryContext}
-import org.neo4j.cypher.internal.util.v3_5.attribution.Id
-import org.neo4j.helpers.MathUtil
+import org.neo4j.internal.kernel.api.{NodeCursor, NodeValueIndexCursor}
 import org.neo4j.internal.kernel.api.helpers.RelationshipSelectionCursor
-import org.neo4j.kernel.impl.api.RelationshipVisitor
 import org.neo4j.kernel.impl.api.store.RelationshipIterator
 import org.neo4j.kernel.impl.factory.{DatabaseInfo, Edition}
+import org.neo4j.storageengine.api.RelationshipVisitor
+import org.neo4j.values.storable.Value
 import org.neo4j.values.virtual.{NodeValue, RelationshipValue}
+import org.neo4j.cypher.internal.v3_5.util.attribution.Id
 
-import scala.collection.mutable
-
-class Profiler(databaseInfo: DatabaseInfo = DatabaseInfo.COMMUNITY) extends PipeDecorator {
+class Profiler(databaseInfo: DatabaseInfo,
+               stats: InterpretedProfileInformation) extends PipeDecorator {
   outerProfiler =>
 
-  val pageCacheStats: mutable.Map[Id, (Long, Long)] = mutable.Map.empty
-  val dbHitsStats: mutable.Map[Id, ProfilingPipeQueryContext] = mutable.Map.empty
-  val rowStats: mutable.Map[Id, ProfilingIterator] = mutable.Map.empty
   private var parentPipe: Option[Pipe] = None
 
-
   def decorate(pipe: Pipe, iter: Iterator[ExecutionContext]): Iterator[ExecutionContext] = {
-    val oldCount = rowStats.get(pipe.id).map(_.count).getOrElse(0L)
-    val resultIter = new ProfilingIterator(iter, oldCount, pipe.id, if (trackPageCacheStats) updatePageCacheStatistics
-    else {
-      (_) => Unit})
+    val oldCount = stats.rowMap.get(pipe.id).map(_.count).getOrElse(0L)
+    val resultIter =
+      new ProfilingIterator(iter, oldCount, pipe.id,
+        if (trackPageCacheStats) updatePageCacheStatistics
+        else _ => Unit
+      )
 
-    rowStats(pipe.id) = resultIter
+    stats.rowMap(pipe.id) = resultIter
     resultIter
   }
 
   def decorate(pipe: Pipe, state: QueryState): QueryState = {
-    val decoratedContext = dbHitsStats.getOrElseUpdate(pipe.id, state.query match {
+    val decoratedContext = stats.dbHitsMap.getOrElseUpdate(pipe.id, state.query match {
       case p: ProfilingPipeQueryContext => new ProfilingPipeQueryContext(p.inner, pipe)
       case _ => new ProfilingPipeQueryContext(state.query, pipe)
     })
 
     if (trackPageCacheStats) {
       val statisticProvider = decoratedContext.transactionalContext.kernelStatisticProvider
-      pageCacheStats(pipe.id) = (statisticProvider.getPageCacheHits, statisticProvider.getPageCacheMisses)
+      stats.pageCacheMap(pipe.id) = PageCacheStats(statisticProvider.getPageCacheHits, statisticProvider.getPageCacheMisses)
     }
     state.withQueryContext(decoratedContext)
   }
 
-  private def updatePageCacheStatistics(pipeId: Id) = {
-    val context = dbHitsStats(pipeId)
+  private def updatePageCacheStatistics(pipeId: Id): Unit = {
+    val context = stats.dbHitsMap(pipeId)
     val statisticProvider = context.transactionalContext.kernelStatisticProvider
-    val currentStat = pageCacheStats(pipeId)
-    pageCacheStats(pipeId) = (statisticProvider.getPageCacheHits - currentStat._1, statisticProvider.getPageCacheMisses - currentStat._2)
+    val currentStat = stats.pageCacheMap(pipeId)
+    stats.pageCacheMap(pipeId) =
+      PageCacheStats(
+        statisticProvider.getPageCacheHits - currentStat.hits,
+        statisticProvider.getPageCacheMisses - currentStat.misses
+      )
   }
 
   private def trackPageCacheStats = {
     databaseInfo.edition != Edition.community
-  }
-
-  def decorate(plan: () => InternalPlanDescription, verifyProfileReady: () => Unit): () => InternalPlanDescription = {
-    () => {
-      verifyProfileReady()
-      plan() map {
-        input: InternalPlanDescription =>
-          val rows = rowStats.get(input.id).map(_.count).getOrElse(0L)
-          val dbHits = dbHitsStats.get(input.id).map(_.count).getOrElse(0L)
-          val (hits: Long, misses: Long) = pageCacheStats.getOrElse(input.id, (0L, 0L))
-          val hitRatio = MathUtil.portion(hits, misses)
-
-          input
-            .addArgument(Arguments.Rows(rows))
-            .addArgument(Arguments.DbHits(dbHits))
-            .addArgument(Arguments.PageCacheHits(hits))
-            .addArgument(Arguments.PageCacheMisses(misses))
-            .addArgument(Arguments.PageCacheHitRatio(hitRatio))
-      }
-    }
   }
 
   def innerDecorator(owningPipe: Pipe): PipeDecorator = new PipeDecorator {
@@ -108,9 +88,6 @@ class Profiler(databaseInfo: DatabaseInfo = DatabaseInfo.COMMUNITY) extends Pipe
       outerProfiler.decorate(owningPipe, state)
 
     def decorate(pipe: Pipe, iter: Iterator[ExecutionContext]): Iterator[ExecutionContext] = iter
-
-    def decorate(plan: () => InternalPlanDescription, verifyProfileReady: () => Unit): () => InternalPlanDescription =
-      outerProfiler.decorate(plan, verifyProfileReady)
   }
 
   def registerParentPipe(pipe: Pipe): Unit =
@@ -188,6 +165,30 @@ final class ProfilingPipeQueryContext(inner: QueryContext, val p: Pipe)
     override def propertiesReference(): Long = inner.propertiesReference()
   }
 
+  override protected def manyDbHits[A](inner: NodeValueIndexCursor): NodeValueIndexCursor = new NodeValueIndexCursor {
+
+    override def numberOfProperties(): Int = inner.numberOfProperties()
+
+    override def propertyKey(offset: Int): Int = inner.propertyKey(offset)
+
+    override def hasValue: Boolean = inner.hasValue
+
+    override def propertyValue(offset: Int): Value = inner.propertyValue(offset)
+
+    override def node(cursor: NodeCursor): Unit = inner.node(cursor)
+
+    override def nodeReference(): Long = inner.nodeReference()
+
+    override def next(): Boolean = {
+      increment()
+      inner.next()
+    }
+
+    override def close(): Unit = inner.close()
+
+    override def isClosed: Boolean = inner.isClosed
+  }
+
   class ProfilerOperations[T](inner: Operations[T]) extends DelegatingOperations[T](inner) {
     override protected def singleDbHit[A](value: A): A = self.singleDbHit(value)
     override protected def manyDbHits[A](value: Iterator[A]): Iterator[A] = self.manyDbHits(value)
@@ -204,11 +205,13 @@ class ProfilingIterator(inner: Iterator[ExecutionContext], startValue: Long, pip
   with Counter {
 
   _count = startValue
+  private var updatedStatistics = false
 
   def hasNext: Boolean = {
     val hasNext = inner.hasNext
-    if (!hasNext) {
+    if (!hasNext && !updatedStatistics) {
       updatePageCacheStatistics(pipeId)
+      updatedStatistics = true
     }
     hasNext
   }

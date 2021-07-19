@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,26 +21,31 @@ package org.neo4j.kernel.api.impl.schema;
 
 import java.io.File;
 
+import org.neo4j.internal.kernel.api.schema.IndexProviderDescriptor;
 import org.neo4j.kernel.api.index.IndexDirectoryStructure;
-import org.neo4j.kernel.api.index.IndexProvider;
-import org.neo4j.kernel.extension.KernelExtensionFactory;
-import org.neo4j.kernel.impl.index.schema.NumberIndexProvider;
+import org.neo4j.kernel.impl.index.schema.AbstractIndexProviderFactory;
+import org.neo4j.kernel.impl.index.schema.fusion.FusionIndexProvider;
 
 import static org.neo4j.kernel.api.index.IndexDirectoryStructure.directoriesByProvider;
 import static org.neo4j.kernel.api.index.IndexDirectoryStructure.directoriesBySubProvider;
 
-abstract class NativeLuceneFusionIndexProviderFactory<DEPENDENCIES> extends KernelExtensionFactory<DEPENDENCIES>
+public abstract class NativeLuceneFusionIndexProviderFactory<DEPENDENCIES extends AbstractIndexProviderFactory.Dependencies>
+        extends AbstractIndexProviderFactory<DEPENDENCIES>
 {
-    public static final String KEY = LuceneIndexProviderFactory.KEY + "+" + NumberIndexProvider.KEY;
-
-    NativeLuceneFusionIndexProviderFactory()
+    NativeLuceneFusionIndexProviderFactory( String key )
     {
-        super( KEY );
+        super( key );
     }
 
-    public static IndexDirectoryStructure.Factory subProviderDirectoryStructure( File storeDir, IndexProvider.Descriptor descriptor )
+    @Override
+    protected Class loggingClass()
     {
-        IndexDirectoryStructure parentDirectoryStructure = directoriesByProvider( storeDir ).forProvider( descriptor );
+        return FusionIndexProvider.class;
+    }
+
+    public static IndexDirectoryStructure.Factory subProviderDirectoryStructure( File databaseDirectory, IndexProviderDescriptor descriptor )
+    {
+        IndexDirectoryStructure parentDirectoryStructure = directoriesByProvider( databaseDirectory ).forProvider( descriptor );
         return directoriesBySubProvider( parentDirectoryStructure );
     }
 }

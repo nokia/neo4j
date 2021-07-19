@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -46,7 +46,7 @@ public class ParallelRecordScanner<RECORD> extends RecordScanner<RECORD>
     @Override
     protected void scan()
     {
-        long recordsPerCPU = RecordDistributor.calculateRecodsPerCpu( store.maxCount(), numberOfThreads );
+        long recordsPerCPU = RecordDistributor.calculateRecordsPerCpu( store.maxCount(), numberOfThreads );
         cacheAccess.prepareForProcessingOfSingleStore( recordsPerCPU );
 
         QueueDistributor<RECORD> distributor = distribution.distributor( recordsPerCPU, numberOfThreads );

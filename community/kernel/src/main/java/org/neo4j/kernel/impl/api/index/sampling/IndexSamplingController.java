@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,21 +21,28 @@ package org.neo4j.kernel.impl.api.index.sampling;
 
 import org.eclipse.collections.api.iterator.LongIterator;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import org.neo4j.collection.PrimitiveLongCollections;
 import org.neo4j.internal.kernel.api.InternalIndexState;
-import org.neo4j.kernel.api.schema.index.SchemaIndexDescriptor;
 import org.neo4j.kernel.impl.api.index.IndexMap;
 import org.neo4j.kernel.impl.api.index.IndexMapSnapshotProvider;
 import org.neo4j.kernel.impl.api.index.IndexProxy;
+import org.neo4j.logging.Log;
+import org.neo4j.logging.LogProvider;
+import org.neo4j.scheduler.Group;
+import org.neo4j.scheduler.JobHandle;
 import org.neo4j.scheduler.JobScheduler;
-import org.neo4j.scheduler.JobScheduler.JobHandle;
+import org.neo4j.storageengine.api.schema.CapableIndexDescriptor;
+import org.neo4j.storageengine.api.schema.StoreIndexDescriptor;
+import org.neo4j.util.FeatureToggles;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.neo4j.kernel.impl.api.index.sampling.IndexSamplingMode.BACKGROUND_REBUILD_UPDATED;
-import static org.neo4j.scheduler.JobScheduler.Groups.indexSamplingController;
 
 public class IndexSamplingController
 {
@@ -47,6 +54,13 @@ public class IndexSamplingController
     private final RecoveryCondition indexRecoveryCondition;
     private final boolean backgroundSampling;
     private final Lock samplingLock = new ReentrantLock();
+    private final Log log;
+    static final String LOG_RECOVER_INDEX_SAMPLES_NAME = "log_recover_index_samples";
+    static final String ASYNC_RECOVER_INDEX_SAMPLES_NAME = "async_recover_index_samples";
+    static final String ASYNC_RECOVER_INDEX_SAMPLES_WAIT_NAME = "async_recover_index_samples_wait";
+    private final boolean logRecoverIndexSamples;
+    private final boolean asyncRecoverIndexSamples;
+    private final boolean asyncRecoverIndexSamplesWait;
 
     private JobHandle backgroundSamplingHandle;
 
@@ -57,7 +71,8 @@ public class IndexSamplingController
                              IndexSamplingJobTracker jobTracker,
                              IndexMapSnapshotProvider indexMapSnapshotProvider,
                              JobScheduler scheduler,
-                             RecoveryCondition indexRecoveryCondition )
+                             RecoveryCondition indexRecoveryCondition,
+                             LogProvider logProvider )
     {
         this.backgroundSampling = config.backgroundSampling();
         this.jobFactory = jobFactory;
@@ -66,6 +81,11 @@ public class IndexSamplingController
         this.jobTracker = jobTracker;
         this.scheduler = scheduler;
         this.indexRecoveryCondition = indexRecoveryCondition;
+        this.log = logProvider.getLog( getClass() );
+        this.logRecoverIndexSamples = FeatureToggles.flag( IndexSamplingController.class, LOG_RECOVER_INDEX_SAMPLES_NAME, false );
+        this.asyncRecoverIndexSamples = FeatureToggles.flag( IndexSamplingController.class, ASYNC_RECOVER_INDEX_SAMPLES_NAME, false );
+        this.asyncRecoverIndexSamplesWait =
+                FeatureToggles.flag( IndexSamplingController.class, ASYNC_RECOVER_INDEX_SAMPLES_WAIT_NAME, asyncRecoverIndexSamples );
     }
 
     public void sampleIndexes( IndexSamplingMode mode )
@@ -89,13 +109,38 @@ public class IndexSamplingController
         {
             IndexMap indexMap = indexMapSnapshotProvider.indexMapSnapshot();
             final LongIterator indexIds = indexMap.indexIds();
+            List<IndexSamplingJobHandle> asyncSamplingJobs = new ArrayList<>();
             while ( indexIds.hasNext() )
             {
                 long indexId = indexIds.next();
-                if ( indexRecoveryCondition.test( indexId, indexMap.getIndexProxy( indexId ).getDescriptor() ) )
+                CapableIndexDescriptor descriptor = indexMap.getIndexProxy( indexId ).getDescriptor();
+                if ( indexRecoveryCondition.test( descriptor ) )
                 {
-                    sampleIndexOnCurrentThread( indexMap, indexId );
+                    if ( logRecoverIndexSamples )
+                    {
+                        log.info( "Index requires sampling, id=%d, name=%s.", indexId, descriptor.getName() );
+                    }
+
+                    if ( asyncRecoverIndexSamples )
+                    {
+                        asyncSamplingJobs.add( sampleIndexOnTracker( indexMap, indexId ) );
+                    }
+                    else
+                    {
+                        sampleIndexOnCurrentThread( indexMap, indexId );
+                    }
                 }
+                else
+                {
+                    if ( logRecoverIndexSamples )
+                    {
+                        log.info( "Index does not require sampling, id=%d, name=%s.", indexId, descriptor.getName() );
+                    }
+                }
+            }
+            if ( asyncRecoverIndexSamplesWait )
+            {
+                waitForAsyncIndexSamples( asyncSamplingJobs );
             }
         }
         finally
@@ -104,9 +149,25 @@ public class IndexSamplingController
         }
     }
 
+    private void waitForAsyncIndexSamples( List<IndexSamplingJobHandle> asyncSamplingJobs )
+    {
+        for ( IndexSamplingJobHandle asyncSamplingJob : asyncSamplingJobs )
+        {
+            try
+            {
+                asyncSamplingJob.jobHandle.waitTermination();
+            }
+            catch ( InterruptedException | ExecutionException e )
+            {
+                throw new RuntimeException(
+                        "Failed to asynchronously sample index during recovery, index: " + asyncSamplingJob.indexSamplingJob.indexId(), e );
+            }
+        }
+    }
+
     public interface RecoveryCondition
     {
-        boolean test( long indexId, SchemaIndexDescriptor descriptor );
+        boolean test( StoreIndexDescriptor descriptor );
     }
 
     private void scheduleSampling( IndexSamplingMode mode, IndexMap indexMap )
@@ -179,13 +240,14 @@ public class IndexSamplingController
         }
     }
 
-    private void sampleIndexOnTracker( IndexMap indexMap, long indexId )
+    private IndexSamplingJobHandle sampleIndexOnTracker( IndexMap indexMap, long indexId )
     {
         IndexSamplingJob job = createSamplingJob( indexMap, indexId );
         if ( job != null )
         {
-            jobTracker.scheduleSamplingJob( job );
+            return new IndexSamplingJobHandle( job, jobTracker.scheduleSamplingJob( job ) );
         }
+        return new IndexSamplingJobHandle( job, JobHandle.nullInstance );
     }
 
     private void sampleIndexOnCurrentThread( IndexMap indexMap, long indexId )
@@ -212,7 +274,7 @@ public class IndexSamplingController
         if ( backgroundSampling )
         {
             Runnable samplingRunner = () -> sampleIndexes( BACKGROUND_REBUILD_UPDATED );
-            backgroundSamplingHandle = scheduler.scheduleRecurring( indexSamplingController, samplingRunner, 10, SECONDS );
+            backgroundSamplingHandle = scheduler.scheduleRecurring( Group.INDEX_SAMPLING, samplingRunner, 10, SECONDS );
         }
     }
 
@@ -223,5 +285,17 @@ public class IndexSamplingController
             backgroundSamplingHandle.cancel( true );
         }
         jobTracker.stopAndAwaitAllJobs();
+    }
+
+    private static class IndexSamplingJobHandle
+    {
+        final IndexSamplingJob indexSamplingJob;
+        final JobHandle jobHandle;
+
+        IndexSamplingJobHandle( IndexSamplingJob indexSamplingJob, JobHandle jobHandle )
+        {
+            this.indexSamplingJob = indexSamplingJob;
+            this.jobHandle = jobHandle;
+        }
     }
 }

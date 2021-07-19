@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -22,8 +22,8 @@ package org.neo4j.cypher
 import org.neo4j.cypher.internal.compiler.v3_5.planner.LogicalPlanningTestSupport2
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.QueryGraphSolver
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.idp._
-import org.neo4j.cypher.internal.util.v3_5.Foldable.FoldableAny
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
+import org.neo4j.cypher.internal.v3_5.util.Foldable.FoldableAny
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
 import org.neo4j.cypher.internal.ir.v3_5.RegularPlannerQuery
 import org.neo4j.cypher.internal.v3_5.logical.plans.{LogicalPlan, NodeHashJoin}
 import org.scalacheck.Gen
@@ -66,7 +66,7 @@ class JoinHintPlanningIntegrationTest extends CypherFunSuite with PatternGen wit
     val semanticPlan = new given {
       cardinality = mapCardinality {
         // expand - cheap
-        case RegularPlannerQuery(queryGraph, _, _) if queryGraph.patternRelationships.size == 1 => 100.0
+        case RegularPlannerQuery(queryGraph, _, _, _) if queryGraph.patternRelationships.size == 1 => 100.0
         // everything else - expensive
         case _ => Double.MaxValue
       }

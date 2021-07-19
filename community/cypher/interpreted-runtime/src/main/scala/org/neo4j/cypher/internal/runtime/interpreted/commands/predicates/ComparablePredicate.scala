@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,53 +20,38 @@
 package org.neo4j.cypher.internal.runtime.interpreted.commands.predicates
 
 import org.neo4j.cypher.internal.runtime.interpreted.ExecutionContext
+import org.neo4j.cypher.internal.runtime.interpreted.commands.AstNode
 import org.neo4j.cypher.internal.runtime.interpreted.commands.expressions.{Expression, Literal, Variable}
 import org.neo4j.cypher.internal.runtime.interpreted.pipes.QueryState
-import org.neo4j.values.{AnyValues, Comparison}
+import org.neo4j.cypher.operations.CypherBoolean
+import org.neo4j.values.AnyValue
 import org.neo4j.values.storable._
 
 abstract sealed class ComparablePredicate(val left: Expression, val right: Expression) extends Predicate {
 
-  def compare(comparisonResult: Option[Int]): Option[Boolean]
+  def comparator: ((AnyValue, AnyValue) => Value)
 
-  def isMatch(m: ExecutionContext, state: QueryState): Option[Boolean] = {
+  override def isMatch(m: ExecutionContext, state: QueryState): Option[Boolean] = {
     val l = left(m, state)
     val r = right(m, state)
 
-    val res = if (l == Values.NO_VALUE || r == Values.NO_VALUE) None
-    else (l, r) match {
-      case (d: FloatingPointValue, _) if d.doubleValue().isNaN => None
-      case (_, d: FloatingPointValue) if d.doubleValue().isNaN => None
-      case (n1: NumberValue, n2: NumberValue) => compare(undefinedToNone(AnyValues.TERNARY_COMPARATOR.ternaryCompare(n1, n2)))
-      case (n1: TextValue, n2: TextValue) => compare(undefinedToNone(AnyValues.TERNARY_COMPARATOR.ternaryCompare(n1, n2)))
-      case (n1: BooleanValue, n2: BooleanValue) => compare(undefinedToNone(AnyValues.TERNARY_COMPARATOR.ternaryCompare(n1, n2)))
-      case (n1: PointValue, n2: PointValue) => compare(undefinedToNone(AnyValues.TERNARY_COMPARATOR.ternaryCompare(n1, n2)))
-      case (n1: DateValue, n2: DateValue) => compare(undefinedToNone(AnyValues.TERNARY_COMPARATOR.ternaryCompare(n1, n2)))
-      case (n1: LocalTimeValue, n2: LocalTimeValue) => compare(undefinedToNone(AnyValues.TERNARY_COMPARATOR.ternaryCompare(n1, n2)))
-      case (n1: TimeValue, n2: TimeValue) => compare(undefinedToNone(AnyValues.TERNARY_COMPARATOR.ternaryCompare(n1, n2)))
-      case (n1: LocalDateTimeValue, n2: LocalDateTimeValue) => compare(undefinedToNone(AnyValues.TERNARY_COMPARATOR.ternaryCompare(n1, n2)))
-      case (n1: DateTimeValue, n2: DateTimeValue) => compare(undefinedToNone(AnyValues.TERNARY_COMPARATOR.ternaryCompare(n1, n2)))
-      case _ => None
+    if (l == Values.NO_VALUE || r == Values.NO_VALUE) None
+    else comparator(l, r) match {
+      case Values.TRUE => Some(true)
+      case Values.FALSE => Some(false)
+      case Values.NO_VALUE => None
     }
-    res
-  }
-
-  private def undefinedToNone(i: Comparison) : Option[Int] = {
-    // Do NOT use Option here (as suggested by the warning).
-    // This would lead to NullPointerExceptions when i == null
-    if(i == Comparison.UNDEFINED) None
-    else Some(i.value())
   }
 
   def sign: String
 
   override def toString = left.toString() + " " + sign + " " + right.toString()
 
-  def containsIsNull = false
+  override def containsIsNull = false
 
-  def arguments = Seq(left, right)
+  override def arguments: Seq[Expression] = Seq(left, right)
 
-  def symbolTableDependencies = left.symbolTableDependencies ++ right.symbolTableDependencies
+  override def symbolTableDependencies: Set[String] = left.symbolTableDependencies ++ right.symbolTableDependencies
 
   def other(e: Expression): Expression = if (e != left) {
     assert(e == right, "This expression is neither LHS nor RHS")
@@ -84,7 +69,7 @@ case class Equals(a: Expression, b: Expression) extends Predicate {
     else None
   }
 
-  def isMatch(m: ExecutionContext, state: QueryState): Option[Boolean] = {
+  override def isMatch(m: ExecutionContext, state: QueryState): Option[Boolean] = {
     val l = a(m, state)
     val r = b(m, state)
 
@@ -96,50 +81,60 @@ case class Equals(a: Expression, b: Expression) extends Predicate {
 
   override def toString = s"$a == $b"
 
-  def containsIsNull = (a, b) match {
+  override def containsIsNull: Boolean = (a, b) match {
     case (Variable(_), Literal(null)) => true
     case _ => false
   }
 
-  def rewrite(f: (Expression) => Expression) = f(Equals(a.rewrite(f), b.rewrite(f)))
+  override def rewrite(f: Expression => Expression): Expression = f(Equals(a.rewrite(f), b.rewrite(f)))
 
-  def arguments = Seq(a, b)
+  override def arguments: Seq[Expression] = Seq(a, b)
 
-  def symbolTableDependencies = a.symbolTableDependencies ++ b.symbolTableDependencies
+  override def children: Seq[AstNode[_]] = Seq(a, b)
+
+  override def symbolTableDependencies: Set[String] = a.symbolTableDependencies ++ b.symbolTableDependencies
 }
 
 case class LessThan(a: Expression, b: Expression) extends ComparablePredicate(a, b) {
 
-  override def compare(comparisonResult: Option[Int]): Option[Boolean] = comparisonResult.map(_ < 0)
+  override def comparator: (AnyValue, AnyValue) => Value = CypherBoolean.lessThan
 
-  def sign: String = "<"
+  override def sign: String = "<"
 
-  def rewrite(f: (Expression) => Expression) = f(LessThan(a.rewrite(f), b.rewrite(f)))
+  override def rewrite(f: Expression => Expression): Expression = f(LessThan(a.rewrite(f), b.rewrite(f)))
+
+  override def children: Seq[AstNode[_]] = Seq(a, b)
 }
 
 case class GreaterThan(a: Expression, b: Expression) extends ComparablePredicate(a, b) {
 
-  override def compare(comparisonResult: Option[Int]): Option[Boolean] = comparisonResult.map(_ > 0)
+  override def comparator: (AnyValue, AnyValue) => Value = CypherBoolean.greaterThan
 
-  def sign: String = ">"
+  override def sign: String = ">"
 
-  def rewrite(f: (Expression) => Expression) = f(GreaterThan(a.rewrite(f), b.rewrite(f)))
+  override def rewrite(f: Expression => Expression): Expression = f(GreaterThan(a.rewrite(f), b.rewrite(f)))
+
+  override def children: Seq[AstNode[_]] = Seq(a, b)
 }
 
 case class LessThanOrEqual(a: Expression, b: Expression) extends ComparablePredicate(a, b) {
 
-  override def compare(comparisonResult: Option[Int]): Option[Boolean] = comparisonResult.map(_ <= 0)
+  override def comparator: (AnyValue, AnyValue) => Value = CypherBoolean.lessThanOrEqual
 
-  def sign: String = "<="
+  override def sign: String = "<="
 
-  def rewrite(f: (Expression) => Expression) = f(LessThanOrEqual(a.rewrite(f), b.rewrite(f)))
+  override def rewrite(f: Expression => Expression): Expression = f(LessThanOrEqual(a.rewrite(f), b.rewrite(f)))
+
+  override def children: Seq[AstNode[_]] = Seq(a, b)
 }
 
 case class GreaterThanOrEqual(a: Expression, b: Expression) extends ComparablePredicate(a, b) {
 
-  override def compare(comparisonResult: Option[Int]): Option[Boolean] = comparisonResult.map(_ >= 0)
+  override def comparator: (AnyValue, AnyValue) => Value = CypherBoolean.greaterThanOrEqual
 
-  def sign: String = ">="
+  override def sign: String = ">="
 
-  def rewrite(f: (Expression) => Expression) = f(GreaterThanOrEqual(a.rewrite(f), b.rewrite(f)))
+  override def rewrite(f: Expression => Expression): Expression = f(GreaterThanOrEqual(a.rewrite(f), b.rewrite(f)))
+
+  override def children: Seq[AstNode[_]] = Seq(a, b)
 }

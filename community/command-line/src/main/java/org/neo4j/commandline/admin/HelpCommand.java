@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -50,7 +50,7 @@ public class HelpCommand implements AdminCommand
             }
             catch ( NoSuchElementException e )
             {
-                StringBuilder validCommands = new StringBuilder( "" );
+                StringBuilder validCommands = new StringBuilder();
                 locator.getAllProviders()
                         .forEach( commandProvider -> validCommands.append( commandProvider.name() ).append( " " ) );
 

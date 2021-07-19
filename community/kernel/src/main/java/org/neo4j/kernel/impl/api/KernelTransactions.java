@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -34,27 +34,28 @@ import org.neo4j.graphdb.TransactionFailureException;
 import org.neo4j.internal.kernel.api.security.LoginContext;
 import org.neo4j.internal.kernel.api.security.SecurityContext;
 import org.neo4j.io.pagecache.tracing.cursor.context.VersionContextSupplier;
-import org.neo4j.kernel.AvailabilityGuard;
 import org.neo4j.kernel.api.KernelTransaction;
 import org.neo4j.kernel.api.KernelTransactionHandle;
 import org.neo4j.kernel.api.exceptions.Status;
 import org.neo4j.kernel.api.explicitindex.AutoIndexing;
-import org.neo4j.kernel.api.txstate.ExplicitIndexTransactionState;
+import org.neo4j.kernel.api.txstate.auxiliary.AuxiliaryTransactionStateManager;
+import org.neo4j.kernel.availability.AvailabilityGuard;
+import org.neo4j.kernel.configuration.Config;
+import org.neo4j.kernel.impl.api.index.IndexingProvidersService;
 import org.neo4j.kernel.impl.api.index.IndexingService;
 import org.neo4j.kernel.impl.api.state.ConstraintIndexCreator;
-import org.neo4j.kernel.impl.api.state.ExplicitIndexTransactionStateImpl;
 import org.neo4j.kernel.impl.constraints.ConstraintSemantics;
+import org.neo4j.kernel.impl.core.TokenHolders;
 import org.neo4j.kernel.impl.factory.AccessCapability;
 import org.neo4j.kernel.impl.index.ExplicitIndexStore;
-import org.neo4j.kernel.impl.index.IndexConfigStore;
 import org.neo4j.kernel.impl.locking.StatementLocks;
 import org.neo4j.kernel.impl.locking.StatementLocksFactory;
-import org.neo4j.kernel.impl.newapi.DefaultCursors;
 import org.neo4j.kernel.impl.proc.Procedures;
 import org.neo4j.kernel.impl.store.TransactionId;
 import org.neo4j.kernel.impl.transaction.TransactionHeaderInformationFactory;
 import org.neo4j.kernel.impl.transaction.TransactionMonitor;
 import org.neo4j.kernel.impl.transaction.log.TransactionIdStore;
+import org.neo4j.kernel.impl.util.Dependencies;
 import org.neo4j.kernel.impl.util.MonotonicCounter;
 import org.neo4j.kernel.impl.util.collection.CollectionsFactorySupplier;
 import org.neo4j.kernel.lifecycle.LifecycleAdapter;
@@ -83,9 +84,10 @@ public class KernelTransactions extends LifecycleAdapter implements Supplier<Ker
     private final SchemaWriteGuard schemaWriteGuard;
     private final TransactionHeaderInformationFactory transactionHeaderInformationFactory;
     private final TransactionCommitProcess transactionCommitProcess;
+    private final AuxiliaryTransactionStateManager auxTxStateManager;
     private final TransactionHooks hooks;
     private final TransactionMonitor transactionMonitor;
-    private final AvailabilityGuard availabilityGuard;
+    private final AvailabilityGuard databaseAvailabilityGuard;
     private final Tracers tracers;
     private final StorageEngine storageEngine;
     private final Procedures procedures;
@@ -93,15 +95,17 @@ public class KernelTransactions extends LifecycleAdapter implements Supplier<Ker
     private final AtomicReference<CpuClock> cpuClockRef;
     private final AtomicReference<HeapAllocation> heapAllocationRef;
     private final AccessCapability accessCapability;
-    private final Supplier<ExplicitIndexTransactionState> explicitIndexTxStateSupplier;
     private final SystemNanoClock clock;
     private final VersionContextSupplier versionContextSupplier;
     private final ReentrantReadWriteLock newTransactionsLock = new ReentrantReadWriteLock();
     private final MonotonicCounter userTransactionIdCounter = MonotonicCounter.newAtomicMonotonicCounter();
-    private final Supplier<DefaultCursors> cursorsSupplier;
     private final AutoIndexing autoIndexing;
     private final ExplicitIndexStore explicitIndexStore;
     private final IndexingService indexingService;
+    private final TokenHolders tokenHolders;
+    private final String currentDatabaseName;
+    private final Dependencies dataSourceDependencies;
+    private final Config config;
     private final CollectionsFactorySupplier collectionsFactorySupplier;
     private final SchemaState schemaState;
 
@@ -121,8 +125,7 @@ public class KernelTransactions extends LifecycleAdapter implements Supplier<Ker
     // This is the factory that actually builds brand-new instances.
     private final Factory<KernelTransactionImplementation> factory = new KernelTransactionImplementationFactory( allTransactions );
     // Global pool of transactions, wrapped by the thread-local marshland pool and so is not used directly.
-    private final LinkedQueuePool<KernelTransactionImplementation> globalTxPool =
-            new GlobalKernelTransactionPool( allTransactions, factory );
+    private final GlobalKernelTransactionPool globalTxPool = new GlobalKernelTransactionPool( allTransactions, factory );
     // Pool of unused transactions.
     private final MarshlandPool<KernelTransactionImplementation> localTxPool = new MarshlandPool<>( globalTxPool );
     private final ConstraintSemantics constraintSemantics;
@@ -134,33 +137,27 @@ public class KernelTransactions extends LifecycleAdapter implements Supplier<Ker
      */
     private volatile boolean stopped = true;
 
-    public KernelTransactions( StatementLocksFactory statementLocksFactory,
-            ConstraintIndexCreator constraintIndexCreator, StatementOperationParts statementOperations,
-            SchemaWriteGuard schemaWriteGuard, TransactionHeaderInformationFactory txHeaderFactory,
-            TransactionCommitProcess transactionCommitProcess, IndexConfigStore indexConfigStore,
-            ExplicitIndexProviderLookup explicitIndexProviderLookup, TransactionHooks hooks,
-            TransactionMonitor transactionMonitor, AvailabilityGuard availabilityGuard, Tracers tracers,
-            StorageEngine storageEngine, Procedures procedures, TransactionIdStore transactionIdStore,
-            SystemNanoClock clock,
-            AtomicReference<CpuClock> cpuClockRef, AtomicReference<HeapAllocation> heapAllocationRef, AccessCapability accessCapability,
-            Supplier<DefaultCursors> cursorsSupplier,
-            AutoIndexing autoIndexing,
-            ExplicitIndexStore explicitIndexStore,
-            VersionContextSupplier versionContextSupplier,
-            CollectionsFactorySupplier collectionsFactorySupplier,
-            ConstraintSemantics constraintSemantics,
-            SchemaState schemaState,
-            IndexingService indexingService )
+    public KernelTransactions( Config config, StatementLocksFactory statementLocksFactory, ConstraintIndexCreator constraintIndexCreator,
+            StatementOperationParts statementOperations, SchemaWriteGuard schemaWriteGuard, TransactionHeaderInformationFactory txHeaderFactory,
+            TransactionCommitProcess transactionCommitProcess, AuxiliaryTransactionStateManager auxTxStateManager, TransactionHooks hooks,
+            TransactionMonitor transactionMonitor, AvailabilityGuard databaseAvailabilityGuard, Tracers tracers, StorageEngine storageEngine,
+            Procedures procedures, TransactionIdStore transactionIdStore, SystemNanoClock clock, AtomicReference<CpuClock> cpuClockRef,
+            AtomicReference<HeapAllocation> heapAllocationRef, AccessCapability accessCapability, AutoIndexing autoIndexing,
+            ExplicitIndexStore explicitIndexStore, VersionContextSupplier versionContextSupplier, CollectionsFactorySupplier collectionsFactorySupplier,
+            ConstraintSemantics constraintSemantics, SchemaState schemaState, IndexingService indexingService, TokenHolders tokenHolders,
+            String currentDatabaseName, Dependencies dataSourceDependencies )
     {
+        this.config = config;
         this.statementLocksFactory = statementLocksFactory;
         this.constraintIndexCreator = constraintIndexCreator;
         this.statementOperations = statementOperations;
         this.schemaWriteGuard = schemaWriteGuard;
         this.transactionHeaderInformationFactory = txHeaderFactory;
         this.transactionCommitProcess = transactionCommitProcess;
+        this.auxTxStateManager = auxTxStateManager;
         this.hooks = hooks;
         this.transactionMonitor = transactionMonitor;
-        this.availabilityGuard = availabilityGuard;
+        this.databaseAvailabilityGuard = databaseAvailabilityGuard;
         this.tracers = tracers;
         this.storageEngine = storageEngine;
         this.procedures = procedures;
@@ -171,13 +168,12 @@ public class KernelTransactions extends LifecycleAdapter implements Supplier<Ker
         this.autoIndexing = autoIndexing;
         this.explicitIndexStore = explicitIndexStore;
         this.indexingService = indexingService;
-        this.explicitIndexTxStateSupplier = () ->
-                new CachingExplicitIndexTransactionState(
-                        new ExplicitIndexTransactionStateImpl( indexConfigStore, explicitIndexProviderLookup ) );
+        this.tokenHolders = tokenHolders;
+        this.currentDatabaseName = currentDatabaseName;
+        this.dataSourceDependencies = dataSourceDependencies;
         this.versionContextSupplier = versionContextSupplier;
         this.clock = clock;
         doBlockNewTransactions();
-        this.cursorsSupplier = cursorsSupplier;
         this.collectionsFactorySupplier = collectionsFactorySupplier;
         this.constraintSemantics = constraintSemantics;
         this.schemaState = schemaState;
@@ -186,8 +182,7 @@ public class KernelTransactions extends LifecycleAdapter implements Supplier<Ker
     public KernelTransaction newInstance( KernelTransaction.Type type, LoginContext loginContext, long timeout )
     {
         assertCurrentThreadIsNotBlockingNewTransactions();
-        SecurityContext securityContext = loginContext.authorize( p -> storageEngine
-                .storeReadLayer().propertyKeyGetOrCreateForName( p ) );
+        SecurityContext securityContext = loginContext.authorize( tokenHolders.propertyKeyTokens()::getOrCreateId, currentDatabaseName );
         try
         {
             while ( !newTransactionsLock.readLock().tryLock( 1, TimeUnit.SECONDS ) )
@@ -278,6 +273,7 @@ public class KernelTransactions extends LifecycleAdapter implements Supplier<Ker
     public void shutdown()
     {
         disposeAll();
+        unblockNewTransactions(); // Release the lock before we discard this object
     }
 
     @Override
@@ -335,7 +331,7 @@ public class KernelTransactions extends LifecycleAdapter implements Supplier<Ker
 
     private void assertRunning()
     {
-        if ( availabilityGuard.isShutdown() )
+        if ( databaseAvailabilityGuard.isShutdown() )
         {
             throw new DatabaseShutdownException();
         }
@@ -367,14 +363,14 @@ public class KernelTransactions extends LifecycleAdapter implements Supplier<Ker
         public KernelTransactionImplementation newInstance()
         {
             KernelTransactionImplementation tx =
-                    new KernelTransactionImplementation( statementOperations, schemaWriteGuard, hooks,
+                    new KernelTransactionImplementation( config, statementOperations, schemaWriteGuard, hooks,
                             constraintIndexCreator, procedures, transactionHeaderInformationFactory,
-                            transactionCommitProcess, transactionMonitor, explicitIndexTxStateSupplier, localTxPool,
+                            transactionCommitProcess, transactionMonitor, auxTxStateManager, localTxPool,
                             clock, cpuClockRef, heapAllocationRef, tracers.transactionTracer, tracers.lockTracer,
                             tracers.pageCursorTracerSupplier, storageEngine, accessCapability,
-                            cursorsSupplier.get(), autoIndexing,
+                            autoIndexing,
                             explicitIndexStore, versionContextSupplier, collectionsFactorySupplier, constraintSemantics,
-                            schemaState, indexingService );
+                            schemaState, indexingService, tokenHolders, dataSourceDependencies );
             this.transactions.add( tx );
             return tx;
         }

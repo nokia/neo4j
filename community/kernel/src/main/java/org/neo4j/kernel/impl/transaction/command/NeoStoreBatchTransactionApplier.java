@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,15 +19,13 @@
  */
 package org.neo4j.kernel.impl.transaction.command;
 
-import java.io.IOException;
-
 import org.neo4j.kernel.impl.api.BatchTransactionApplier;
 import org.neo4j.kernel.impl.api.TransactionApplier;
 import org.neo4j.kernel.impl.core.CacheAccessBackDoor;
 import org.neo4j.kernel.impl.locking.LockGroup;
 import org.neo4j.kernel.impl.locking.LockService;
 import org.neo4j.kernel.impl.store.NeoStores;
-import org.neo4j.kernel.impl.transaction.command.Command.Version;
+import org.neo4j.storageengine.api.CommandVersion;
 import org.neo4j.storageengine.api.CommandsToApply;
 
 /**
@@ -38,7 +36,7 @@ import org.neo4j.storageengine.api.CommandsToApply;
  */
 public class NeoStoreBatchTransactionApplier extends BatchTransactionApplier.Adapter
 {
-    private final Version version;
+    private final CommandVersion version;
     private final NeoStores neoStores;
     // Ideally we don't want any cache access in here, but it is how it is. At least we try to minimize use of it
     private final CacheAccessBackDoor cacheAccess;
@@ -46,10 +44,10 @@ public class NeoStoreBatchTransactionApplier extends BatchTransactionApplier.Ada
 
     public NeoStoreBatchTransactionApplier( NeoStores store, CacheAccessBackDoor cacheAccess, LockService lockService )
     {
-        this( Version.AFTER, store, cacheAccess, lockService );
+        this( CommandVersion.AFTER, store, cacheAccess, lockService );
     }
 
-    public NeoStoreBatchTransactionApplier( Version version, NeoStores store, CacheAccessBackDoor cacheAccess, LockService lockService )
+    public NeoStoreBatchTransactionApplier( CommandVersion version, NeoStores store, CacheAccessBackDoor cacheAccess, LockService lockService )
     {
         this.version = version;
         this.neoStores = store;

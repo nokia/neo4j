@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,8 +19,8 @@
  */
 package org.neo4j.cypher.internal.v3_5.logical.plans
 
-import org.neo4j.cypher.internal.util.v3_5.attribution.IdGen
-import org.neo4j.cypher.internal.v3_5.expressions.{Expression, LabelToken, PropertyKeyToken}
+import org.neo4j.cypher.internal.v3_5.expressions._
+import org.neo4j.cypher.internal.v3_5.util.attribution.{IdGen, SameId}
 
 /**
   * This operator does a full scan of an index, producing rows for all entries that end with a string value
@@ -30,11 +30,21 @@ import org.neo4j.cypher.internal.v3_5.expressions.{Expression, LabelToken, Prope
   */
 case class NodeIndexEndsWithScan(idName: String,
                                  label: LabelToken,
-                                 propertyKey: PropertyKeyToken,
+                                 property: IndexedProperty,
                                  valueExpr: Expression,
-                                 argumentIds: Set[String])
+                                 argumentIds: Set[String],
+                                 indexOrder: IndexOrder)
                                 (implicit idGen: IdGen)
-  extends NodeLogicalLeafPlan(idGen) {
+  extends IndexLeafPlan(idGen) {
+
+  override def properties: Seq[IndexedProperty] = Seq(property)
+
+  override def cachedNodeProperties: Traversable[CachedNodeProperty] = property.maybeCachedNodeProperty(idName)
 
   val availableSymbols: Set[String] = argumentIds + idName
+
+  override def availableCachedNodeProperties: Map[Property, CachedNodeProperty] = property.asAvailablePropertyMap(idName)
+
+  override def copyWithoutGettingValues: NodeIndexEndsWithScan =
+    NodeIndexEndsWithScan(idName, label, IndexedProperty(property.propertyKeyToken, DoNotGetValue), valueExpr, argumentIds, indexOrder)(SameId(this.id))
 }

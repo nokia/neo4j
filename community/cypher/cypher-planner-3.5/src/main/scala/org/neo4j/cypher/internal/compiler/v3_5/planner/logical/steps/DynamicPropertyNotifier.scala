@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,9 +20,9 @@
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.steps
 
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.LogicalPlanningContext
-import org.neo4j.cypher.internal.frontend.v3_5.notification.InternalNotification
 import org.neo4j.cypher.internal.ir.v3_5.QueryGraph
 import org.neo4j.cypher.internal.v3_5.expressions.{LabelName, Variable}
+import org.neo4j.cypher.internal.v3_5.util.InternalNotification
 
 object DynamicPropertyNotifier {
 
@@ -39,6 +39,8 @@ object DynamicPropertyNotifier {
     }
   }
 
-  private def withIndex(labelName: LabelName, context: LogicalPlanningContext) =
-    context.planContext.indexExistsForLabel(labelName.name)
+  private def withIndex(labelName: LabelName, context: LogicalPlanningContext) = {
+    val maybeLabelId = context.semanticTable.id(labelName)
+    maybeLabelId.fold(false)(context.planContext.indexExistsForLabel(_))
+  }
 }

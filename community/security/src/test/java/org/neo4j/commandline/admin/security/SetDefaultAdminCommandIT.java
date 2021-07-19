@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -28,9 +28,10 @@ import org.neo4j.commandline.admin.AdminTool;
 import org.neo4j.commandline.admin.BlockerLocator;
 import org.neo4j.commandline.admin.CommandLocator;
 import org.neo4j.commandline.admin.OutsideWorld;
+import org.neo4j.graphdb.factory.GraphDatabaseSettings;
 import org.neo4j.graphdb.mockfs.EphemeralFileSystemAbstraction;
 import org.neo4j.io.fs.FileSystemAbstraction;
-import org.neo4j.kernel.impl.security.Credential;
+import org.neo4j.server.security.auth.LegacyCredential;
 import org.neo4j.kernel.impl.security.User;
 import org.neo4j.logging.NullLogProvider;
 import org.neo4j.server.security.auth.CommunitySecurityModule;
@@ -62,7 +63,7 @@ public class SetDefaultAdminCommandIT
     @Before
     public void setup()
     {
-        File graphDir = new File( "graph-db" );
+        File graphDir = new File( GraphDatabaseSettings.DEFAULT_DATABASE_NAME );
         confDir = new File( graphDir, "conf" );
         homeDir = new File( graphDir, "home" );
         out = mock( OutsideWorld.class );
@@ -182,7 +183,7 @@ public class SetDefaultAdminCommandIT
         FileUserRepository userRepository = new FileUserRepository( fileSystem, userFile,
                 NullLogProvider.getInstance() );
         userRepository.start();
-        userRepository.create( new User.Builder( username, Credential.INACCESSIBLE ).build() );
+        userRepository.create( new User.Builder( username, LegacyCredential.INACCESSIBLE ).build() );
         assertTrue( userRepository.getAllUsernames().contains( username ) );
         userRepository.stop();
         userRepository.shutdown();

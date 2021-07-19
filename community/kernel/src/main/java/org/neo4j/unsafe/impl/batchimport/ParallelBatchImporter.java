@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,15 +19,15 @@
  */
 package org.neo4j.unsafe.impl.batchimport;
 
-import java.io.File;
 import java.io.IOException;
 
 import org.neo4j.io.fs.FileSystemAbstraction;
+import org.neo4j.io.layout.DatabaseLayout;
 import org.neo4j.io.pagecache.PageCache;
 import org.neo4j.kernel.configuration.Config;
-import org.neo4j.kernel.impl.logging.LogService;
 import org.neo4j.kernel.impl.store.format.RecordFormats;
-import org.neo4j.kernel.lifecycle.LifecycleAdapter;
+import org.neo4j.logging.internal.LogService;
+import org.neo4j.scheduler.JobScheduler;
 import org.neo4j.unsafe.impl.batchimport.input.Input;
 import org.neo4j.unsafe.impl.batchimport.staging.ExecutionMonitor;
 import org.neo4j.unsafe.impl.batchimport.store.BatchingNeoStores;
@@ -44,10 +44,10 @@ import static org.neo4j.unsafe.impl.batchimport.ImportLogic.instantiateNeoStores
  * Goes through multiple stages where each stage has one or more steps executing in parallel, passing
  * batches between these steps through each stage, i.e. passing batches downstream.
  */
-public class ParallelBatchImporter extends LifecycleAdapter implements BatchImporter
+public class ParallelBatchImporter implements BatchImporter
 {
     private final PageCache externalPageCache;
-    private final File storeDir;
+    private final DatabaseLayout directoryStructure;
     private final FileSystemAbstraction fileSystem;
     private final Configuration config;
     private final LogService logService;
@@ -56,13 +56,15 @@ public class ParallelBatchImporter extends LifecycleAdapter implements BatchImpo
     private final ExecutionMonitor executionMonitor;
     private final AdditionalInitialIds additionalInitialIds;
     private final ImportLogic.Monitor monitor;
+    private final JobScheduler jobScheduler;
 
-    public ParallelBatchImporter( File storeDir, FileSystemAbstraction fileSystem, PageCache externalPageCache,
+    public ParallelBatchImporter( DatabaseLayout directoryStructure, FileSystemAbstraction fileSystem, PageCache externalPageCache,
             Configuration config, LogService logService, ExecutionMonitor executionMonitor,
-            AdditionalInitialIds additionalInitialIds, Config dbConfig, RecordFormats recordFormats, ImportLogic.Monitor monitor )
+            AdditionalInitialIds additionalInitialIds, Config dbConfig, RecordFormats recordFormats, ImportLogic.Monitor monitor,
+            JobScheduler jobScheduler )
     {
         this.externalPageCache = externalPageCache;
-        this.storeDir = storeDir;
+        this.directoryStructure = directoryStructure;
         this.fileSystem = fileSystem;
         this.config = config;
         this.logService = logService;
@@ -71,14 +73,15 @@ public class ParallelBatchImporter extends LifecycleAdapter implements BatchImpo
         this.executionMonitor = executionMonitor;
         this.additionalInitialIds = additionalInitialIds;
         this.monitor = monitor;
+        this.jobScheduler = jobScheduler;
     }
 
     @Override
     public void doImport( Input input ) throws IOException
     {
-        try ( BatchingNeoStores store = instantiateNeoStores( fileSystem, storeDir, externalPageCache, recordFormats,
-                      config, logService, additionalInitialIds, dbConfig );
-              ImportLogic logic = new ImportLogic( storeDir, fileSystem, store, config, logService,
+        try ( BatchingNeoStores store = instantiateNeoStores( fileSystem, directoryStructure.databaseDirectory(), externalPageCache, recordFormats,
+                      config, logService, additionalInitialIds, dbConfig, jobScheduler );
+              ImportLogic logic = new ImportLogic( directoryStructure.databaseDirectory(), fileSystem, store, config, logService,
                       executionMonitor, recordFormats, monitor ) )
         {
             store.createNew();
@@ -92,7 +95,7 @@ public class ParallelBatchImporter extends LifecycleAdapter implements BatchImpo
             logic.defragmentRelationshipGroups();
             logic.buildCountsStore();
 
-            store.success();
+            logic.success();
         }
     }
 }

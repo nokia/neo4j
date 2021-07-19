@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -22,7 +22,7 @@ package org.neo4j.kernel.api.impl.schema.sampler;
 import org.apache.lucene.search.IndexSearcher;
 
 import org.neo4j.helpers.TaskControl;
-import org.neo4j.kernel.api.exceptions.index.IndexNotFoundKernelException;
+import org.neo4j.internal.kernel.api.exceptions.schema.IndexNotFoundKernelException;
 import org.neo4j.kernel.impl.api.index.sampling.UniqueIndexSampler;
 import org.neo4j.storageengine.api.schema.IndexSample;
 
@@ -41,7 +41,7 @@ public class UniqueLuceneIndexSampler extends LuceneIndexSampler
     }
 
     @Override
-    protected IndexSample performSampling() throws IndexNotFoundKernelException
+    public IndexSample sampleIndex() throws IndexNotFoundKernelException
     {
         UniqueIndexSampler sampler = new UniqueIndexSampler();
         sampler.increment( indexSearcher.getIndexReader().numDocs() );

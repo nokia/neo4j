@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,41 +19,30 @@
  */
 package org.neo4j.kernel.impl.api;
 
+import java.util.Objects;
+
 import org.neo4j.kernel.impl.api.operations.QueryRegistrationOperations;
+
+import static org.apache.commons.lang3.ObjectUtils.firstNonNull;
 
 public class StatementOperationParts
 {
     private final QueryRegistrationOperations queryRegistrationOperations;
+    private static final String ERROR_MSG =
+            "No part of type " + QueryRegistrationOperations.class.getSimpleName() + " assigned";
 
-    public StatementOperationParts(
-            QueryRegistrationOperations queryRegistrationOperations )
+    public StatementOperationParts( QueryRegistrationOperations queryRegistrationOperations )
     {
         this.queryRegistrationOperations = queryRegistrationOperations;
     }
 
-    public QueryRegistrationOperations queryRegistrationOperations()
+    QueryRegistrationOperations queryRegistrationOperations()
     {
-        return checkNotNull( queryRegistrationOperations, QueryRegistrationOperations.class );
+        return Objects.requireNonNull( queryRegistrationOperations, ERROR_MSG );
     }
 
     public StatementOperationParts override( QueryRegistrationOperations queryRegistrationOperations )
     {
-        return new StatementOperationParts(
-                eitherOr( queryRegistrationOperations, this.queryRegistrationOperations, QueryRegistrationOperations.class ) );
-    }
-
-    private <T> T checkNotNull( T object, Class<T> cls )
-    {
-        if ( object == null )
-        {
-            throw new IllegalStateException( "No part of type " + cls.getSimpleName() + " assigned" );
-        }
-        return object;
-    }
-
-    private <T> T eitherOr( T first, T other,
-            @SuppressWarnings( "UnusedParameters"/*used as type flag*/ ) Class<T> cls )
-    {
-        return first != null ? first : other;
+        return new StatementOperationParts( firstNonNull( queryRegistrationOperations, this.queryRegistrationOperations ) );
     }
 }

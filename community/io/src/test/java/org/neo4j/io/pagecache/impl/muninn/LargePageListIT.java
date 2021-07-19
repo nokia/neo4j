@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,7 +19,7 @@
  */
 package org.neo4j.io.pagecache.impl.muninn;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.stream.IntStream;
 
@@ -27,16 +27,16 @@ import org.neo4j.io.ByteUnit;
 import org.neo4j.io.mem.MemoryAllocator;
 import org.neo4j.memory.GlobalMemoryTracker;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class LargePageListIT
+class LargePageListIT
 {
     @Test
-    public void veryLargePageListsMustBeFullyAccessible()
+    void veryLargePageListsMustBeFullyAccessible()
     {
         // We need roughly 2 GiBs of memory for the meta-data here, which is why this is an IT and not a Test.
         // We add one extra page worth of data to the size here, to avoid ending up on a "convenient" boundary.
@@ -60,7 +60,7 @@ public class LargePageListIT
         IntStream.range( pages - 2000, pages ).parallel().forEach( id -> verifyPageMetaDataIsAccessible( pageList, id ) );
     }
 
-    private void verifyPageMetaDataIsAccessible( PageList pageList, int id )
+    private static void verifyPageMetaDataIsAccessible( PageList pageList, int id )
     {
         long ref = pageList.deref( id );
         pageList.incrementUsage( ref );

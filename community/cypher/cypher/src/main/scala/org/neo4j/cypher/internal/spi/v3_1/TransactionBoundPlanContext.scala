@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -35,8 +35,7 @@ import org.neo4j.internal.kernel.api.procs.Neo4jTypes.AnyType
 import org.neo4j.internal.kernel.api.procs.{DefaultParameterValue, Neo4jTypes}
 import org.neo4j.internal.kernel.api.{IndexReference, InternalIndexState, procs}
 import org.neo4j.kernel.api.schema.SchemaDescriptorFactory
-import org.neo4j.kernel.api.schema.constaints.ConstraintDescriptor
-import org.neo4j.kernel.api.schema.index.{SchemaIndexDescriptor => KernelIndexDescriptor}
+import org.neo4j.kernel.api.schema.constraints.ConstraintDescriptor
 import org.neo4j.procedure.Mode
 
 import scala.collection.JavaConverters._
@@ -77,7 +76,7 @@ class TransactionBoundPlanContext(tc: TransactionalContextWrapper, logger: Inter
 
   private def getOnlineIndex(descriptor: IndexReference): Option[SchemaTypes.IndexDescriptor] =
     tc.kernelTransaction.schemaRead.indexGetState(descriptor) match {
-      case InternalIndexState.ONLINE => Some(SchemaTypes.IndexDescriptor(descriptor.label(), descriptor.properties()(0)))
+      case InternalIndexState.ONLINE => Some(SchemaTypes.IndexDescriptor(descriptor.schema().getEntityTokenIds()(0), descriptor.schema().getPropertyIds()(0)))
       case _                         => None
     }
 

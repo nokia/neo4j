@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,53 +19,60 @@
  */
 package org.neo4j.index;
 
-import org.apache.commons.lang3.RandomStringUtils;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import org.neo4j.graphdb.Label;
 import org.neo4j.graphdb.index.IndexManager;
+import org.neo4j.helpers.collection.Pair;
 import org.neo4j.index.lucene.unsafe.batchinsert.LuceneBatchInserterIndexProvider;
+import org.neo4j.test.extension.Inject;
+import org.neo4j.test.extension.TestDirectoryExtension;
 import org.neo4j.test.rule.TestDirectory;
 import org.neo4j.unsafe.batchinsert.BatchInserter;
 import org.neo4j.unsafe.batchinsert.BatchInserterIndex;
 import org.neo4j.unsafe.batchinsert.BatchInserters;
 
+import static java.time.Duration.ofMillis;
+import static java.util.stream.Collectors.toMap;
+import static org.apache.commons.lang3.RandomStringUtils.randomAlphabetic;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
 import static org.neo4j.helpers.collection.MapUtil.stringMap;
 
-public class ExplicitIndexTest
+@ExtendWith( TestDirectoryExtension.class )
+class ExplicitIndexTest
 {
     private static final long TEST_TIMEOUT = 80_000;
 
-    @Rule
-    public TestDirectory directory = TestDirectory.testDirectory();
+    @Inject
+    private TestDirectory directory;
 
-    @Test( timeout = TEST_TIMEOUT )
-    public void explicitIndexPopulationWithBunchOfFields() throws Exception
+    @Test
+    void explicitIndexPopulationWithBunchOfFields()
     {
-        BatchInserter batchNode = BatchInserters.inserter( directory.graphDbDir() );
-        LuceneBatchInserterIndexProvider provider = new LuceneBatchInserterIndexProvider( batchNode );
-        try
+        assertTimeout( ofMillis( TEST_TIMEOUT ), () ->
         {
-            BatchInserterIndex batchIndex = provider.nodeIndex( "node_auto_index",
-                    stringMap( IndexManager.PROVIDER, "lucene", "type", "fulltext" ) );
-
-            Map<String,Object> properties = new HashMap<>();
-            for ( int i = 0; i < 2000; i++ )
+            BatchInserter batchNode = BatchInserters.inserter( directory.databaseDir() );
+            LuceneBatchInserterIndexProvider provider = new LuceneBatchInserterIndexProvider( batchNode );
+            try
             {
-                properties.put( Integer.toString( i ), RandomStringUtils.randomAlphabetic( 200 ) );
-            }
+                BatchInserterIndex batchIndex = provider.nodeIndex( "node_auto_index", stringMap( IndexManager.PROVIDER, "lucene", "type", "fulltext" ) );
 
-            long node = batchNode.createNode( properties, Label.label( "NODE" ) );
-            batchIndex.add( node, properties );
-        }
-        finally
-        {
-            provider.shutdown();
-            batchNode.shutdown();
-        }
+                Map<String,Object> properties = IntStream.range( 0, 2000 )
+                        .mapToObj( i -> Pair.of( Integer.toString( i ), randomAlphabetic( 200 ) ) )
+                        .collect( toMap( Pair::first, Pair::other ) );
+
+                long node = batchNode.createNode( properties, Label.label( "NODE" ) );
+                batchIndex.add( node, properties );
+            }
+            finally
+            {
+                provider.shutdown();
+                batchNode.shutdown();
+            }
+        } );
     }
 }

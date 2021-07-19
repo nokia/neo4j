@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,11 +20,24 @@
 package org.neo4j.index.internal.gbptree;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 import org.neo4j.io.pagecache.PageCursor;
 
 public class SimpleByteArrayLayout extends TestLayout<RawBytes,RawBytes>
 {
+    private final boolean useFirstLongAsSeed;
+
+    SimpleByteArrayLayout()
+    {
+        this( true );
+    }
+
+    SimpleByteArrayLayout( boolean useFirstLongAsSeed )
+    {
+        this.useFirstLongAsSeed = useFirstLongAsSeed;
+    }
+
     @Override
     public RawBytes newKey()
     {
@@ -34,10 +47,12 @@ public class SimpleByteArrayLayout extends TestLayout<RawBytes,RawBytes>
     @Override
     public RawBytes copyKey( RawBytes rawBytes, RawBytes into )
     {
-        byte[] src = rawBytes.bytes;
-        byte[] target = new byte[src.length];
-        System.arraycopy( src, 0, target, 0, src.length );
-        into.bytes = target;
+        return copyKey( rawBytes, into, rawBytes.bytes.length );
+    }
+
+    private RawBytes copyKey( RawBytes rawBytes, RawBytes into, int length )
+    {
+        into.bytes = Arrays.copyOf( rawBytes.bytes, length );
         return into;
     }
 
@@ -100,6 +115,34 @@ public class SimpleByteArrayLayout extends TestLayout<RawBytes,RawBytes>
     }
 
     @Override
+    public void minimalSplitter( RawBytes left, RawBytes right, RawBytes into )
+    {
+        long leftSeed = keySeed( left );
+        long rightSeed = keySeed( right );
+        if ( useFirstLongAsSeed && leftSeed != rightSeed )
+        {
+            // Minimal splitter is first 8B (seed)
+            copyKey( right, into, Long.BYTES );
+        }
+        else
+        {
+            // They had the same seed. Need to look at entire array
+            int maxLength = Math.min( left.bytes.length, right.bytes.length );
+            int firstIndexToDiffer = 0;
+            for ( ; firstIndexToDiffer < maxLength; firstIndexToDiffer++ )
+            {
+                if ( left.bytes[firstIndexToDiffer] != right.bytes[firstIndexToDiffer] )
+                {
+                    break;
+                }
+            }
+            // Convert from index to length
+            int targetLength = firstIndexToDiffer + 1;
+            copyKey( right, into, targetLength );
+        }
+    }
+
+    @Override
     public long identifier()
     {
         return 666;
@@ -128,8 +171,15 @@ public class SimpleByteArrayLayout extends TestLayout<RawBytes,RawBytes>
         {
             return 1;
         }
-        int compare = Long.compare( keySeed( o1 ), keySeed( o2 ) );
-        return compare != 0 ? compare : byteArrayCompare( o1.bytes, o2.bytes, Long.BYTES );
+        if ( useFirstLongAsSeed )
+        {
+            int compare = Long.compare( keySeed( o1 ), keySeed( o2 ) );
+            return compare != 0 ? compare : byteArrayCompare( o1.bytes, o2.bytes, Long.BYTES );
+        }
+        else
+        {
+            return byteArrayCompare( o1.bytes, o2.bytes, 0 );
+        }
     }
 
     @Override

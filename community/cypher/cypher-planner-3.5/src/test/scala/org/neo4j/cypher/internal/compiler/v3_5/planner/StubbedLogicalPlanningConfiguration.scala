@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,13 +21,13 @@ package org.neo4j.cypher.internal.compiler.v3_5.planner
 
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.ExpressionEvaluator
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.Metrics.{CardinalityModel, QueryGraphCardinalityModel, QueryGraphSolverInput}
-import org.neo4j.cypher.internal.frontend.v3_5.semantics.SemanticTable
 import org.neo4j.cypher.internal.ir.v3_5._
-import org.neo4j.cypher.internal.planner.v3_5.spi.GraphStatistics
 import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.Cardinalities
-import org.neo4j.cypher.internal.util.v3_5.{Cardinality, Cost, LabelId, Selectivity}
-import org.neo4j.cypher.internal.v3_5.logical.plans.LogicalPlan
+import org.neo4j.cypher.internal.planner.v3_5.spi.{GraphStatistics, IndexOrderCapability}
+import org.neo4j.cypher.internal.v3_5.logical.plans.{LogicalPlan, ProcedureSignature}
+import org.neo4j.cypher.internal.v3_5.ast.semantics.SemanticTable
 import org.neo4j.cypher.internal.v3_5.expressions.{Expression, HasLabels}
+import org.neo4j.cypher.internal.v3_5.util.{Cardinality, Cost, LabelId}
 
 class StubbedLogicalPlanningConfiguration(val parent: LogicalPlanningConfiguration)
   extends LogicalPlanningConfiguration with LogicalPlanningConfigurationAdHocSemanticTable {
@@ -35,6 +35,7 @@ class StubbedLogicalPlanningConfiguration(val parent: LogicalPlanningConfigurati
   self =>
 
   var knownLabels: Set[String] = Set.empty
+  var knownRelationships: Set[String] = Set.empty
   var cardinality: PartialFunction[PlannerQuery, Cardinality] = PartialFunction.empty
   var cost: PartialFunction[(LogicalPlan, QueryGraphSolverInput, Cardinalities), Cost] = PartialFunction.empty
   var labelCardinality: Map[String, Cardinality] = Map.empty
@@ -43,40 +44,62 @@ class StubbedLogicalPlanningConfiguration(val parent: LogicalPlanningConfigurati
   var expressionEvaluator: ExpressionEvaluator = new ExpressionEvaluator {
     override def evaluateExpression(expr: Expression): Option[Any] = ???
 
-    override def isNonDeterministic(expr: Expression): Boolean = ???
+    override def isDeterministic(expr: Expression): Boolean = ???
 
     override def hasParameters(expr: Expression): Boolean = ???
   }
 
-  var indexes: Set[(String, Seq[String])] = Set.empty
-  var uniqueIndexes: Set[(String, Seq[String])] = Set.empty
+  var indexes: Map[IndexDef, IndexType] = Map.empty
 
-  lazy val labelsById: Map[Int, String] = (indexes ++ uniqueIndexes).map(_._1).zipWithIndex.map(_.swap).toMap
+  var procedureSignatures: Set[ProcedureSignature] = Set.empty
 
-  def indexOn(label: String, properties: String*) {
-    indexes = indexes + (label -> properties)
+  lazy val labelsById: Map[Int, String] = indexes.keys.map(_.label).zipWithIndex.map(_.swap).toMap
+
+  case class IndexModifier(indexType: IndexType) {
+    def providesValues(): IndexModifier = {
+      indexType.withValues = true
+      this
+    }
+    def providesOrder(order: IndexOrderCapability): IndexModifier = {
+      indexType.withOrdering = order
+      this
+    }
   }
 
-  def uniqueIndexOn(label: String, properties: String*) {
-    uniqueIndexes = uniqueIndexes + (label -> properties)
+  def indexOn(label: String, properties: String*): IndexModifier = {
+    val indexType = new IndexType()
+    indexes += IndexDef(label, properties) -> indexType
+    IndexModifier(indexType)
   }
 
-  def costModel() = cost.orElse(parent.costModel())
+  def uniqueIndexOn(label: String, properties: String*): IndexModifier = {
+    val indexType = new IndexType(isUnique = true)
+    indexes += IndexDef(label, properties) -> indexType
+    IndexModifier(indexType)
+  }
 
-  def cardinalityModel(queryGraphCardinalityModel: QueryGraphCardinalityModel, evalutor: ExpressionEvaluator): CardinalityModel = {
-    (pq: PlannerQuery, input: QueryGraphSolverInput, semanticTable: SemanticTable) => {
-      val labelIdCardinality: Map[LabelId, Cardinality] = labelCardinality.map {
-        case (name: String, cardinality: Cardinality) =>
-          semanticTable.resolvedLabelNames(name) -> cardinality
-      }
-      val labelScanCardinality: PartialFunction[PlannerQuery, Cardinality] = {
-        case RegularPlannerQuery(queryGraph, _, _) if queryGraph.patternNodes.size == 1 &&
-          computeOptionCardinality(queryGraph, semanticTable, labelIdCardinality).isDefined =>
-          computeOptionCardinality(queryGraph, semanticTable, labelIdCardinality).get
-      }
+  def procedure(signature: ProcedureSignature): Unit = {
+    procedureSignatures += signature
+  }
 
-      val r: PartialFunction[PlannerQuery, Cardinality] = labelScanCardinality.orElse(cardinality)
-      if (r.isDefinedAt(pq)) r.apply(pq) else parent.cardinalityModel(queryGraphCardinalityModel, evalutor)(pq, input, semanticTable)
+  override def costModel(): PartialFunction[(LogicalPlan, QueryGraphSolverInput, Cardinalities), Cost] = cost.orElse(parent.costModel())
+
+  override def cardinalityModel(queryGraphCardinalityModel: QueryGraphCardinalityModel, evaluator: ExpressionEvaluator): CardinalityModel = {
+    new CardinalityModel {
+      override def apply(pq: PlannerQuery, input: QueryGraphSolverInput, semanticTable: SemanticTable): Cardinality = {
+        val labelIdCardinality: Map[LabelId, Cardinality] = labelCardinality.map {
+          case (name: String, cardinality: Cardinality) =>
+            semanticTable.resolvedLabelNames(name) -> cardinality
+        }
+        val labelScanCardinality: PartialFunction[PlannerQuery, Cardinality] = {
+          case RegularPlannerQuery(queryGraph, _, _, _) if queryGraph.patternNodes.size == 1 &&
+            computeOptionCardinality(queryGraph, semanticTable, labelIdCardinality).isDefined =>
+            computeOptionCardinality(queryGraph, semanticTable, labelIdCardinality).get
+        }
+
+        val r: PartialFunction[PlannerQuery, Cardinality] = labelScanCardinality.orElse(cardinality)
+        if (r.isDefinedAt(pq)) r.apply(pq) else parent.cardinalityModel(queryGraphCardinalityModel, evaluator)(pq, input, semanticTable)
+      }
     }
   }
 
@@ -92,7 +115,7 @@ class StubbedLogicalPlanningConfiguration(val parent: LogicalPlanningConfigurati
     results.headOption
   }
 
-  def graphStatistics: GraphStatistics =
+  override def graphStatistics: GraphStatistics =
     Option(statistics).getOrElse(parent.graphStatistics)
 
 }

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,7 +20,6 @@
 package org.neo4j.ext.udc.impl;
 
 import java.io.File;
-import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
 import java.net.InetAddress;
@@ -33,17 +32,17 @@ import java.util.Properties;
 import java.util.regex.Pattern;
 
 import org.neo4j.ext.udc.UdcSettings;
-import org.neo4j.graphdb.ResourceIterator;
+import org.neo4j.graphdb.DependencyResolver;
 import org.neo4j.graphdb.config.Setting;
 import org.neo4j.helpers.collection.MapUtil;
+import org.neo4j.io.fs.FileSystemAbstraction;
+import org.neo4j.io.fs.FileUtils;
 import org.neo4j.io.os.OsBeanUtil;
 import org.neo4j.kernel.NeoStoreDataSource;
 import org.neo4j.kernel.configuration.Config;
-import org.neo4j.kernel.impl.core.StartupStatistics;
 import org.neo4j.kernel.impl.store.id.IdGeneratorFactory;
 import org.neo4j.kernel.impl.store.id.IdType;
 import org.neo4j.kernel.impl.transaction.state.DataSourceManager;
-import org.neo4j.storageengine.api.StoreFileMetadata;
 import org.neo4j.udc.UsageData;
 import org.neo4j.udc.UsageDataKeys;
 
@@ -75,31 +74,31 @@ import static org.neo4j.ext.udc.UdcConstants.VERSION;
 
 public class DefaultUdcInformationCollector implements UdcInformationCollector
 {
+    private static final Map<String,String> jarNamesForTags =
+            MapUtil.stringMap( "spring-", "spring", "(javax.ejb|ejb-jar)", "ejb",
+                    "(weblogic|glassfish|websphere|jboss)", "appserver", "openshift", "openshift", "cloudfoundry",
+                    "cloudfoundry", "(junit|testng)", "test", "jruby", "ruby", "clojure", "clojure", "jython", "python",
+                    "groovy", "groovy", "(tomcat|jetty)", "web", "spring-data-neo4j", "sdn" );
+
     private final Config config;
     private final UsageData usageData;
-    private final IdGeneratorFactory idGeneratorFactory;
 
     private String storeId;
-    private boolean crashPing;
 
     private NeoStoreDataSource neoStoreDataSource;
 
-    public DefaultUdcInformationCollector( Config config, DataSourceManager xadsm,
-            IdGeneratorFactory idGeneratorFactory, StartupStatistics startupStats, UsageData usageData )
+    DefaultUdcInformationCollector( Config config, DataSourceManager dataSourceManager, UsageData usageData )
     {
         this.config = config;
         this.usageData = usageData;
-        this.idGeneratorFactory = idGeneratorFactory;
-        final StartupStatistics startupStatistics = startupStats;
 
-        if ( xadsm != null )
+        if ( dataSourceManager != null )
         {
-            xadsm.addListener( new DataSourceManager.Listener()
+            dataSourceManager.addListener( new DataSourceManager.Listener()
             {
                 @Override
                 public void registered( NeoStoreDataSource ds )
                 {
-                    crashPing = startupStatistics.numberOfRecoveredTransactions() > 0;
                     storeId = Long.toHexString( ds.getStoreId().getRandomId() );
 
                     neoStoreDataSource = ds;
@@ -108,7 +107,6 @@ public class DefaultUdcInformationCollector implements UdcInformationCollector
                 @Override
                 public void unregistered( NeoStoreDataSource ds )
                 {
-                    crashPing = false;
                     storeId = null;
 
                     neoStoreDataSource = null;
@@ -117,7 +115,7 @@ public class DefaultUdcInformationCollector implements UdcInformationCollector
         }
     }
 
-    public static String filterVersionForUDC( String version )
+    static String filterVersionForUDC( String version )
     {
         if ( !version.contains( "+" ) )
         {
@@ -175,32 +173,13 @@ public class DefaultUdcInformationCollector implements UdcInformationCollector
         {
             return;
         }
-
-        try ( ResourceIterator<StoreFileMetadata> files = neoStoreDataSource.listStoreFiles( false ) )
-        {
-            addStoreFileSizes( udcFields, files );
-        }
-        catch ( IOException | NullPointerException ignored )
-        {
-            // we just didn't report store file sizes this time around
-        }
+        DependencyResolver dependencyResolver = neoStoreDataSource.getDependencyResolver();
+        FileSystemAbstraction fileSystem = dependencyResolver.resolveDependency( FileSystemAbstraction.class );
+        long databaseSize = FileUtils.size( fileSystem, neoStoreDataSource.getDatabaseLayout().databaseDirectory() );
+        add( udcFields, STORE_SIZE, databaseSize );
     }
 
-    private void addStoreFileSizes( Map<String,String> udcFields, ResourceIterator<StoreFileMetadata> files )
-    {
-        long size = 0;
-
-        while ( files.hasNext() )
-        {
-            File file = files.next().file();
-
-            size += file.length();
-        }
-
-        add( udcFields, STORE_SIZE, size );
-    }
-
-    private String determineOsDistribution()
+    private static String determineOsDistribution()
     {
         if ( System.getProperties().getProperty( "os.name", "" ).equals( "Linux" ) )
         {
@@ -247,13 +226,7 @@ public class DefaultUdcInformationCollector implements UdcInformationCollector
         }
     }
 
-    private final Map<String,String> jarNamesForTags =
-            MapUtil.stringMap( "spring-", "spring", "(javax.ejb|ejb-jar)", "ejb",
-                    "(weblogic|glassfish|websphere|jboss)", "appserver", "openshift", "openshift", "cloudfoundry",
-                    "cloudfoundry", "(junit|testng)", "test", "jruby", "ruby", "clojure", "clojure", "jython", "python",
-                    "groovy", "groovy", "(tomcat|jetty)", "web", "spring-data-neo4j", "sdn" );
-
-    private String determineTags( Map<String,String> jarNamesForTags, String classPath )
+    private static String determineTags( Map<String,String> jarNamesForTags, String classPath )
     {
         StringBuilder result = new StringBuilder();
         for ( Map.Entry<String,String> entry : jarNamesForTags.entrySet() )
@@ -271,13 +244,13 @@ public class DefaultUdcInformationCollector implements UdcInformationCollector
         return result.substring( 1 );
     }
 
-    private String getClassPath()
+    private static String getClassPath()
     {
         RuntimeMXBean runtime = ManagementFactory.getRuntimeMXBean();
         return runtime.getClassPath();
     }
 
-    private String determineMacAddress()
+    private static String determineMacAddress()
     {
         String formattedMac = "0";
         try
@@ -307,17 +280,17 @@ public class DefaultUdcInformationCollector implements UdcInformationCollector
         return formattedMac;
     }
 
-    private int determineNumberOfProcessors()
+    private static int determineNumberOfProcessors()
     {
         return Runtime.getRuntime().availableProcessors();
     }
 
-    private long determineTotalMemory()
+    private static long determineTotalMemory()
     {
         return OsBeanUtil.getTotalPhysicalMemory();
     }
 
-    private long determineHeapSize()
+    private static long determineHeapSize()
     {
         return ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed();
     }
@@ -344,10 +317,10 @@ public class DefaultUdcInformationCollector implements UdcInformationCollector
 
     private long getNumberOfIdsInUse( IdType type )
     {
-        return idGeneratorFactory.get( type ).getNumberOfIdsInUse();
+        return neoStoreDataSource.getDependencyResolver().resolveDependency( IdGeneratorFactory.class ).get( type ).getNumberOfIdsInUse();
     }
 
-    private String toCommaString( Object values )
+    private static String toCommaString( Object values )
     {
         StringBuilder result = new StringBuilder();
         if ( values instanceof Iterable )
@@ -372,7 +345,7 @@ public class DefaultUdcInformationCollector implements UdcInformationCollector
         return result.toString();
     }
 
-    private void add( Map<String,String> udcFields, String name, Object value )
+    private static void add( Map<String,String> udcFields, String name, Object value )
     {
         if ( value == null )
         {
@@ -386,7 +359,7 @@ public class DefaultUdcInformationCollector implements UdcInformationCollector
         udcFields.put( name, str );
     }
 
-    private String removeUdcPrefix( String propertyName )
+    private static String removeUdcPrefix( String propertyName )
     {
         if ( propertyName.startsWith( UDC_PROPERTY_PREFIX ) )
         {
@@ -395,12 +368,12 @@ public class DefaultUdcInformationCollector implements UdcInformationCollector
         return propertyName;
     }
 
-    private String sanitizeUdcProperty( String propertyValue )
+    private static String sanitizeUdcProperty( String propertyValue )
     {
         return propertyValue.replace( ' ', '_' );
     }
 
-    private Map<String,String> determineSystemProperties()
+    private static Map<String,String> determineSystemProperties()
     {
         Map<String,String> relevantSysProps = new HashMap<>();
         Properties sysProps = System.getProperties();
@@ -423,9 +396,4 @@ public class DefaultUdcInformationCollector implements UdcInformationCollector
         return storeId;
     }
 
-    @Override
-    public boolean getCrashPing()
-    {
-        return crashPing;
-    }
 }

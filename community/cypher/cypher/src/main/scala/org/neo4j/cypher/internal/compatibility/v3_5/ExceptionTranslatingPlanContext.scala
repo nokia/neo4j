@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,8 +19,8 @@
  */
 package org.neo4j.cypher.internal.compatibility.v3_5
 
-import org.neo4j.cypher.internal.frontend.v3_5.phases.InternalNotificationLogger
-import org.neo4j.cypher.internal.planner.v3_5.spi.{GraphStatistics, IndexDescriptor, PlanContext}
+import org.neo4j.cypher.internal.planner.v3_5.spi.{IndexDescriptor, InstrumentedGraphStatistics, PlanContext}
+import org.neo4j.cypher.internal.v3_5.frontend.phases.InternalNotificationLogger
 import org.neo4j.cypher.internal.v3_5.logical.plans.{ProcedureSignature, QualifiedName, UserFunctionSignature}
 
 class ExceptionTranslatingPlanContext(inner: PlanContext) extends PlanContext with ExceptionTranslationSupport {
@@ -28,16 +28,16 @@ class ExceptionTranslatingPlanContext(inner: PlanContext) extends PlanContext wi
   override def indexesGetForLabel(labelId: Int): Iterator[IndexDescriptor] =
     translateException(inner.indexesGetForLabel(labelId))
 
-  override def indexGet(labelName: String, propertyKeys: Seq[String]): Option[IndexDescriptor] =
-    translateException(inner.indexGet(labelName, propertyKeys))
+  override def indexGetForLabelAndProperties(labelName: String, propertyKeys: Seq[String]): Option[IndexDescriptor] =
+    translateException(inner.indexGetForLabelAndProperties(labelName, propertyKeys))
+
+  override def indexExistsForLabelAndProperties(labelName: String, propertyKey: Seq[String]): Boolean =
+    translateException(inner.indexExistsForLabelAndProperties(labelName, propertyKey))
 
   override def uniqueIndexesGetForLabel(labelId: Int): Iterator[IndexDescriptor] =
     translateException(inner.uniqueIndexesGetForLabel(labelId))
 
-  override def uniqueIndexGet(labelName: String, propertyKeys: Seq[String]): Option[IndexDescriptor] =
-    translateException(inner.uniqueIndexGet(labelName, propertyKeys))
-
-  override def statistics: GraphStatistics =
+  override def statistics: InstrumentedGraphStatistics =
     translateException(inner.statistics)
 
   override def checkNodeIndex(idxName: String): Unit =
@@ -54,17 +54,14 @@ class ExceptionTranslatingPlanContext(inner: PlanContext) extends PlanContext wi
   override def functionSignature(name: QualifiedName): Option[UserFunctionSignature] =
     translateException(inner.functionSignature(name))
 
-  override def indexExistsForLabel(labelName: String): Boolean =
-    translateException(inner.indexExistsForLabel(labelName))
+  override def indexExistsForLabel(labelId: Int): Boolean =
+    translateException(inner.indexExistsForLabel(labelId))
 
   override def hasPropertyExistenceConstraint(labelName: String, propertyKey: String): Boolean =
     translateException(inner.hasPropertyExistenceConstraint(labelName, propertyKey))
 
   override def checkRelIndex(idxName: String): Unit =
     translateException(inner.checkRelIndex(idxName))
-
-  override def getOrCreateFromSchemaState[T](key: Any, f: => T): T =
-    translateException(inner.getOrCreateFromSchemaState(key, f))
 
   override def getOptRelTypeId(relType: String): Option[Int] =
     translateException(inner.getOptRelTypeId(relType))
@@ -95,7 +92,4 @@ class ExceptionTranslatingPlanContext(inner: PlanContext) extends PlanContext wi
 
   override def notificationLogger(): InternalNotificationLogger =
     translateException(inner.notificationLogger())
-
-  override def twoLayerTransactionState(): Boolean =
-    translateException(inner.twoLayerTransactionState())
 }

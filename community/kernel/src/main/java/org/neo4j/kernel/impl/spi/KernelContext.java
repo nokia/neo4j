@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,14 +21,30 @@ package org.neo4j.kernel.impl.spi;
 
 import java.io.File;
 
+import org.neo4j.kernel.extension.ExtensionType;
 import org.neo4j.kernel.impl.factory.DatabaseInfo;
 import org.neo4j.kernel.impl.util.DependencySatisfier;
 
 public interface KernelContext
 {
+    /**
+     * @return store directory for {@link ExtensionType#GLOBAL} extensions and
+     * particular database directory if extension is per {@link ExtensionType#DATABASE}.
+     * @deprecated Please use {@link #directory()} instead.
+     */
+    @Deprecated
     File storeDir();
 
     DatabaseInfo databaseInfo();
 
     DependencySatisfier dependencySatisfier();
+
+    /**
+     * @return store directory for {@link ExtensionType#GLOBAL} extensions and
+     * particular database directory if extension is per {@link ExtensionType#DATABASE}.
+     */
+    default File directory()
+    {
+        return storeDir();
+    }
 }

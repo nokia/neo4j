@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -25,13 +25,13 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 
-import java.io.File;
 import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 
+import org.neo4j.dbms.database.DatabaseManager;
 import org.neo4j.helpers.collection.Pair;
 import org.neo4j.io.fs.FileSystemAbstraction;
 import org.neo4j.io.pagecache.PageCache;
@@ -67,11 +67,10 @@ public class TestArrayStore
     @Before
     public void before()
     {
-        File dir = testDirectory.graphDbDir();
         FileSystemAbstraction fs = fileSystemRule.get();
         DefaultIdGeneratorFactory idGeneratorFactory = new DefaultIdGeneratorFactory( fs );
         PageCache pageCache = pageCacheRule.getPageCache( fs );
-        StoreFactory factory = new StoreFactory( dir, Config.defaults(), idGeneratorFactory, pageCache, fs,
+        StoreFactory factory = new StoreFactory( testDirectory.databaseLayout(), Config.defaults(), idGeneratorFactory, pageCache, fs,
                 NullLogProvider.getInstance(), EmptyVersionContextSupplier.EMPTY );
         neoStores = factory.openAllNeoStores( true );
         arrayStore = neoStores.getPropertyStore().getArrayStore();

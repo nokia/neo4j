@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,7 +19,7 @@
  */
 package org.neo4j.harness;
 
-import org.codehaus.jackson.JsonNode;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -27,12 +27,10 @@ import java.util.stream.Stream;
 
 import org.neo4j.graphdb.factory.GraphDatabaseSettings;
 import org.neo4j.internal.kernel.api.exceptions.ProcedureException;
-import org.neo4j.kernel.configuration.Settings;
 import org.neo4j.procedure.Context;
 import org.neo4j.procedure.Mode;
 import org.neo4j.procedure.Name;
 import org.neo4j.procedure.Procedure;
-import org.neo4j.server.configuration.ServerSettings;
 import org.neo4j.test.rule.SuppressOutput;
 import org.neo4j.test.rule.TestDirectory;
 import org.neo4j.test.server.HTTP;
@@ -127,8 +125,7 @@ public class JavaProceduresTest
     private TestServerBuilder createServer( Class<?> procedureClass )
     {
         return TestServerBuilders.newInProcessBuilder()
-                                 .withProcedure( procedureClass )
-                                 .withConfig( ServerSettings.script_enabled, Settings.TRUE );
+                                 .withProcedure( procedureClass );
     }
 
     @Test

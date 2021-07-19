@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,30 +19,21 @@
  */
 package org.neo4j.cypher.internal.runtime.interpreted.commands.expressions
 
-import org.neo4j.cypher.internal.util.v3_5.ParameterWrongTypeException
 import org.neo4j.cypher.internal.runtime.interpreted.ExecutionContext
+import org.neo4j.cypher.internal.runtime.interpreted.commands.AstNode
 import org.neo4j.cypher.internal.runtime.interpreted.pipes.QueryState
+import org.neo4j.cypher.operations.CypherFunctions
 import org.neo4j.values._
-import org.neo4j.values.storable.{DoubleValue, NumberValue, TextValue, Values}
 
 case class ToFloatFunction(a: Expression) extends NullInNullOutExpression(a) {
-  def symbolTableDependencies: Set[String] = a.symbolTableDependencies
+  override def symbolTableDependencies: Set[String] = a.symbolTableDependencies
 
-  def arguments: Seq[Expression] = Seq(a)
+  override def arguments: Seq[Expression] = Seq(a)
 
-  def rewrite(f: (Expression) => Expression): Expression = f(ToFloatFunction(a.rewrite(f)))
+  override def rewrite(f: Expression => Expression): Expression = f(ToFloatFunction(a.rewrite(f)))
 
-  override def compute(value: AnyValue, m: ExecutionContext, state: QueryState): AnyValue = value match {
-    case v: DoubleValue => v
-    case v: NumberValue => Values.doubleValue(v.doubleValue())
-    case v: TextValue =>
-      try {
-        Values.doubleValue(v.stringValue().toDouble)
-      } catch {
-        case _: NumberFormatException =>
-         Values.NO_VALUE
-      }
-    case v =>
-      throw new ParameterWrongTypeException("Expected a String or Number, got: " + v.toString)
-  }
+  override def compute(value: AnyValue, m: ExecutionContext, state: QueryState): AnyValue =
+    CypherFunctions.toFloat(value)
+
+  override def children: Seq[AstNode[_]] = Seq(a)
 }

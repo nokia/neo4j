@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -25,9 +25,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.neo4j.kernel.impl.storageengine.impl.recordstorage.RecordState;
 import org.neo4j.kernel.impl.store.counts.keys.CountsKey;
 import org.neo4j.kernel.impl.transaction.command.Command;
-import org.neo4j.kernel.impl.transaction.state.RecordState;
 import org.neo4j.register.Register.DoubleLongRegister;
 import org.neo4j.register.Registers;
 import org.neo4j.storageengine.api.StorageCommand;
@@ -54,7 +54,7 @@ public class CountsRecordState implements CountsAccessor, RecordState, CountsAcc
     }
 
     @Override
-    public void incrementNodeCount( int labelId, long delta )
+    public void incrementNodeCount( long labelId, long delta )
     {
         counts( nodeKey( labelId ) ).increment( 0L, delta );
     }
@@ -75,7 +75,7 @@ public class CountsRecordState implements CountsAccessor, RecordState, CountsAcc
     }
 
     @Override
-    public void incrementRelationshipCount( int startLabelId, int typeId, int endLabelId, long delta )
+    public void incrementRelationshipCount( long startLabelId, int typeId, long endLabelId, long delta )
     {
         if ( delta != 0 )
         {

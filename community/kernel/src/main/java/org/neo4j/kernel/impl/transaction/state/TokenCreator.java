@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -25,20 +25,19 @@ import org.neo4j.helpers.collection.Iterables;
 import org.neo4j.kernel.impl.store.TokenStore;
 import org.neo4j.kernel.impl.store.record.DynamicRecord;
 import org.neo4j.kernel.impl.store.record.TokenRecord;
-import org.neo4j.storageengine.api.Token;
 
 import static org.neo4j.kernel.impl.store.PropertyStore.encodeString;
 
-public class TokenCreator<R extends TokenRecord, T extends Token>
+public class TokenCreator<R extends TokenRecord>
 {
-    private final TokenStore<R, T> store;
+    private final TokenStore<R> store;
 
-    public TokenCreator( TokenStore<R, T> store )
+    public TokenCreator( TokenStore<R> store )
     {
         this.store = store;
     }
 
-    public void createToken( String name, int id, RecordAccess<R,Void> recordAccess )
+    public void createToken( String name, long id, RecordAccess<R, Void> recordAccess )
     {
         R record = recordAccess.create( id, null ).forChangingData();
         record.setInUse( true );

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -22,11 +22,11 @@ package org.neo4j.cypher.internal.runtime.interpreted.pipes
 import org.neo4j.cypher.internal.runtime.interpreted.{ExecutionContext, MutableMaps}
 import org.neo4j.cypher.internal.runtime.interpreted.commands.expressions.{AggregationExpression, Expression}
 import org.neo4j.cypher.internal.runtime.interpreted.pipes.aggregation.AggregationFunction
-import org.neo4j.cypher.internal.util.v3_5.attribution.Id
+import org.neo4j.cypher.internal.v3_5.util.attribution.Id
 import org.neo4j.values.AnyValue
 import org.neo4j.values.virtual.{ListValue, MapValue, VirtualValues}
 
-import scala.collection.immutable
+import scala.collection.{immutable, mutable}
 import scala.collection.mutable.{Map => MutableMap}
 
 // Eager aggregation means that this pipe will eagerly load the whole resulting sub graphs before starting
@@ -88,14 +88,14 @@ case class EagerAggregationPipe(source: Pipe, keyExpressions: Map[String, Expres
 
   protected def internalCreateResults(input: Iterator[ExecutionContext], state: QueryState): Iterator[ExecutionContext] = {
 
-    val result = MutableMap[AnyValue, Seq[AggregationFunction]]()
+    val result = mutable.LinkedHashMap[AnyValue, Seq[AggregationFunction]]()
     val keyNames = keyExpressions.keySet.toList
     val aggregationNames: IndexedSeq[String] = aggregations.keys.toIndexedSeq
     val keyNamesSize = keyNames.size
     val mapSize = keyNamesSize + aggregationNames.size
 
     def createEmptyResult(params: MapValue): Iterator[ExecutionContext] = {
-      val newMap = MutableMaps.empty
+      val newMap = MutableMaps.empty[String, AnyValue]
       val values = aggregations.map(_._2.createAggregationFunction.result(state))
       val aggregationNamesAndFunctions: IndexedSeq[(String, AnyValue)] = aggregationNames zip values
 
@@ -109,7 +109,7 @@ case class EagerAggregationPipe(source: Pipe, keyExpressions: Map[String, Expres
     // code runs really fast.
     // If you feel like cleaning it up - please make sure to not regress in performance. This is a hot spot.
     def createResults(groupingKey: AnyValue, aggregator: scala.Seq[AggregationFunction]): ExecutionContext = {
-      val newMap = MutableMaps.create(mapSize)
+      val newMap = MutableMaps.create[String, AnyValue](mapSize)
       createResultFunction(newMap, groupingKey)
       (aggregationNames zip aggregator.map(_.result(state))).foreach(newMap += _)
       ExecutionContext(newMap)

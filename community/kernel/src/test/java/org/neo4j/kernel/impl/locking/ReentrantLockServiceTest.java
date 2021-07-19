@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import org.neo4j.test.rule.concurrent.ThreadRepository;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class ReentrantLockServiceTest
@@ -58,8 +59,8 @@ public class ReentrantLockServiceTest
         assertEquals( 3, queue.dequeue().intValue() );
         assertEquals( 4, queue.dequeue().intValue() );
         assertEquals( "should get the current element when dequeuing the current head", 4, queue.dequeue().intValue() );
-        assertEquals( "should get null when dequeuing from a dead list", null, queue.dequeue() );
-        assertEquals( "should get null continuously when dequeuing from a dead list", null, queue.dequeue() );
+        assertNull( "should get null when dequeuing from a dead list", queue.dequeue() );
+        assertNull( "should get null continuously when dequeuing from a dead list", queue.dequeue() );
     }
 
     @Test

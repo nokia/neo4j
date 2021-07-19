@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,12 +19,12 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical
 
-import org.neo4j.cypher.internal.frontend.v3_5.helpers.fixedPoint
 import org.neo4j.cypher.internal.ir.v3_5.{PlannerQuery, QueryGraph}
 import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.Solveds
-import org.neo4j.cypher.internal.util.v3_5.attribution.{Attributes, SameId}
-import org.neo4j.cypher.internal.util.v3_5.{Rewriter, bottomUp}
 import org.neo4j.cypher.internal.v3_5.logical.plans._
+import org.neo4j.cypher.internal.v3_5.util.attribution.{Attributes, SameId}
+import org.neo4j.cypher.internal.v3_5.util.helpers.fixedPoint
+import org.neo4j.cypher.internal.v3_5.util.{Rewriter, bottomUp}
 
 import scala.annotation.tailrec
 
@@ -123,10 +123,14 @@ object Eagerness {
 
   def horizonReadWriteEagerize(inputPlan: LogicalPlan, query: PlannerQuery, context: LogicalPlanningContext): LogicalPlan = {
     val alwaysEager = context.config.updateStrategy.alwaysEager
-    if (alwaysEager || (query.tail.nonEmpty && horizonReadWriteConflict(query, query.tail.get, context)))
-      context.logicalPlanProducer.planEager(inputPlan, context)
-    else
-      inputPlan
+    inputPlan match {
+      case ProcedureCall(left, call) if call.signature.eager =>
+        context.logicalPlanProducer.planCallProcedure(context.logicalPlanProducer.planEager(left, context), call, call, context)
+      case _ if alwaysEager || (query.tail.nonEmpty && horizonReadWriteConflict(query, query.tail.get, context)) =>
+        context.logicalPlanProducer.planEager(inputPlan, context)
+      case _ =>
+        inputPlan
+    }
   }
 
   /**
@@ -279,14 +283,8 @@ object Eagerness {
     Glossary:
       Ax : Apply
       L,R: Arbitrary operator, named Left and Right
-      CN : CreateNode
-      Dn : Delete node
-      Dr : Delete relationship
       E : Eager
-      Sp : SetProperty
-      Sm : SetPropertiesFromMap
-      Sl : SetLabels
-      U : Unwind
+      Up : UpdatingPlan
      */
 
     private val instance: Rewriter = fixedPoint(bottomUp(Rewriter.lift {
@@ -297,60 +295,11 @@ object Eagerness {
         solveds.copy(apply.id, res.id)
         res
 
-      // L Ax (CN R) => CN Ax (L R)
-      case apply@Apply(lhs, create@CreateNode(rhs, name, labels, props)) =>
-        val res = create.copy(source = Apply(lhs, rhs)(SameId(apply.id)), name, labels, props)(attributes.copy(create.id))
+      // L Ax (Up R) => Up Ax (L R)
+      case apply@Apply(lhs, updatingPlan: UpdatingPlan) =>
+        val res = updatingPlan.withSource(Apply(lhs, updatingPlan.source)(SameId(apply.id)))(attributes.copy(updatingPlan.id))
         solveds.copy(apply.id, res.id)
         res
-
-      // L Ax (CR R) => CR Ax (L R)
-      case apply@Apply(lhs, create@CreateRelationship(rhs, _, _, _, _, _)) =>
-        val res = create.copy(source = Apply(lhs, rhs)(SameId(apply.id)))(attributes.copy(create.id))
-        solveds.copy(apply.id, res.id)
-        res
-
-      // L Ax (Dn R) => Dn Ax (L R)
-      case apply@Apply(lhs, delete@DeleteNode(rhs, expr)) =>
-        val res = delete.copy(source = Apply(lhs, rhs)(SameId(apply.id)), expr)(attributes.copy(delete.id))
-        solveds.copy(apply.id, res.id)
-        res
-
-      // L Ax (Dn R) => Dn Ax (L R)
-      case apply@Apply(lhs, delete@DetachDeleteNode(rhs, expr)) =>
-        val res = delete.copy(source = Apply(lhs, rhs)(SameId(apply.id)), expr)(attributes.copy(delete.id))
-        solveds.copy(apply.id, res.id)
-        res
-
-      // L Ax (Dr R) => Dr Ax (L R)
-      case apply@Apply(lhs, delete@DeleteRelationship(rhs, expr)) =>
-        val res = delete.copy(source = Apply(lhs, rhs)(SameId(apply.id)), expr)(attributes.copy(delete.id))
-        solveds.copy(apply.id, res.id)
-        res
-
-      // L Ax (Sp R) => Sp Ax (L R)
-      case apply@Apply(lhs, set@SetNodeProperty(rhs, idName, key, value)) =>
-        val res = set.copy(source = Apply(lhs, rhs)(SameId(apply.id)), idName, key, value)(attributes.copy(set.id))
-        solveds.copy(apply.id, res.id)
-        res
-
-      // L Ax (Sm R) => Sm Ax (L R)
-      case apply@Apply(lhs, set@SetNodePropertiesFromMap(rhs, idName, expr, removes)) =>
-        val res = set.copy(source = Apply(lhs, rhs)(SameId(apply.id)), idName, expr, removes)(attributes.copy(set.id))
-        solveds.copy(apply.id, res.id)
-        res
-
-      // L Ax (Sl R) => Sl Ax (L R)
-      case apply@Apply(lhs, set@SetLabels(rhs, idName, labelNames)) =>
-        val res = set.copy(source = Apply(lhs, rhs)(SameId(apply.id)), idName, labelNames)(attributes.copy(set.id))
-        solveds.copy(apply.id, res.id)
-        res
-
-      // L Ax (Rl R) => Rl Ax (L R)
-      case apply@Apply(lhs, remove@RemoveLabels(rhs, idName, labelNames)) =>
-        val res = remove.copy(source = Apply(lhs, rhs)(SameId(apply.id)), idName, labelNames)(attributes.copy(remove.id))
-        solveds.copy(apply.id, res.id)
-        res
-
     }))
 
     override def apply(input: AnyRef): AnyRef = instance.apply(input)

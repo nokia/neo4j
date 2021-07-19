@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -39,7 +39,6 @@ import org.neo4j.unsafe.impl.batchimport.store.BatchingTokenRepository.BatchingR
 import org.neo4j.unsafe.impl.batchimport.store.PrepareIdSequence;
 
 import static java.lang.String.format;
-
 import static org.neo4j.unsafe.impl.batchimport.cache.idmapping.IdMapper.ID_NOT_FOUND;
 
 /**
@@ -192,6 +191,7 @@ public class RelationshipImporter extends EntityImporter
             }
             badCollector.collectBadRelationship( startId, group( startIdGroup ).name(), type, endId, group( endIdGroup ).name(),
                     relationshipRecord.getFirstNode() == ID_NOT_FOUND ? startId : endId );
+            entityPropertyCount = 0;
         }
 
         relationshipRecord.clear();

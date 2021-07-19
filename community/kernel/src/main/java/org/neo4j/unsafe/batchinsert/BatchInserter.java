@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -298,9 +298,9 @@ public interface BatchInserter
     void shutdown();
 
     /**
-     * Returns the path to this Neo4j store.
+     * Returns the path to default neo4j database.
      *
-     * @return the path to this Neo4j store.
+     * @return the path to default Neo4j database.
      */
     String getStoreDir();
 

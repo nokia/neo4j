@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,29 +21,27 @@ package org.neo4j.kernel.impl.api.index;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.neo4j.graphdb.ResourceIterator;
-import org.neo4j.internal.kernel.api.IndexCapability;
 import org.neo4j.internal.kernel.api.InternalIndexState;
-import org.neo4j.internal.kernel.api.schema.SchemaDescriptor;
+import org.neo4j.internal.kernel.api.exceptions.schema.IndexNotFoundKernelException;
 import org.neo4j.io.pagecache.IOLimiter;
 import org.neo4j.kernel.api.exceptions.index.ExceptionDuringFlipKernelException;
 import org.neo4j.kernel.api.exceptions.index.FlipFailedKernelException;
 import org.neo4j.kernel.api.exceptions.index.IndexActivationFailedKernelException;
 import org.neo4j.kernel.api.exceptions.index.IndexEntryConflictException;
-import org.neo4j.kernel.api.exceptions.index.IndexNotFoundKernelException;
 import org.neo4j.kernel.api.exceptions.index.IndexPopulationFailedKernelException;
 import org.neo4j.kernel.api.exceptions.index.IndexProxyAlreadyClosedKernelException;
 import org.neo4j.kernel.api.exceptions.schema.UniquePropertyValueValidationException;
-import org.neo4j.kernel.api.index.IndexProvider;
 import org.neo4j.kernel.api.index.IndexUpdater;
-import org.neo4j.kernel.api.index.PropertyAccessor;
-import org.neo4j.kernel.api.schema.index.SchemaIndexDescriptor;
 import org.neo4j.kernel.impl.api.index.updater.DelegatingIndexUpdater;
+import org.neo4j.storageengine.api.NodePropertyAccessor;
+import org.neo4j.storageengine.api.schema.CapableIndexDescriptor;
 import org.neo4j.storageengine.api.schema.IndexReader;
 import org.neo4j.storageengine.api.schema.PopulationProgress;
 import org.neo4j.values.storable.Value;
@@ -215,40 +213,12 @@ public class FlippableIndexProxy implements IndexProxy
     }
 
     @Override
-    public SchemaIndexDescriptor getDescriptor()
+    public CapableIndexDescriptor getDescriptor()
     {
         lock.readLock().lock();
         try
         {
             return delegate.getDescriptor();
-        }
-        finally
-        {
-            lock.readLock().unlock();
-        }
-    }
-
-    @Override
-    public SchemaDescriptor schema()
-    {
-        lock.readLock().lock();
-        try
-        {
-            return delegate.schema();
-        }
-        finally
-        {
-            lock.readLock().unlock();
-        }
-    }
-
-    @Override
-    public IndexProvider.Descriptor getProviderDescriptor()
-    {
-        lock.readLock().lock();
-        try
-        {
-            return delegate.getProviderDescriptor();
         }
         finally
         {
@@ -263,20 +233,6 @@ public class FlippableIndexProxy implements IndexProxy
         try
         {
             return delegate.getState();
-        }
-        finally
-        {
-            lock.readLock().unlock();
-        }
-    }
-
-    @Override
-    public IndexCapability getIndexCapability()
-    {
-        lock.readLock().lock();
-        try
-        {
-            return delegate.getIndexCapability();
         }
         finally
         {
@@ -314,16 +270,27 @@ public class FlippableIndexProxy implements IndexProxy
     }
 
     @Override
-    public boolean awaitStoreScanCompleted() throws IndexPopulationFailedKernelException, InterruptedException
+    public boolean awaitStoreScanCompleted( long time, TimeUnit unit ) throws IndexPopulationFailedKernelException, InterruptedException
     {
         IndexProxy proxy;
-        do
+        lock.readLock().lock();
+        proxy = delegate;
+        lock.readLock().unlock();
+        if ( closed )
         {
+            return false;
+        }
+        boolean stillGoing = proxy.awaitStoreScanCompleted( time, unit );
+        if ( !stillGoing )
+        {
+            // The waiting has ended. However we're not done because say that the delegate typically is a populating proxy, when the wait is over
+            // the populating proxy flips into something else, and if that is a failed proxy then that failure should propagate out from this call.
             lock.readLock().lock();
             proxy = delegate;
             lock.readLock().unlock();
-        } while ( !closed && proxy.awaitStoreScanCompleted() );
-        return true;
+            proxy.awaitStoreScanCompleted( time, unit );
+        }
+        return stillGoing;
     }
 
     @Override
@@ -370,12 +337,12 @@ public class FlippableIndexProxy implements IndexProxy
     }
 
     @Override
-    public long getIndexId()
+    public ResourceIterator<File> snapshotFiles() throws IOException
     {
         lock.readLock().lock();
         try
         {
-            return delegate.getIndexId();
+            return delegate.snapshotFiles();
         }
         finally
         {
@@ -384,12 +351,12 @@ public class FlippableIndexProxy implements IndexProxy
     }
 
     @Override
-    public ResourceIterator<File> snapshotFiles() throws IOException
+    public Map<String,Value> indexConfig()
     {
         lock.readLock().lock();
         try
         {
-            return delegate.snapshotFiles();
+            return delegate.indexConfig();
         }
         finally
         {
@@ -463,10 +430,10 @@ public class FlippableIndexProxy implements IndexProxy
                 if ( actionDuringFlip.call() )
                 {
                     this.delegate = flipTarget.create();
+
                     if ( started )
                     {
                         this.delegate.start();
-
                     }
                 }
             }
@@ -497,7 +464,7 @@ public class FlippableIndexProxy implements IndexProxy
     }
 
     @Override
-    public void verifyDeferredConstraints( PropertyAccessor accessor ) throws IndexEntryConflictException, IOException
+    public void verifyDeferredConstraints( NodePropertyAccessor accessor ) throws IndexEntryConflictException, IOException
     {
         lock.readLock().lock();
         try
@@ -519,7 +486,7 @@ public class FlippableIndexProxy implements IndexProxy
         }
 
         @Override
-        public void close() throws IOException, IndexEntryConflictException
+        public void close() throws IndexEntryConflictException
         {
             try
             {

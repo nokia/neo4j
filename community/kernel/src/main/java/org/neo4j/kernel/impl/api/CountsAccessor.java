@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -49,9 +49,9 @@ public interface CountsAccessor extends CountsVisitor.Visitable
 
     interface Updater extends AutoCloseable
     {
-        void incrementNodeCount( int labelId, long delta );
+        void incrementNodeCount( long labelId, long delta );
 
-        void incrementRelationshipCount( int startLabelId, int typeId, int endLabelId, long delta );
+        void incrementRelationshipCount( long startLabelId, int typeId, long endLabelId, long delta );
 
         @Override
         void close();

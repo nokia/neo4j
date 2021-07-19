@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,6 +20,8 @@
 package org.neo4j.values.storable;
 
 import java.util.Comparator;
+
+import static org.neo4j.values.utils.ValueMath.HASH_CONSTANT;
 
 /**
  * A tuple of n values.
@@ -47,7 +49,7 @@ public class ValueTuple
 
     private final Value[] values;
 
-    private ValueTuple( Value[] values )
+    protected ValueTuple( Value[] values )
     {
         this.values = values;
     }
@@ -60,6 +62,14 @@ public class ValueTuple
     public Value valueAt( int offset )
     {
         return values[offset];
+    }
+
+    /**
+     * WARNING: this method does not create a defensive copy. Do not modify the returned array.
+     */
+    public Value[] getValues()
+    {
+        return values;
     }
 
     @Override
@@ -97,7 +107,7 @@ public class ValueTuple
         int result = 1;
         for ( Object value : values )
         {
-            result = 31 * result + value.hashCode();
+            result = HASH_CONSTANT * result + value.hashCode();
         }
         return result;
     }

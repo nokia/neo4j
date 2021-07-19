@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,7 +19,7 @@
  */
 package org.neo4j.kernel.api.security;
 
-import java.util.function.Function;
+import java.util.function.ToIntFunction;
 
 import org.neo4j.internal.kernel.api.security.AccessMode;
 import org.neo4j.internal.kernel.api.security.AuthSubject;
@@ -61,6 +61,11 @@ public class AnonymousContext implements LoginContext
         return new AnonymousContext( AccessMode.Static.WRITE_ONLY );
     }
 
+    public static AnonymousContext full()
+    {
+        return new AnonymousContext( AccessMode.Static.FULL );
+    }
+
     @Override
     public AuthSubject subject()
     {
@@ -68,7 +73,7 @@ public class AnonymousContext implements LoginContext
     }
 
     @Override
-    public SecurityContext authorize( Function<String, Integer> propertyIdLookup )
+    public SecurityContext authorize( ToIntFunction<String> propertyIdLookup, String dbName )
     {
         return new SecurityContext( subject(), accessMode );
     }

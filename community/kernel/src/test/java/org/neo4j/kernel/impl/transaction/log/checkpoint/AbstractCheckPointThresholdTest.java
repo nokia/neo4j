@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -36,7 +36,7 @@ public class AbstractCheckPointThresholdTest
 
         final AtomicReference<String> calledWith = new AtomicReference<>();
         // When
-        threshold.isCheckPointingNeeded( 42, calledWith::set );
+        threshold.isCheckPointingNeeded( 42, 99, calledWith::set );
 
         // Then
         assertEquals( description, calledWith.get() );
@@ -49,7 +49,7 @@ public class AbstractCheckPointThresholdTest
         AbstractCheckPointThreshold threshold = new TheAbstractCheckPointThreshold( false, null );
 
         // When
-        threshold.isCheckPointingNeeded( 42, s ->
+        threshold.isCheckPointingNeeded( 42, 1, s ->
         {
             throw new IllegalStateException( "nooooooooo!" );
         } );
@@ -87,7 +87,7 @@ public class AbstractCheckPointThresholdTest
         }
 
         @Override
-        protected boolean thresholdReached( long lastCommittedTransactionId )
+        protected boolean thresholdReached( long lastCommittedTransactionId, long lastCommittedTransactionLogVersion )
         {
             return reached;
         }

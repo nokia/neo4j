@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -29,7 +29,7 @@ import java.util.Collection;
 import java.util.Map;
 
 import org.neo4j.helpers.collection.Iterables;
-import org.neo4j.kernel.api.exceptions.schema.MalformedSchemaRuleException;
+import org.neo4j.internal.kernel.api.exceptions.schema.MalformedSchemaRuleException;
 import org.neo4j.kernel.impl.index.IndexCommand;
 import org.neo4j.kernel.impl.index.IndexCommand.AddNodeCommand;
 import org.neo4j.kernel.impl.index.IndexCommand.AddRelationshipCommand;

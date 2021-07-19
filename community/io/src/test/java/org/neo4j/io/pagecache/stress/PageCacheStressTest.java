@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -31,10 +31,12 @@ import org.neo4j.io.pagecache.impl.muninn.MuninnPageCache;
 import org.neo4j.io.pagecache.tracing.PageCacheTracer;
 import org.neo4j.io.pagecache.tracing.cursor.PageCursorTracerSupplier;
 import org.neo4j.io.pagecache.tracing.cursor.context.EmptyVersionContextSupplier;
+import org.neo4j.scheduler.JobScheduler;
+import org.neo4j.scheduler.ThreadPoolJobScheduler;
 
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.junit.Assert.assertThat;
 import static org.neo4j.io.pagecache.tracing.PageCacheTracer.NULL;
 
 /**
@@ -83,12 +85,13 @@ public class PageCacheStressTest
 
     public void run() throws Exception
     {
-        try ( FileSystemAbstraction fs = new DefaultFileSystemAbstraction() )
+        try ( FileSystemAbstraction fs = new DefaultFileSystemAbstraction();
+              JobScheduler jobScheduler = new ThreadPoolJobScheduler() )
         {
             PageSwapperFactory swapperFactory = new SingleFilePageSwapperFactory();
             swapperFactory.open( fs, Configuration.EMPTY );
             try ( PageCache pageCacheUnderTest = new MuninnPageCache(
-                    swapperFactory, numberOfCachePages, tracer, pageCursorTracerSupplier, EmptyVersionContextSupplier.EMPTY ) )
+                    swapperFactory, numberOfCachePages, tracer, pageCursorTracerSupplier, EmptyVersionContextSupplier.EMPTY, jobScheduler ) )
             {
                 PageCacheStresser pageCacheStresser =
                         new PageCacheStresser( numberOfPages, numberOfThreads, workingDirectory );

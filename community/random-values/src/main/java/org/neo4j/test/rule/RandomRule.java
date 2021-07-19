@@ -1,6 +1,6 @@
-package org.neo4j.test.rule;/*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+/*
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -17,6 +17,7 @@ package org.neo4j.test.rule;/*
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+package org.neo4j.test.rule;
 
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
@@ -30,11 +31,14 @@ import java.lang.annotation.Target;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
+import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
 
 import org.neo4j.helpers.Exceptions;
 import org.neo4j.values.storable.RandomValues;
 import org.neo4j.values.storable.TextValue;
 import org.neo4j.values.storable.Value;
+import org.neo4j.values.storable.ValueType;
 
 import static java.lang.System.currentTimeMillis;
 
@@ -46,6 +50,7 @@ import static java.lang.System.currentTimeMillis;
  */
 public class RandomRule implements TestRule
 {
+    private long globalSeed;
     private long seed;
     private boolean hasGlobalSeed;
     private Random random;
@@ -62,7 +67,7 @@ public class RandomRule implements TestRule
     public RandomRule withSeedForAllTests( long seed )
     {
         hasGlobalSeed = true;
-        this.seed = seed;
+        this.globalSeed = seed;
         return this;
     }
 
@@ -79,14 +84,17 @@ public class RandomRule implements TestRule
                     Seed methodSeed = description.getAnnotation( Seed.class );
                     if ( methodSeed != null )
                     {
-                        seed = methodSeed.value();
+                        setSeed( methodSeed.value() );
                     }
                     else
                     {
-                        seed = currentTimeMillis();
+                        setSeed( currentTimeMillis() );
                     }
                 }
-                reset();
+                else
+                {
+                    setSeed( globalSeed );
+                }
                 try
                 {
                     base.evaluate();
@@ -135,6 +143,11 @@ public class RandomRule implements TestRule
         return random.nextDouble();
     }
 
+    public DoubleStream doubles( int dimension, double minValue, double maxValue )
+    {
+        return random.doubles( dimension, minValue, maxValue );
+    }
+
     public float nextFloat()
     {
         return random.nextFloat();
@@ -153,6 +166,11 @@ public class RandomRule implements TestRule
     public int nextInt( int origin, int bound )
     {
         return random.nextInt( (bound - origin) + 1 ) + origin;
+    }
+
+    public IntStream ints( long streamSize, int randomNumberOrigin, int randomNumberBound )
+    {
+        return random.ints( streamSize, randomNumberOrigin, randomNumberBound );
     }
 
     public double nextGaussian()
@@ -199,6 +217,16 @@ public class RandomRule implements TestRule
         return nextAlphaNumericTextValue().stringValue();
     }
 
+    public String nextAsciiString()
+    {
+        return nextAsciiTextValue().stringValue();
+    }
+
+    private TextValue nextAsciiTextValue()
+    {
+        return randoms.nextAsciiTextValue();
+    }
+
     public TextValue nextAlphaNumericTextValue( )
     {
         return randoms.nextAlphaNumericTextValue();
@@ -212,6 +240,16 @@ public class RandomRule implements TestRule
     public TextValue nextAlphaNumericTextValue( int minLength, int maxLength )
     {
         return randoms.nextAlphaNumericTextValue( minLength, maxLength );
+    }
+
+    public TextValue nextBasicMultilingualPlaneTextValue()
+    {
+        return randoms.nextBasicMultilingualPlaneTextValue();
+    }
+
+    public String nextBasicMultilingualPlaneString()
+    {
+        return nextBasicMultilingualPlaneTextValue().stringValue();
     }
 
     public <T> T[] selection( T[] among, int min, int max, boolean allowDuplicates )
@@ -244,6 +282,11 @@ public class RandomRule implements TestRule
         return randoms.nextValue();
     }
 
+    public Value nextValue( ValueType type )
+    {
+        return randoms.nextValueOfType( type );
+    }
+
     // ============================
     // Other utility methods
     // ============================
@@ -267,6 +310,12 @@ public class RandomRule implements TestRule
     public RandomValues randomValues()
     {
         return randoms;
+    }
+
+    public void setSeed( long seed )
+    {
+        this.seed = seed;
+        reset();
     }
 
     @Retention( RetentionPolicy.RUNTIME )

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,6 +19,7 @@
  */
 package org.neo4j.codegen;
 
+import java.lang.reflect.Modifier;
 import java.util.Arrays;
 
 import org.neo4j.values.AnyValue;
@@ -29,6 +30,7 @@ import static org.neo4j.codegen.TypeReference.INT;
 import static org.neo4j.codegen.TypeReference.LONG;
 import static org.neo4j.codegen.TypeReference.OBJECT;
 import static org.neo4j.codegen.TypeReference.VALUE;
+import static org.neo4j.codegen.TypeReference.VOID;
 import static org.neo4j.codegen.TypeReference.arrayOf;
 import static org.neo4j.codegen.TypeReference.typeReference;
 
@@ -65,6 +67,15 @@ public abstract class Expression extends ExpressionTemplate
         public void accept( ExpressionVisitor visitor )
         {
             visitor.loadThis( "super" );
+        }
+    };
+
+    public static final Expression EMPTY = new Expression( VOID )
+    {
+        @Override
+        public void accept( ExpressionVisitor visitor )
+        {
+            //do nothing
         }
     };
 
@@ -471,7 +482,7 @@ public abstract class Expression extends ExpressionTemplate
         }
         else
         {
-            throw new IllegalArgumentException( "Not a valid constant!" );
+            throw new IllegalArgumentException( "Not a valid constant: " + value );
         }
 
         return new Expression( reference )
@@ -668,9 +679,40 @@ public abstract class Expression extends ExpressionTemplate
         };
     }
 
+    public static Expression invokeSuper( TypeReference parent, final Expression... parameters )
+    {
+        TypeReference[] parameterTypes = new TypeReference[parameters.length];
+        for ( int i = 0; i < parameters.length; i++ )
+        {
+            parameterTypes[i] = parameters[i].type();
+        }
+
+        return new Expression( OBJECT )
+        {
+            @Override
+            public void accept( ExpressionVisitor visitor )
+            {
+                visitor.invoke( Expression.SUPER,
+                        new MethodReference( parent, "<init>", VOID, Modifier.PUBLIC, parameterTypes ), parameters);
+            }
+        };
+    }
+
     public static Expression cast( Class<?> type, Expression expression )
     {
         return cast( typeReference( type ), expression );
+    }
+
+    public static Expression instanceOf( final TypeReference typeToCheck, Expression expression )
+    {
+        return new Expression( typeReference( boolean.class ) )
+        {
+            @Override
+            public void accept( ExpressionVisitor visitor )
+            {
+                visitor.instanceOf( typeToCheck, expression );
+            }
+        };
     }
 
     public static Expression cast( final TypeReference type, Expression expression )

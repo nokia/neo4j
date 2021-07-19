@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -69,12 +69,11 @@ import static org.neo4j.kernel.impl.util.DebugUtil.classNameContains;
 import static org.neo4j.kernel.impl.util.DebugUtil.methodIs;
 import static org.neo4j.kernel.impl.util.DebugUtil.stackTraceContains;
 import static org.neo4j.test.rule.Resources.InitialLifecycle.STARTED;
-import static org.neo4j.test.rule.Resources.TestPath.FILE_IN_EXISTING_DIRECTORY;
 
 public class CountsTrackerTest
 {
     @Rule
-    public final Resources resourceManager = new Resources( FILE_IN_EXISTING_DIRECTORY );
+    public final Resources resourceManager = new Resources();
     @Rule
     public final ThreadingRule threading = new ThreadingRule();
 
@@ -272,7 +271,7 @@ public class CountsTrackerTest
             final Barrier.Control barrier = new Barrier.Control();
             CountsTracker tracker = life.add( new CountsTracker(
                     resourceManager.logProvider(), resourceManager.fileSystem(), resourceManager.pageCache(),
-                    Config.defaults(), resourceManager.testPath(), EmptyVersionContextSupplier.EMPTY )
+                    Config.defaults(), resourceManager.testDirectory().databaseLayout(), EmptyVersionContextSupplier.EMPTY )
             {
                 @Override
                 protected boolean include( CountsKey countsKey, ReadableBuffer value )
@@ -312,7 +311,7 @@ public class CountsTrackerTest
 
         // then
         assertTrue( CountsTracker.compare( version, new FileVersion( 5, 5 ) ) > 0 );
-        assertTrue( CountsTracker.compare( version, new FileVersion( 16, 5 ) ) == 0 );
+        assertEquals( 0, CountsTracker.compare( version, new FileVersion( 16, 5 ) ) );
         assertTrue( CountsTracker.compare( version, new FileVersion( 30, 1 ) ) < 0 );
         assertTrue( CountsTracker.compare( version, new FileVersion( 16, 1 ) ) > 0 );
         assertTrue( CountsTracker.compare( version, new FileVersion( 16, 7 ) ) < 0 );
@@ -474,7 +473,7 @@ public class CountsTrackerTest
     private CountsTracker newTracker( SystemNanoClock clock, VersionContextSupplier versionContextSupplier )
     {
         return new CountsTracker( resourceManager.logProvider(), resourceManager.fileSystem(),
-                resourceManager.pageCache(), Config.defaults(), resourceManager.testPath(), clock,
+                resourceManager.pageCache(), Config.defaults(), resourceManager.testDirectory().databaseLayout(), clock,
                 versionContextSupplier )
                 .setInitializer( new DataInitializer<CountsAccessor.Updater>()
                 {
@@ -491,7 +490,7 @@ public class CountsTrackerTest
                 } );
     }
 
-    private CountsOracle someData()
+    private static CountsOracle someData()
     {
         CountsOracle oracle = new CountsOracle();
         CountsOracle.Node n0 = oracle.node( 0, 1 );

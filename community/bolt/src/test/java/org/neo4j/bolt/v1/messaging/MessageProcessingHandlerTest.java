@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,22 +21,21 @@ package org.neo4j.bolt.v1.messaging;
 
 import org.junit.Test;
 
-import java.io.IOException;
-
 import org.neo4j.bolt.runtime.BoltConnection;
+import org.neo4j.bolt.runtime.Neo4jError;
+import org.neo4j.bolt.messaging.BoltResponseMessageWriter;
+import org.neo4j.bolt.v1.messaging.response.FailureMessage;
+import org.neo4j.bolt.v1.messaging.response.SuccessMessage;
 import org.neo4j.bolt.v1.packstream.PackOutputClosedException;
-import org.neo4j.bolt.v1.runtime.Neo4jError;
 import org.neo4j.graphdb.TransactionTerminatedException;
 import org.neo4j.kernel.api.exceptions.Status;
 import org.neo4j.logging.AssertableLogProvider;
 import org.neo4j.logging.Log;
-import org.neo4j.values.virtual.MapValue;
 
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -49,13 +48,13 @@ public class MessageProcessingHandlerTest
     public void shouldCallHaltOnUnexpectedFailures() throws Exception
     {
         // Given
-        BoltResponseMessageHandler<IOException> msgHandler = newResponseHandlerMock();
-        doThrow( new RuntimeException( "Something went horribly wrong" ) ).when( msgHandler ).onSuccess(
-                any( MapValue.class ) );
+        BoltResponseMessageWriter msgWriter = newResponseHandlerMock();
+        doThrow( new RuntimeException( "Something went horribly wrong" ) ).when( msgWriter ).write(
+                any( SuccessMessage.class ) );
 
         BoltConnection connection = mock( BoltConnection.class );
         MessageProcessingHandler handler =
-                new MessageProcessingHandler( msgHandler, connection, mock( Log.class ) );
+                new MessageProcessingHandler( msgWriter, connection, mock( Log.class ) );
 
         // When
         handler.onFinish();
@@ -134,8 +133,7 @@ public class MessageProcessingHandlerTest
             throws Exception
     {
         AssertableLogProvider logProvider = new AssertableLogProvider();
-        BoltResponseMessageHandler<IOException> responseHandler =
-                newResponseHandlerMock( error.isFatal(), errorDuringWrite );
+        BoltResponseMessageWriter responseHandler = newResponseHandlerMock( error.isFatal(), errorDuringWrite );
 
         MessageProcessingHandler handler =
                 new MessageProcessingHandler( responseHandler, mock( BoltConnection.class ),
@@ -147,24 +145,17 @@ public class MessageProcessingHandlerTest
         return logProvider;
     }
 
-    private static BoltResponseMessageHandler<IOException> newResponseHandlerMock( boolean fatalError, Throwable error )
-            throws Exception
+    private static BoltResponseMessageWriter newResponseHandlerMock( boolean fatalError, Throwable error ) throws Exception
     {
-        BoltResponseMessageHandler<IOException> handler = newResponseHandlerMock();
-        if ( fatalError )
-        {
-            doThrow( error ).when( handler ).onFatal( any( Status.class ), anyString() );
-        }
-        else
-        {
-            doThrow( error ).when( handler ).onFailure( any( Status.class ), anyString() );
-        }
+        BoltResponseMessageWriter handler = newResponseHandlerMock();
+
+        doThrow( error ).when( handler ).write( any( FailureMessage.class ) );
         return handler;
     }
 
     @SuppressWarnings( "unchecked" )
-    private static BoltResponseMessageHandler<IOException> newResponseHandlerMock()
+    private static BoltResponseMessageWriter newResponseHandlerMock()
     {
-        return mock( BoltResponseMessageHandler.class );
+        return mock( BoltResponseMessageWriter.class );
     }
 }

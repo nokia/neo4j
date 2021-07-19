@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -49,7 +49,8 @@ public class SingleFilePageSwapperFactory implements PageSwapperFactory
             File file,
             int filePageSize,
             PageEvictionCallback onEviction,
-            boolean createIfNotExist ) throws IOException
+            boolean createIfNotExist,
+            boolean noChannelStriping ) throws IOException
     {
         if ( !fs.fileExists( file ) )
         {
@@ -62,7 +63,7 @@ public class SingleFilePageSwapperFactory implements PageSwapperFactory
                 throw new NoSuchFileException( file.getPath(), null, "Cannot map non-existing file" );
             }
         }
-        return new SingleFilePageSwapper( file, fs, filePageSize, onEviction );
+        return new SingleFilePageSwapper( file, fs, filePageSize, onEviction, noChannelStriping );
     }
 
     @Override

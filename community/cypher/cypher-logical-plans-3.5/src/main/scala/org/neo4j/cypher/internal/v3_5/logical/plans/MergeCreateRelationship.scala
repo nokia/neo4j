@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,8 +20,8 @@
 package org.neo4j.cypher.internal.v3_5.logical.plans
 
 import org.neo4j.cypher.internal.ir.v3_5.StrictnessMode
-import org.neo4j.cypher.internal.util.v3_5.attribution.IdGen
 import org.neo4j.cypher.internal.v3_5.expressions.{Expression, RelTypeName}
+import org.neo4j.cypher.internal.v3_5.util.attribution.IdGen
 
 /**
   * For each input row, create a new relationship with the provided type and properties,
@@ -31,7 +31,7 @@ import org.neo4j.cypher.internal.v3_5.expressions.{Expression, RelTypeName}
   * with the same type and properties exist between the given nodes.
   */
 case class MergeCreateRelationship(source: LogicalPlan, idName: String, startNode: String, typ: RelTypeName, endNode: String, properties: Option[Expression])
-                                  (implicit idGen: IdGen) extends LogicalPlan(idGen) {
+                                  (implicit idGen: IdGen) extends LogicalPlan(idGen) with UpdatingPlan {
 
   override def lhs: Option[LogicalPlan] = Some(source)
 
@@ -40,4 +40,6 @@ case class MergeCreateRelationship(source: LogicalPlan, idName: String, startNod
   override def rhs: Option[LogicalPlan] = None
 
   override def strictness: StrictnessMode = source.strictness
+
+  override def withSource(source: LogicalPlan)(implicit idGen: IdGen): MergeCreateRelationship = copy(source = source)
 }

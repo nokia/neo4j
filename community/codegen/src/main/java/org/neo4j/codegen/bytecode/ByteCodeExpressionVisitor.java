@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -82,6 +82,7 @@ import static org.objectweb.asm.Opcodes.IF_ICMPLT;
 import static org.objectweb.asm.Opcodes.IF_ICMPNE;
 import static org.objectweb.asm.Opcodes.ILOAD;
 import static org.objectweb.asm.Opcodes.IMUL;
+import static org.objectweb.asm.Opcodes.INSTANCEOF;
 import static org.objectweb.asm.Opcodes.INVOKEINTERFACE;
 import static org.objectweb.asm.Opcodes.INVOKESPECIAL;
 import static org.objectweb.asm.Opcodes.INVOKESTATIC;
@@ -532,7 +533,17 @@ class ByteCodeExpressionVisitor implements ExpressionVisitor
     public void cast( TypeReference type, Expression expression )
     {
         expression.accept( this );
-        methodVisitor.visitTypeInsn( CHECKCAST, byteCodeName( type ) );
+        if ( !type.equals( expression.type() ) )
+        {
+            methodVisitor.visitTypeInsn( CHECKCAST, byteCodeName( type ) );
+        }
+    }
+
+    @Override
+    public void instanceOf( TypeReference type, Expression expression )
+    {
+        expression.accept( this );
+        methodVisitor.visitTypeInsn( INSTANCEOF, byteCodeName( type ) );
     }
 
     @Override

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,19 +19,19 @@
  */
 package org.neo4j.graphalgo.impl.util;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import org.neo4j.graphalgo.impl.util.PriorityMap.Entry;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class TestPriorityMap
+class TestPriorityMap
 {
     @Test
-    public void testIt()
+    void testIt()
     {
         PriorityMap<Integer, Integer, Double> map =
             PriorityMap.withSelfKeyNaturalOrder();
@@ -73,12 +73,10 @@ public class TestPriorityMap
         map.put( f, 7d );
         // get x
         map.put( y, 8d );
-        // get x
-//        map.put(
     }
 
     @Test
-    public void shouldReplaceIfBetter()
+    void shouldReplaceIfBetter()
     {
         // GIVEN
         PriorityMap<Integer, Integer, Double> map = PriorityMap.withSelfKeyNaturalOrder();
@@ -92,11 +90,11 @@ public class TestPriorityMap
         Entry<Integer, Double> top = map.pop();
         assertNull( map.peek() );
         assertEquals( 1, top.getEntity().intValue() );
-        assertEquals( 1.5d, top.getPriority(), 0d );
+        assertEquals( 1.5d, top.getPriority(), 0.00001 );
     }
 
     @Test
-    public void shouldKeepAllPrioritiesIfToldTo()
+    void shouldKeepAllPrioritiesIfToldTo()
     {
         // GIVEN
         int entity = 5;
@@ -116,7 +114,7 @@ public class TestPriorityMap
     }
 
     @Test
-    public void inCaseSaveAllPrioritiesShouldHandleNewEntryWithWorsePrio()
+    void inCaseSaveAllPrioritiesShouldHandleNewEntryWithWorsePrio()
     {
         // GIVEN
         int first = 1;
@@ -136,7 +134,7 @@ public class TestPriorityMap
     }
 
     @Test
-    public void inCaseSaveAllPrioritiesShouldHandleNewEntryWithBetterPrio()
+    void inCaseSaveAllPrioritiesShouldHandleNewEntryWithBetterPrio()
     {
         // GIVEN
         int first = 1;
@@ -155,7 +153,7 @@ public class TestPriorityMap
         assertNull( map.peek() );
     }
 
-    private void assertEntry( Entry<Integer, Double> entry, Integer entity, Double priority )
+    private static void assertEntry( Entry<Integer,Double> entry, Integer entity, Double priority )
     {
         assertNotNull( entry );
         assertEquals( entity, entry.getEntity() );

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -22,10 +22,12 @@ package org.neo4j.values.storable;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.neo4j.hashing.HashFunction;
 import org.neo4j.values.ValueMapper;
 import org.neo4j.values.virtual.ListValue;
 
 import static java.lang.String.format;
+import static org.neo4j.values.utils.ValueMath.HASH_CONSTANT;
 import static org.neo4j.values.virtual.VirtualValues.list;
 
 public final class CharValue extends TextValue
@@ -40,7 +42,7 @@ public final class CharValue extends TextValue
     @Override
     public boolean eq( Object other )
     {
-        return other != null && other instanceof Value && equals( (Value) other );
+        return other instanceof Value && equals( (Value) other );
     }
 
     @Override
@@ -65,7 +67,19 @@ public final class CharValue extends TextValue
     public int computeHash()
     {
         //The 31 is there to give it the same hash as the string equivalent
-        return 31 + value;
+        return HASH_CONSTANT + value;
+    }
+
+    @Override
+    public long updateHash( HashFunction hashFunction, long hash )
+    {
+        return updateHash( hashFunction, hash, value );
+    }
+
+    public static long updateHash( HashFunction hashFunction, long hash, char value )
+    {
+        hash = hashFunction.update( hash, value );
+        return hashFunction.update( hash, 1 ); // Pretend we're a string of length 1.
     }
 
     @Override
@@ -103,7 +117,7 @@ public final class CharValue extends TextValue
     {
         if ( length != 1 && start != 0 )
         {
-            return StringValue.EMTPY;
+            return StringValue.EMPTY;
         }
 
         return this;
@@ -114,7 +128,7 @@ public final class CharValue extends TextValue
     {
         if ( Character.isWhitespace( value ) )
         {
-            return StringValue.EMTPY;
+            return StringValue.EMPTY;
         }
         else
         {
@@ -180,6 +194,30 @@ public final class CharValue extends TextValue
         return this;
     }
 
+    @Override
+    public TextValue plus( TextValue other )
+    {
+        return Values.stringValue( value + other.stringValue() );
+    }
+
+    @Override
+    public boolean startsWith( TextValue other )
+    {
+        return other.length() == 1 && other.stringValue().charAt( 0 ) == value;
+    }
+
+    @Override
+    public boolean endsWith( TextValue other )
+    {
+        return startsWith( other );
+    }
+
+    @Override
+    public boolean contains( TextValue other )
+    {
+        return startsWith( other );
+    }
+
     public char value()
     {
         return value;
@@ -206,6 +244,12 @@ public final class CharValue extends TextValue
     @Override
     public String toString()
     {
-        return format( "Char('%s')", value );
+        return format( "%s('%s')", getTypeName(), value );
+    }
+
+    @Override
+    public String getTypeName()
+    {
+        return "Char";
     }
 }

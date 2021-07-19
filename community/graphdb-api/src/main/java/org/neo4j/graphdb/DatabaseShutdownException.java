@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,7 +19,9 @@
  */
 package org.neo4j.graphdb;
 
-public class DatabaseShutdownException extends RuntimeException
+import org.neo4j.kernel.api.exceptions.Status;
+
+public class DatabaseShutdownException extends RuntimeException implements Status.HasStatus
 {
     public DatabaseShutdownException( )
     {
@@ -29,5 +31,11 @@ public class DatabaseShutdownException extends RuntimeException
     public DatabaseShutdownException( String message )
     {
         super( message );
+    }
+
+    @Override
+    public Status status()
+    {
+        return Status.General.DatabaseUnavailable;
     }
 }

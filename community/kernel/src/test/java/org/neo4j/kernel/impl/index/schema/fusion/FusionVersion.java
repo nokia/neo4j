@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,58 +19,58 @@
  */
 package org.neo4j.kernel.impl.index.schema.fusion;
 
-import static org.neo4j.kernel.impl.index.schema.fusion.FusionIndexBase.LUCENE;
-import static org.neo4j.kernel.impl.index.schema.fusion.FusionIndexBase.NUMBER;
-import static org.neo4j.kernel.impl.index.schema.fusion.FusionIndexBase.SPATIAL;
-import static org.neo4j.kernel.impl.index.schema.fusion.FusionIndexBase.STRING;
-import static org.neo4j.kernel.impl.index.schema.fusion.FusionIndexBase.TEMPORAL;
+import static org.neo4j.kernel.impl.index.schema.fusion.IndexSlot.LUCENE;
+import static org.neo4j.kernel.impl.index.schema.fusion.IndexSlot.NUMBER;
+import static org.neo4j.kernel.impl.index.schema.fusion.IndexSlot.SPATIAL;
+import static org.neo4j.kernel.impl.index.schema.fusion.IndexSlot.STRING;
+import static org.neo4j.kernel.impl.index.schema.fusion.IndexSlot.TEMPORAL;
 
 enum FusionVersion
 {
     v00
             {
                 @Override
-                int[] aliveSlots()
+                IndexSlot[] aliveSlots()
                 {
-                    return new int[]{LUCENE, SPATIAL, TEMPORAL};
+                    return new IndexSlot[]{LUCENE, SPATIAL, TEMPORAL};
                 }
 
                 @Override
-                FusionIndexProvider.Selector selector()
+                SlotSelector slotSelector()
                 {
-                    return new FusionSelector00();
+                    return new FusionSlotSelector00();
                 }
             },
     v10
             {
                 @Override
-                int[] aliveSlots()
+                IndexSlot[] aliveSlots()
                 {
-                    return new int[]{NUMBER, LUCENE, SPATIAL, TEMPORAL};
+                    return new IndexSlot[]{NUMBER, LUCENE, SPATIAL, TEMPORAL};
                 }
 
                 @Override
-                FusionIndexProvider.Selector selector()
+                SlotSelector slotSelector()
                 {
-                    return new FusionSelector10();
+                    return new FusionSlotSelector10();
                 }
             },
     v20
             {
                 @Override
-                int[] aliveSlots()
+                IndexSlot[] aliveSlots()
                 {
-                    return new int[]{STRING, NUMBER, SPATIAL, TEMPORAL, LUCENE};
+                    return new IndexSlot[]{STRING, NUMBER, SPATIAL, TEMPORAL, LUCENE};
                 }
 
                 @Override
-                FusionIndexProvider.Selector selector()
+                SlotSelector slotSelector()
                 {
-                    return new FusionSelector20();
+                    return new FusionSlotSelector20();
                 }
             };
 
-    abstract int[] aliveSlots();
+    abstract IndexSlot[] aliveSlots();
 
-    abstract FusionIndexProvider.Selector selector();
+    abstract SlotSelector slotSelector();
 }

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,14 +19,14 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.plans.rewriter
 
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
 import org.neo4j.cypher.internal.compiler.v3_5.planner._
 import org.neo4j.cypher.internal.ir.v3_5._
-import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.{Cardinalities, Solveds}
-import org.neo4j.cypher.internal.util.v3_5.Cardinality
-import org.neo4j.cypher.internal.util.v3_5.attribution.Attributes
-import org.neo4j.cypher.internal.v3_5.expressions.{Equals, Expression, SignedDecimalIntegerLiteral}
+import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes
 import org.neo4j.cypher.internal.v3_5.logical.plans.{NodeHashJoin, Selection}
+import org.neo4j.cypher.internal.v3_5.expressions.{Equals, Expression, SignedDecimalIntegerLiteral}
+import org.neo4j.cypher.internal.v3_5.util.Cardinality
+import org.neo4j.cypher.internal.v3_5.util.attribution.Attributes
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
 
 class PredicateRemovalThroughJoinsTest extends CypherFunSuite with LogicalPlanningTestSupport {
   val aHasLabel = identHasLabel("a", "LABEL")
@@ -35,15 +35,14 @@ class PredicateRemovalThroughJoinsTest extends CypherFunSuite with LogicalPlanni
 
   test("same predicate on both sides - Selection is removed entirely") {
     // Given
-    val solveds = new Solveds
-    val cardinalities = new Cardinalities
-    val lhsSelection = selectionOp("a", solveds, cardinalities, aHasLabel)
-    val rhsLeaf = newMockedLogicalPlan(solveds, cardinalities, "a")
+    val planningAttributes = newAttributes()
+    val lhsSelection = selectionOp("a", planningAttributes, aHasLabel)
+    val rhsLeaf = newMockedLogicalPlan(planningAttributes, "a")
     val rhsSelection = Selection(Seq(aHasLabel), rhsLeaf)
     val join = NodeHashJoin(Set("a"), lhsSelection, rhsSelection)
 
     // When
-    val result = join.endoRewrite(predicateRemovalThroughJoins(solveds, cardinalities, Attributes(idGen)))
+    val result = join.endoRewrite(predicateRemovalThroughJoins(planningAttributes.solveds, planningAttributes.cardinalities, Attributes(idGen, planningAttributes.providedOrders)))
 
     // Then the Selection operator is removed from the RHS
     result should equal(NodeHashJoin(Set("a"), lhsSelection, rhsLeaf))
@@ -51,15 +50,14 @@ class PredicateRemovalThroughJoinsTest extends CypherFunSuite with LogicalPlanni
 
   test("multiple predicates on both sides - only one is common on both sides and is removed") {
     // Given
-    val solveds = new Solveds
-    val cardinalities = new Cardinalities
-    val lhsSelection = selectionOp("a", solveds, cardinalities, aHasLabel, pred1)
-    val rhsLeaf = newMockedLogicalPlan(solveds, cardinalities, "a")
+    val planningAttributes = newAttributes()
+    val lhsSelection = selectionOp("a", planningAttributes, aHasLabel, pred1)
+    val rhsLeaf = newMockedLogicalPlan(planningAttributes, "a")
     val rhsSelection = Selection(Seq(aHasLabel, pred2), rhsLeaf)
     val join = NodeHashJoin(Set("a"), lhsSelection, rhsSelection)
 
     // When rewritten
-    val result = join.endoRewrite(predicateRemovalThroughJoins(solveds, cardinalities, Attributes(idGen)))
+    val result = join.endoRewrite(predicateRemovalThroughJoins(planningAttributes.solveds, planningAttributes.cardinalities, Attributes(idGen, planningAttributes.providedOrders)))
 
     // Then the predicate is removed from the RHS selection operator
     val newRhsSelection = Selection(Seq(pred2), rhsLeaf)
@@ -70,28 +68,28 @@ class PredicateRemovalThroughJoinsTest extends CypherFunSuite with LogicalPlanni
 
   test("same predicate on both sides, but not depending on the join ids - nothing should be removed") {
     // Given
-    val solveds = new Solveds
-    val cardinalities = new Cardinalities
-    val lhsSelection = selectionOp("a", solveds, cardinalities, pred1)
-    val rhsLeaf = newMockedLogicalPlan(solveds, cardinalities, "a")
+    val planningAttributes = newAttributes()
+    val lhsSelection = selectionOp("a", planningAttributes, pred1)
+    val rhsLeaf = newMockedLogicalPlan(planningAttributes, "a")
     val rhsSelection = Selection(Seq(pred1), rhsLeaf)
     val join = NodeHashJoin(Set("a"), lhsSelection, rhsSelection)
 
     // When rewritten
-    val result = join.endoRewrite(predicateRemovalThroughJoins(solveds, cardinalities, Attributes(idGen)))
+    val result = join.endoRewrite(predicateRemovalThroughJoins(planningAttributes.solveds, planningAttributes.cardinalities, Attributes(idGen, planningAttributes.providedOrders)))
 
     // Then nothing is removed
     result should equal(join)
   }
 
-  private def selectionOp(id: String, solveds: Solveds, cardinalities: Cardinalities, predicates: Expression*) = {
+  private def selectionOp(id: String, planningAttributes: PlanningAttributes, predicates: Expression*) = {
     val selections = Selections.from(predicates)
     val lhsLeaf = newMockedLogicalPlan("a")
     val solved = PlannerQuery.empty.withQueryGraph(QueryGraph(selections = selections))
     val c = Cardinality(0)
     val res = Selection(Seq(aHasLabel), lhsLeaf)
-    solveds.set(res.id, solved)
-    cardinalities.set(res.id, c)
+    planningAttributes.solveds.set(res.id, solved)
+    planningAttributes.cardinalities.set(res.id, c)
+    planningAttributes.providedOrders.set(res.id, ProvidedOrder.empty)
     res
   }
 }

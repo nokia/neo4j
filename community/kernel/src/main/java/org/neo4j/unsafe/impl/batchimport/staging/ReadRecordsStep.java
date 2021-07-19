@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -22,11 +22,11 @@ package org.neo4j.unsafe.impl.batchimport.staging;
 import org.eclipse.collections.api.iterator.LongIterator;
 
 import org.neo4j.io.pagecache.PageCursor;
-import org.neo4j.kernel.impl.store.RecordCursor;
 import org.neo4j.kernel.impl.store.RecordStore;
 import org.neo4j.kernel.impl.store.record.AbstractBaseRecord;
-import org.neo4j.kernel.impl.store.record.RecordLoad;
 import org.neo4j.unsafe.impl.batchimport.Configuration;
+
+import static java.lang.Integer.min;
 
 /**
  * Reads records from a {@link RecordStore} and sends batches of those records downstream.
@@ -49,7 +49,12 @@ public class ReadRecordsStep<RECORD extends AbstractBaseRecord> extends Processo
     public ReadRecordsStep( StageControl control, Configuration config, boolean inRecordWritingStage,
             RecordStore<RECORD> store, RecordDataAssembler<RECORD> converter )
     {
-        super( control, ">", config, parallelReading( config, inRecordWritingStage ) ? 0 : 1 );
+        super( control, ">", config, parallelReading( config, inRecordWritingStage )
+                                     // Limit reader (I/O) threads to 12, it's a high degree of concurrency and assigning more
+                                     // will likely not make things faster, rather the other way around and it's difficult for
+                                     // the processor assigner to proficiently understand that dynamic
+                                     ? min( 12, config.maxNumberOfProcessors() )
+                                     : 1 );
         this.store = store;
         this.assembler = converter;
         this.batchSize = config.batchSize();
@@ -80,12 +85,12 @@ public class ReadRecordsStep<RECORD extends AbstractBaseRecord> extends Processo
         int i = 0;
         // Just use the first record in the batch here to satisfy the record cursor.
         // The truth is that we'll be using the read method which accepts an external record anyway so it doesn't matter.
-        try ( RecordCursor<RECORD> cursor = store.newRecordCursor( batch[0] ).acquire( id, RecordLoad.CHECK ) )
+        try ( PageCursor cursor = store.openPageCursorForReading( id ) )
         {
             boolean hasNext = true;
             while ( hasNext )
             {
-                if ( assembler.append( cursor, batch, id, i ) )
+                if ( assembler.append( store, cursor, batch, id, i ) )
                 {
                     i++;
                 }

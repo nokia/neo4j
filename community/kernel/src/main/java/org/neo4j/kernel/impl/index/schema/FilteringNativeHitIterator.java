@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -27,7 +27,7 @@ import org.neo4j.index.internal.gbptree.Hit;
 import org.neo4j.internal.kernel.api.IndexQuery;
 import org.neo4j.values.storable.Value;
 
-class FilteringNativeHitIterator<KEY extends NativeSchemaKey<KEY>, VALUE extends NativeSchemaValue> extends NativeHitIterator<KEY,VALUE>
+class FilteringNativeHitIterator<KEY extends NativeIndexKey<KEY>, VALUE extends NativeIndexValue> extends NativeHitIterator<KEY,VALUE>
 {
     private final IndexQuery[] filters;
 
@@ -39,8 +39,15 @@ class FilteringNativeHitIterator<KEY extends NativeSchemaKey<KEY>, VALUE extends
     }
 
     @Override
-    boolean acceptValue( Value value )
+    boolean acceptValues( Value[] values )
     {
-        return filters[0].acceptsValue( value );
+        for ( int i = 0; i < values.length; i++ )
+        {
+            if ( !filters[i].acceptsValue( values[i] ) )
+            {
+                return false;
+            }
+        }
+        return true;
     }
 }

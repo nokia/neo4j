@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -32,7 +32,12 @@ public class IndexQueryHelper
 
     public static IndexQuery exact( int propertyKeyId, Object value )
     {
-        return IndexQuery.exact( propertyKeyId, Values.of( value ) );
+        return exact( propertyKeyId, Values.of( value ) );
+    }
+
+    public static IndexQuery exact( int propertyKeyId, Value value )
+    {
+        return IndexQuery.exact( propertyKeyId, value );
     }
 
     public static IndexEntryUpdate<SchemaDescriptor> add(

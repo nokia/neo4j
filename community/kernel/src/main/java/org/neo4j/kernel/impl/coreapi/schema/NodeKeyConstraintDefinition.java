@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -48,7 +48,7 @@ public class NodeKeyConstraintDefinition extends NodeConstraintDefinition
     @Override
     public String toString()
     {
-        return format( "ON (%1$s:%2$s) ASSERT %3$s IS NODE KEY",
+        return format( "ON (%1$s:%2$s) ASSERT (%3$s) IS NODE KEY",
                 label.name().toLowerCase(), label.name(), propertyText() );
     }
 }

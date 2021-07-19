@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -25,6 +25,8 @@ import java.util.function.Supplier;
 import org.neo4j.kernel.impl.api.KernelTransactionsSnapshot;
 import org.neo4j.kernel.impl.store.id.BufferingIdGeneratorFactory;
 import org.neo4j.kernel.lifecycle.LifecycleAdapter;
+import org.neo4j.scheduler.Group;
+import org.neo4j.scheduler.JobHandle;
 import org.neo4j.scheduler.JobScheduler;
 
 /**
@@ -36,7 +38,7 @@ public class BufferedIdController extends LifecycleAdapter implements IdControll
 {
     private final BufferingIdGeneratorFactory bufferingIdGeneratorFactory;
     private final JobScheduler scheduler;
-    private JobScheduler.JobHandle jobHandle;
+    private JobHandle jobHandle;
 
     public BufferedIdController( BufferingIdGeneratorFactory bufferingIdGeneratorFactory, JobScheduler scheduler )
     {
@@ -47,7 +49,7 @@ public class BufferedIdController extends LifecycleAdapter implements IdControll
     @Override
     public void start()
     {
-        jobHandle = scheduler.scheduleRecurring( JobScheduler.Groups.storageMaintenance, this::maintenance, 1,
+        jobHandle = scheduler.scheduleRecurring( Group.STORAGE_MAINTENANCE, this::maintenance, 1,
                 TimeUnit.SECONDS );
     }
 

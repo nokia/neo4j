@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,13 +19,17 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner
 
-import org.neo4j.cypher.internal.planner.v3_5.spi.{GraphStatistics, IndexDescriptor}
-import org.neo4j.cypher.internal.util.v3_5.{Cardinality, LabelId, RelTypeId, Selectivity}
+import org.neo4j.cypher.internal.planner.v3_5.spi.GraphStatistics
+import org.neo4j.cypher.internal.planner.v3_5.spi.IndexDescriptor
 import org.neo4j.kernel.impl.util.dbstructure.DbStructureLookup
+import org.neo4j.cypher.internal.v3_5.util.Cardinality
+import org.neo4j.cypher.internal.v3_5.util.LabelId
+import org.neo4j.cypher.internal.v3_5.util.RelTypeId
+import org.neo4j.cypher.internal.v3_5.util.Selectivity
 
 class DbStructureGraphStatistics(lookup: DbStructureLookup) extends GraphStatistics {
 
-  import org.neo4j.cypher.internal.util.v3_5.NameId._
+  import org.neo4j.cypher.internal.v3_5.util.NameId._
 
   override def nodesWithLabelCardinality( label: Option[LabelId] ): Cardinality =
     Cardinality(lookup.nodesWithLabelCardinality(label))
@@ -33,21 +37,11 @@ class DbStructureGraphStatistics(lookup: DbStructureLookup) extends GraphStatist
   override def cardinalityByLabelsAndRelationshipType( fromLabel: Option[LabelId], relTypeId: Option[RelTypeId], toLabel: Option[LabelId] ): Cardinality =
     Cardinality(lookup.cardinalityByLabelsAndRelationshipType(fromLabel, relTypeId, toLabel))
 
-  /*
-      Probability of any node with the given label, to have a given property with a particular value
-
-      indexSelectivity(:X, prop) = s => |MATCH (a:X)| * s = |MATCH (a:X) WHERE x.prop = '*'|
-   */
-  override def indexSelectivity( index: IndexDescriptor ): Option[Selectivity] = {
-    val result = lookup.indexSelectivity( index.label.id, index.property.id )
+  override def uniqueValueSelectivity(index: IndexDescriptor ): Option[Selectivity] = {
+    val result = lookup.indexUniqueValueSelectivity( index.label.id, index.property.id )
     Selectivity.of(result)
   }
 
-  /*
-      Probability of any node with the given label, to have a particular property
-
-      indexPropertyExistsSelectivity(:X, prop) = s => |MATCH (a:X)| * s = |MATCH (a:X) WHERE has(x.prop)|
-   */
   override def indexPropertyExistsSelectivity( index: IndexDescriptor ): Option[Selectivity] = {
     val result = lookup.indexPropertyExistsSelectivity( index.label.id, index.property.id )
     if (result.isNaN) None else Some(Selectivity.of(result).get)

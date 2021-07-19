@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,10 +20,10 @@
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.cardinality.assumeIndependence
 
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.cardinality._
-import org.neo4j.cypher.internal.frontend.v3_5.semantics.SemanticTable
+import org.neo4j.cypher.internal.v3_5.ast.semantics.SemanticTable
 import org.neo4j.cypher.internal.ir.v3_5.{Selections, _}
 import org.neo4j.cypher.internal.planner.v3_5.spi.GraphStatistics
-import org.neo4j.cypher.internal.util.v3_5.{Cardinality, LabelId, RelTypeId, Selectivity}
+import org.neo4j.cypher.internal.v3_5.util.{Cardinality, LabelId, RelTypeId, Selectivity}
 import org.neo4j.cypher.internal.v3_5.expressions.{LabelName, RelTypeName, SemanticDirection}
 
 trait Pattern2Selectivity {

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,17 +20,14 @@
 package org.neo4j.cypher.internal.spi.v3_1
 
 import org.neo4j.cypher.internal.compiler.v3_1.spi.SchemaTypes
+import org.neo4j.internal.kernel.api.{IndexReference => KernelIndexReference}
 import org.neo4j.internal.kernel.api.schema.SchemaDescriptor
-import org.neo4j.kernel.api.schema.constaints.{ConstraintDescriptorFactory, NodeExistenceConstraintDescriptor, RelExistenceConstraintDescriptor, UniquenessConstraintDescriptor => KernelUniquenessConstraint}
-import org.neo4j.kernel.api.schema.index.{SchemaIndexDescriptorFactory, SchemaIndexDescriptor => KernelIndexDescriptor}
+import org.neo4j.kernel.api.schema.constraints.{ConstraintDescriptorFactory, NodeExistenceConstraintDescriptor, RelExistenceConstraintDescriptor, UniquenessConstraintDescriptor => KernelUniquenessConstraint}
 
 trait SchemaDescriptorTranslation {
-  implicit def toKernel(index: SchemaTypes.IndexDescriptor): KernelIndexDescriptor =
-    SchemaIndexDescriptorFactory.forLabel(index.labelId, index.propertyId)
-
-  implicit def toCypher(index: KernelIndexDescriptor): SchemaTypes.IndexDescriptor = {
-    assertSingleProperty(index.schema())
-    SchemaTypes.IndexDescriptor(index.schema().keyId, index.schema().getPropertyId())
+  implicit def toCypher(index: KernelIndexReference): SchemaTypes.IndexDescriptor = {
+    assertSingleProperty(index.properties())
+      SchemaTypes.IndexDescriptor(index.schema().getEntityTokenIds()(0), index.schema().getPropertyIds()(0))
   }
 
   implicit def toKernel(constraint: SchemaTypes.UniquenessConstraint): KernelUniquenessConstraint =
@@ -52,6 +49,9 @@ trait SchemaDescriptorTranslation {
   }
 
   def assertSingleProperty(schema: SchemaDescriptor):Unit =
-    if (schema.getPropertyIds.length != 1)
+    assertSingleProperty(schema.getPropertyIds)
+
+  def assertSingleProperty(properties: Array[Int]): Unit =
+    if (properties.length != 1)
       throw new UnsupportedOperationException("Cypher 3.1 does not support composite indexes or constraints")
 }

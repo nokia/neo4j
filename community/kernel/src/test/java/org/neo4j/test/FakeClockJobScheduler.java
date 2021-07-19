@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -28,6 +28,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.neo4j.scheduler.Group;
 import org.neo4j.scheduler.JobScheduler;
 import org.neo4j.time.FakeClock;
 
@@ -106,6 +107,12 @@ public class FakeClockJobScheduler extends FakeClock implements JobScheduler
     }
 
     @Override
+    public ExecutorService workStealingExecutorAsyncMode( Group group, int parallelism )
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public ThreadFactory threadFactory( Group group )
     {
         throw new UnsupportedOperationException();
@@ -173,7 +180,13 @@ public class FakeClockJobScheduler extends FakeClock implements JobScheduler
         throw new UnsupportedOperationException();
     }
 
-    class JobHandle implements JobScheduler.JobHandle
+    @Override
+    public void close()
+    {
+        shutdown();
+    }
+
+    class JobHandle implements org.neo4j.scheduler.JobHandle
     {
         private final long id = jobIdGen.incrementAndGet();
         private final Runnable runnable;

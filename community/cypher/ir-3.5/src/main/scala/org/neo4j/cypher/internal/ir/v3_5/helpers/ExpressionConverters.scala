@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,10 +19,11 @@
  */
 package org.neo4j.cypher.internal.ir.v3_5.helpers
 
-import org.neo4j.cypher.internal.util.v3_5.{Rewriter, topDown}
-import org.neo4j.cypher.internal.frontend.v3_5.ast.rewriters.{LabelPredicateNormalizer, MatchPredicateNormalizerChain, PropertyPredicateNormalizer, addUniquenessPredicates}
+import org.neo4j.cypher.internal.v3_5.util.{Rewriter, topDown}
+import org.neo4j.cypher.internal.v3_5.rewriting.rewriters.{LabelPredicateNormalizer, MatchPredicateNormalizerChain, PropertyPredicateNormalizer, addUniquenessPredicates}
+
 import org.neo4j.cypher.internal.v3_5.expressions.{Ands, Expression, HasLabels, Not, Ors, PatternComprehension, PatternExpression, RelationshipChain, Variable}
-import org.neo4j.cypher.internal.util.v3_5.UnNamedNameGenerator._
+import org.neo4j.cypher.internal.v3_5.util.UnNamedNameGenerator._
 import org.neo4j.cypher.internal.ir.v3_5._
 import org.neo4j.cypher.internal.ir.v3_5.helpers.PatternConverters._
 import org.neo4j.cypher.internal.ir.v3_5.QueryGraph
@@ -64,12 +65,14 @@ object ExpressionConverters {
 
       val rewrittenChain = relChain.endoRewrite(topDown(Rewriter.lift(normalizer.replace)))
 
+      val deps = predicates.flatMap(_.dependencies).map(_.name)
       val patternContent = rewrittenChain.destructed
       val qg = QueryGraph(
         patternRelationships = patternContent.rels.toSet,
         patternNodes = patternContent.nodeIds.toSet
       ).addPredicates(predicates: _*)
-      qg.addArgumentIds(qg.idsWithoutOptionalMatchesOrUpdates.filter(_.isNamed).toIndexedSeq)
+      qg.addArgumentIds((qg.idsWithoutOptionalMatchesOrUpdates.filter(_.isNamed) ++ deps).toIndexedSeq)
+      // TODO Next Step: Be clever and find out if deps are necessary here and only then add dependencies
     }
   }
 

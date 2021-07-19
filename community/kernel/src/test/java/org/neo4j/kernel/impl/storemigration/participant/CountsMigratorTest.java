@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,10 +21,12 @@ package org.neo4j.kernel.impl.storemigration.participant;
 
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.RuleChain;
 
 import java.io.File;
 import java.io.IOException;
 
+import org.neo4j.io.layout.DatabaseLayout;
 import org.neo4j.kernel.configuration.Config;
 import org.neo4j.kernel.impl.store.format.StoreVersion;
 import org.neo4j.kernel.impl.util.monitoring.SilentProgressReporter;
@@ -33,37 +35,33 @@ import org.neo4j.test.rule.fs.EphemeralFileSystemRule;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.neo4j.kernel.impl.store.StoreFile.COUNTS_STORE_LEFT;
-import static org.neo4j.kernel.impl.store.StoreFile.COUNTS_STORE_RIGHT;
-import static org.neo4j.kernel.impl.storemigration.StoreFileType.STORE;
 
 public class CountsMigratorTest
 {
+    private final EphemeralFileSystemRule fs = new EphemeralFileSystemRule();
+    private final TestDirectory directory = TestDirectory.testDirectory( fs );
     @Rule
-    public final EphemeralFileSystemRule fs = new EphemeralFileSystemRule();
-    @Rule
-    public final TestDirectory directory = TestDirectory.testDirectory( fs );
+    public final RuleChain ruleChain = RuleChain.outerRule( fs ).around( directory );
 
     @Test
     public void shouldNotAccidentallyDeleteStoreFilesIfNoMigrationWasRequired() throws IOException
     {
         // given
         CountsMigrator migrator = new CountsMigrator( fs, null, Config.defaults() );
-        File storeDir = directory.graphDbDir();
-        File countsStoreFileA = new File( storeDir, COUNTS_STORE_LEFT.fileName( STORE ) );
-        File countsStoreFileB = new File( storeDir, COUNTS_STORE_RIGHT.fileName( STORE ) );
+        DatabaseLayout sourceLayout  = directory.databaseLayout();
+        File countsStoreFileA = sourceLayout.countStoreA();
+        File countsStoreFileB = sourceLayout.countStoreB();
         fs.create( countsStoreFileA );
         fs.create( countsStoreFileB );
-        File migrationDir = new File( storeDir, "migration" );
-        fs.mkdirs( migrationDir );
+        DatabaseLayout migrationLayout = directory.databaseLayout( "migration" );
         String versionToMigrateFrom = StoreVersion.STANDARD_V3_2.versionString();
         String versionToMigrateTo = StoreVersion.STANDARD_V3_4.versionString();
-        migrator.migrate( storeDir, migrationDir, SilentProgressReporter.INSTANCE, versionToMigrateFrom, versionToMigrateTo );
+        migrator.migrate( sourceLayout, migrationLayout, SilentProgressReporter.INSTANCE, versionToMigrateFrom, versionToMigrateTo );
         assertEquals( "Invalid test assumption: There should not have been migration for those versions", 0,
-                fs.listFiles( migrationDir ).length );
+                migrationLayout.listDatabaseFiles( ( dir, name ) -> true ).length );
 
         // when
-        migrator.moveMigratedFiles( migrationDir, storeDir, versionToMigrateFrom, versionToMigrateTo );
+        migrator.moveMigratedFiles( migrationLayout, sourceLayout, versionToMigrateFrom, versionToMigrateTo );
 
         // then
         assertTrue( fs.fileExists( countsStoreFileA ) );

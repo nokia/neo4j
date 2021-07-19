@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -36,7 +36,6 @@ import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.eclipse.jetty.webapp.WebAppContext;
 
 import java.io.IOException;
-import java.net.BindException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -48,11 +47,12 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Objects;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.BlockingQueue;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 import javax.servlet.DispatcherType;
 import javax.servlet.Filter;
 import javax.servlet.ServletException;
@@ -61,6 +61,7 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.neo4j.helpers.ListenSocketAddress;
 import org.neo4j.helpers.PortBindException;
+import org.neo4j.kernel.api.net.NetworkConnectionTracker;
 import org.neo4j.kernel.configuration.Config;
 import org.neo4j.logging.Log;
 import org.neo4j.logging.LogProvider;
@@ -70,14 +71,15 @@ import org.neo4j.server.security.ssl.SslSocketConnectorFactory;
 import org.neo4j.ssl.SslPolicy;
 
 import static java.lang.String.format;
+import static java.util.stream.Collectors.joining;
 
 /**
  * This class handles the configuration and runtime management of a Jetty web server. The server is restartable.
- *
- * TODO: it really should be split up into a builder that returns a Closeable, to separate between the conf and runtime part.
  */
 public class Jetty9WebServer implements WebServer
 {
+    private static final int JETTY_THREAD_POOL_IDLE_TIMEOUT = 60000;
+
     public static final ListenSocketAddress DEFAULT_ADDRESS = new ListenSocketAddress( "0.0.0.0", 80 );
 
     private boolean wadlEnabled;
@@ -87,11 +89,11 @@ public class Jetty9WebServer implements WebServer
 
     private Server jetty;
     private HandlerCollection handlers;
-    private ListenSocketAddress jettyAddress = DEFAULT_ADDRESS;
-    private Optional<ListenSocketAddress> jettyHttpsAddress = Optional.empty();
+    private ListenSocketAddress httpAddress = DEFAULT_ADDRESS;
+    private ListenSocketAddress httpsAddress;
 
-    private ServerConnector serverConnector;
-    private ServerConnector secureServerConnector;
+    private ServerConnector httpConnector;
+    private ServerConnector httpsConnector;
 
     private final HashMap<String, String> staticContent = new HashMap<>();
     private final Map<String, JaxRsServletHolderFactory> jaxRSPackages = new HashMap<>();
@@ -104,11 +106,11 @@ public class Jetty9WebServer implements WebServer
     private final HttpConnectorFactory connectorFactory;
     private final Log log;
 
-    public Jetty9WebServer( LogProvider logProvider, Config config )
+    public Jetty9WebServer( LogProvider logProvider, Config config, NetworkConnectionTracker connectionTracker )
     {
         this.log = logProvider.getLog( getClass() );
-        sslSocketFactory = new SslSocketConnectorFactory( config );
-        connectorFactory = new HttpConnectorFactory( config );
+        sslSocketFactory = new SslSocketConnectorFactory( connectionTracker, config );
+        connectorFactory = new HttpConnectorFactory( connectionTracker, config );
     }
 
     @Override
@@ -116,21 +118,26 @@ public class Jetty9WebServer implements WebServer
     {
         if ( jetty == null )
         {
+            verifyAddressConfiguration();
+
             JettyThreadCalculator jettyThreadCalculator = new JettyThreadCalculator( jettyMaxThreads );
-
             jetty = new Server( createQueuedThreadPool( jettyThreadCalculator ) );
-            serverConnector = connectorFactory.createConnector( jetty, jettyAddress, jettyThreadCalculator );
-            jetty.addConnector( serverConnector );
 
-            jettyHttpsAddress.ifPresent( address ->
+            if ( httpAddress != null )
+            {
+                httpConnector = connectorFactory.createConnector( jetty, httpAddress, jettyThreadCalculator );
+                jetty.addConnector( httpConnector );
+            }
+
+            if ( httpsAddress != null )
             {
                 if ( sslPolicy == null )
                 {
                     throw new RuntimeException( "HTTPS set to enabled, but no SSL policy provided" );
                 }
-                secureServerConnector = sslSocketFactory.createConnector( jetty, sslPolicy, address, jettyThreadCalculator );
-                jetty.addConnector( secureServerConnector );
-            } );
+                httpsConnector = sslSocketFactory.createConnector( jetty, sslPolicy, httpsAddress, jettyThreadCalculator );
+                jetty.addConnector( httpsConnector );
+            }
 
             if ( jettyCreatedCallback != null )
             {
@@ -152,10 +159,12 @@ public class Jetty9WebServer implements WebServer
         startJetty();
     }
 
-    private QueuedThreadPool createQueuedThreadPool( JettyThreadCalculator jtc )
+    private static QueuedThreadPool createQueuedThreadPool( JettyThreadCalculator jtc )
     {
         BlockingQueue<Runnable> queue = new BlockingArrayQueue<>( jtc.getMinThreads(), jtc.getMinThreads(), jtc.getMaxCapacity() );
-        return new QueuedThreadPool( jtc.getMaxThreads(), jtc.getMinThreads(), 60000, queue );
+        QueuedThreadPool threadPool = new QueuedThreadPool( jtc.getMaxThreads(), jtc.getMinThreads(), JETTY_THREAD_POOL_IDLE_TIMEOUT, queue );
+        threadPool.setThreadPoolBudget( null ); // mute warnings about Jetty thread pool size
+        return threadPool;
     }
 
     @Override
@@ -184,9 +193,21 @@ public class Jetty9WebServer implements WebServer
     }
 
     @Override
-    public void setAddress( ListenSocketAddress address )
+    public void setHttpAddress( ListenSocketAddress address )
     {
-        jettyAddress = address;
+        httpAddress = address;
+    }
+
+    @Override
+    public void setHttpsAddress( ListenSocketAddress address )
+    {
+        httpsAddress = address;
+    }
+
+    @Override
+    public void setSslPolicy( SslPolicy policy )
+    {
+        sslPolicy = policy;
     }
 
     @Override
@@ -296,54 +317,33 @@ public class Jetty9WebServer implements WebServer
         this.requestLog = requestLog;
     }
 
-    @Override
-    public void setHttpsAddress( Optional<ListenSocketAddress> address )
-    {
-        jettyHttpsAddress = address;
-    }
-
-    @Override
-    public void setSslPolicy( SslPolicy sslPolicy )
-    {
-        this.sslPolicy = sslPolicy;
-    }
-
     public Server getJetty()
     {
         return jetty;
     }
 
-    protected void startJetty() throws Exception
+    private void startJetty() throws Exception
     {
         try
         {
             jetty.start();
         }
-        catch ( BindException e )
+        catch ( IOException e )
         {
-            if ( jettyHttpsAddress.isPresent() )
-            {
-                throw new PortBindException( jettyAddress, jettyHttpsAddress.get(), e );
-            }
-            else
-            {
-                throw new PortBindException( jettyAddress, e );
-            }
+            throw new PortBindException( httpAddress, httpsAddress, e );
         }
     }
 
     @Override
     public InetSocketAddress getLocalHttpAddress()
     {
-        return toSocketAddress( serverConnector );
+        return getAddress( "HTTP", httpConnector );
     }
 
     @Override
     public InetSocketAddress getLocalHttpsAddress()
     {
-        return Optional.ofNullable( secureServerConnector)
-                        .map( Jetty9WebServer::toSocketAddress )
-                        .orElseThrow( () -> new IllegalStateException( "Secure connector is not configured" ) );
+        return getAddress( "HTTPS", httpsConnector );
     }
 
     private void loadAllMounts()
@@ -469,8 +469,8 @@ public class Jetty9WebServer implements WebServer
             }
             else
             {
-                log.warn( "No static content available for Neo Server at %s, management console may not be available.",
-                        jettyAddress );
+                log.warn( "No static content available for Neo4j Server at %s. management console may not be available.",
+                        addressConfigurationDescription() );
             }
         }
         catch ( Exception e )
@@ -517,9 +517,29 @@ public class Jetty9WebServer implements WebServer
         }
     }
 
-    private static InetSocketAddress toSocketAddress( ServerConnector connector )
+    private static InetSocketAddress getAddress( String name, ServerConnector connector )
     {
+        if ( connector == null )
+        {
+            throw new IllegalStateException( name + " connector is not configured" );
+        }
         return new InetSocketAddress( connector.getHost(), connector.getLocalPort() );
+    }
+
+    private void verifyAddressConfiguration()
+    {
+        if ( httpAddress == null && httpsAddress == null )
+        {
+            throw new IllegalStateException( "Either HTTP or HTTPS address must be configured to run the server" );
+        }
+    }
+
+    private String addressConfigurationDescription()
+    {
+        return Stream.of( httpAddress, httpsAddress )
+                .filter( Objects::nonNull )
+                .map( Object::toString )
+                .collect( joining( ", " ) );
     }
 
     private static class FilterDefinition
@@ -547,5 +567,4 @@ public class Jetty9WebServer implements WebServer
             return pathSpec;
         }
     }
-
 }

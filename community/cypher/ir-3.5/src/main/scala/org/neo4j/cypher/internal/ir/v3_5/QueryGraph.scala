@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,13 +19,15 @@
  */
 package org.neo4j.cypher.internal.ir.v3_5
 
-import org.neo4j.cypher.internal.frontend.v3_5.ast._
-import org.neo4j.cypher.internal.frontend.v3_5.prettifier.ExpressionStringifier
 import org.neo4j.cypher.internal.ir.v3_5.helpers.ExpressionConverters._
+import org.neo4j.cypher.internal.v3_5.ast._
+import org.neo4j.cypher.internal.v3_5.ast.prettifier.ExpressionStringifier
 import org.neo4j.cypher.internal.v3_5.expressions._
 
 import scala.collection.mutable.ArrayBuffer
-import scala.collection.{GenSeq, GenTraversableOnce, mutable}
+import scala.collection.GenSeq
+import scala.collection.GenTraversableOnce
+import scala.collection.mutable
 import scala.runtime.ScalaRunTime
 
 /*
@@ -97,12 +99,17 @@ case class QueryGraph(// !!! If you change anything here, make sure to update th
     nodes
   }
 
-  def collectAllPatternNodes(f: (String) => Unit): Unit = {
+  def collectAllPatternNodes(f: String => Unit): Unit = {
     patternNodes.foreach(f)
     optionalMatches.foreach(m => m.allPatternNodes.foreach(f))
-    createNodePatterns.foreach(p => f(p.nodeName))
-    mergeNodePatterns.foreach(p => f(p.createNodePattern.nodeName))
-    mergeRelationshipPatterns.foreach(p => p.createNodePatterns.foreach(pp => f(pp.nodeName)))
+    for {
+      create <- createPatterns
+      createNode <- create.nodes
+    } {
+      f(createNode.idName)
+    }
+    mergeNodePatterns.foreach(p => f(p.createNode.idName))
+    mergeRelationshipPatterns.foreach(p => p.createNodes.foreach(pp => f(pp.idName)))
   }
 
   def allPatternRelationshipsRead: Set[PatternRelationship] =
@@ -126,7 +133,7 @@ case class QueryGraph(// !!! If you change anything here, make sure to update th
   }
 
   def addHints(addedHints: GenTraversableOnce[Hint]): QueryGraph = {
-    copy(hints = hints ++ addedHints)
+    copy(hints = combineHints(addedHints))
   }
 
   def withoutHints(hintsToIgnore: GenSeq[Hint]): QueryGraph = copy(
@@ -204,7 +211,7 @@ case class QueryGraph(// !!! If you change anything here, make sure to update th
     * matches and updates have been applied
     */
   def idsWithoutOptionalMatchesOrUpdates: Set[String] =
-    QueryGraph.coveredIdsForPatterns(patternNodes, patternRelationships) ++ argumentIds
+    QueryGraph.coveredIdsForPatterns(patternNodes, patternRelationships) ++ argumentIds ++ shortestPathPatterns.flatMap(_.name)
 
   /**
     * All variables that are bound after this QG has been matched
@@ -224,10 +231,24 @@ case class QueryGraph(// !!! If you change anything here, make sure to update th
       patternRelationships = patternRelationships ++ other.patternRelationships,
       optionalMatches = optionalMatches ++ other.optionalMatches,
       argumentIds = argumentIds ++ other.argumentIds,
-      hints = hints ++ other.hints,
+      hints = combineHints(other.hints),
       shortestPathPatterns = shortestPathPatterns ++ other.shortestPathPatterns,
       mutatingPatterns = mutatingPatterns ++ other.mutatingPatterns
     )
+
+  // TODO: Consider replacing this solution with changing hints to type Set[Hint]
+  // This method make sure to not have duplicates when adding more hints to solved QueryGraphs
+  private def combineHints(addedHints: GenTraversableOnce[Hint]): Seq[Hint] = {
+    if (addedHints.nonEmpty) {
+      val toAdd = addedHints.foldLeft(Seq.empty[Hint]) {
+        case (acc, h) if !hints.contains(h) => acc :+ h
+        case (acc, _) => acc
+      }
+      hints ++ toAdd
+    } else {
+      hints
+    }
+  }
 
   def hasOptionalPatterns: Boolean = optionalMatches.nonEmpty
 
@@ -327,7 +348,7 @@ case class QueryGraph(// !!! If you change anything here, make sure to update th
   }
 
   def containsReads: Boolean = {
-    (patternNodes -- argumentIds).nonEmpty ||
+    (patternNodes.nonEmpty && (patternNodes -- argumentIds).nonEmpty) ||
       patternRelationships.nonEmpty ||
       selections.nonEmpty ||
       shortestPathPatterns.nonEmpty ||
@@ -355,7 +376,7 @@ case class QueryGraph(// !!! If you change anything here, make sure to update th
   override def toString: String = {
     var added = false
     val builder = new StringBuilder("QueryGraph {")
-    val stringifier = ExpressionStringifier()
+    val stringifier = ExpressionStringifier(_.asCanonicalStringVal)
 
     def prettyPattern(p: PatternRelationship): String = {
       val lArrow = if (p.dir == SemanticDirection.INCOMING) "<" else ""

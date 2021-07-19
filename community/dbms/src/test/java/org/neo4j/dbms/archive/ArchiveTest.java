@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,8 +19,9 @@
  */
 package org.neo4j.dbms.archive;
 
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -31,78 +32,88 @@ import java.util.Map;
 
 import org.neo4j.function.Predicates;
 import org.neo4j.kernel.impl.transaction.log.files.TransactionLogFiles;
+import org.neo4j.test.extension.Inject;
+import org.neo4j.test.extension.TestDirectoryExtension;
 import org.neo4j.test.rule.TestDirectory;
 
 import static java.nio.file.Files.isDirectory;
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.neo4j.helpers.collection.Pair.pair;
 
-public class ArchiveTest
+@ExtendWith( TestDirectoryExtension.class )
+class ArchiveTest
 {
-    @Rule
-    public TestDirectory testDirectory = TestDirectory.testDirectory();
+    @Inject
+    private TestDirectory testDirectory;
 
-    @Test
-    public void shouldRoundTripAnEmptyDirectory() throws IOException, IncorrectFormat
+    @ParameterizedTest
+    @EnumSource( CompressionFormat.class )
+    void shouldRoundTripAnEmptyDirectory( CompressionFormat compressionFormat ) throws IOException, IncorrectFormat
     {
         Path directory = testDirectory.directory( "a-directory" ).toPath();
         Files.createDirectories( directory );
 
-        assertRoundTrips( directory );
+        assertRoundTrips( directory, compressionFormat );
     }
 
-    @Test
-    public void shouldRoundTripASingleFile() throws IOException, IncorrectFormat
+    @ParameterizedTest
+    @EnumSource( CompressionFormat.class )
+    void shouldRoundTripASingleFile( CompressionFormat compressionFormat ) throws IOException, IncorrectFormat
     {
         Path directory = testDirectory.directory( "a-directory" ).toPath();
         Files.createDirectories( directory );
         Files.write( directory.resolve( "a-file" ), "text".getBytes() );
 
-        assertRoundTrips( directory );
+        assertRoundTrips( directory, compressionFormat );
     }
 
-    @Test
-    public void shouldRoundTripAnEmptyFile() throws IOException, IncorrectFormat
+    @ParameterizedTest
+    @EnumSource( CompressionFormat.class )
+    void shouldRoundTripAnEmptyFile( CompressionFormat compressionFormat ) throws IOException, IncorrectFormat
     {
         Path directory = testDirectory.directory( "a-directory" ).toPath();
         Files.createDirectories( directory );
         Files.write( directory.resolve( "a-file" ), new byte[0] );
 
-        assertRoundTrips( directory );
+        assertRoundTrips( directory, compressionFormat );
     }
 
-    @Test
-    public void shouldRoundTripFilesWithDifferentContent() throws IOException, IncorrectFormat
+    @ParameterizedTest
+    @EnumSource( CompressionFormat.class )
+    void shouldRoundTripFilesWithDifferentContent( CompressionFormat compressionFormat ) throws IOException, IncorrectFormat
     {
         Path directory = testDirectory.directory( "a-directory" ).toPath();
         Files.createDirectories( directory );
         Files.write( directory.resolve( "a-file" ), "text".getBytes() );
         Files.write( directory.resolve( "another-file" ), "some-different-text".getBytes() );
 
-        assertRoundTrips( directory );
+        assertRoundTrips( directory, compressionFormat );
     }
 
-    @Test
-    public void shouldRoundTripEmptyDirectories() throws IOException, IncorrectFormat
+    @ParameterizedTest
+    @EnumSource( CompressionFormat.class )
+    void shouldRoundTripEmptyDirectories( CompressionFormat compressionFormat ) throws IOException, IncorrectFormat
     {
         Path directory = testDirectory.directory( "a-directory" ).toPath();
         Path subdir = directory.resolve( "a-subdirectory" );
         Files.createDirectories( subdir );
-        assertRoundTrips( directory );
+        assertRoundTrips( directory, compressionFormat );
     }
 
-    @Test
-    public void shouldRoundTripFilesInDirectories() throws IOException, IncorrectFormat
+    @ParameterizedTest
+    @EnumSource( CompressionFormat.class )
+    void shouldRoundTripFilesInDirectories( CompressionFormat compressionFormat ) throws IOException, IncorrectFormat
     {
         Path directory = testDirectory.directory( "a-directory" ).toPath();
         Path subdir = directory.resolve( "a-subdirectory" );
         Files.createDirectories( subdir );
         Files.write( subdir.resolve( "a-file" ), "text".getBytes() );
-        assertRoundTrips( directory );
+        assertRoundTrips( directory, compressionFormat );
     }
 
-    @Test
-    public void shouldCopeWithLongPaths() throws IOException, IncorrectFormat
+    @ParameterizedTest
+    @EnumSource( CompressionFormat.class )
+    void shouldCopeWithLongPaths( CompressionFormat compressionFormat ) throws IOException, IncorrectFormat
     {
         Path directory = testDirectory.directory( "a-directory" ).toPath();
         Path subdir = directory.resolve( "a/very/long/path/which/is/not/realistic/for/a/database/today/but/which" +
@@ -110,11 +121,12 @@ public class ArchiveTest
                 "/formats/some/of/which/do/not/cope/with/long/paths" );
         Files.createDirectories( subdir );
         Files.write( subdir.resolve( "a-file" ), "text".getBytes() );
-        assertRoundTrips( directory );
+        assertRoundTrips( directory, compressionFormat );
     }
 
-    @Test
-    public void shouldExcludeFilesMatchedByTheExclusionPredicate() throws IOException, IncorrectFormat
+    @ParameterizedTest
+    @EnumSource( CompressionFormat.class )
+    void shouldExcludeFilesMatchedByTheExclusionPredicate( CompressionFormat compressionFormat ) throws IOException, IncorrectFormat
     {
         Path directory = testDirectory.directory( "a-directory" ).toPath();
         Files.createDirectories( directory );
@@ -122,7 +134,7 @@ public class ArchiveTest
         Files.write( directory.resolve( "another-file" ), new byte[0] );
 
         Path archive = testDirectory.file( "the-archive.dump" ).toPath();
-        new Dumper().dump( directory, directory, archive, path -> path.getFileName().toString().equals( "another-file" ) );
+        new Dumper().dump( directory, directory, archive, compressionFormat, path -> path.getFileName().toString().equals( "another-file" ) );
         Path newDirectory = testDirectory.file( "the-new-directory" ).toPath();
         new Loader().load( archive, newDirectory, newDirectory );
 
@@ -133,8 +145,9 @@ public class ArchiveTest
         assertEquals( describeRecursively( expectedOutput ), describeRecursively( newDirectory ) );
     }
 
-    @Test
-    public void shouldExcludeWholeDirectoriesMatchedByTheExclusionPredicate() throws IOException, IncorrectFormat
+    @ParameterizedTest
+    @EnumSource( CompressionFormat.class )
+    void shouldExcludeWholeDirectoriesMatchedByTheExclusionPredicate( CompressionFormat compressionFormat ) throws IOException, IncorrectFormat
     {
         Path directory = testDirectory.directory( "a-directory" ).toPath();
         Path subdir = directory.resolve( "subdir" );
@@ -142,7 +155,7 @@ public class ArchiveTest
         Files.write( subdir.resolve( "a-file" ), new byte[0] );
 
         Path archive = testDirectory.file( "the-archive.dump" ).toPath();
-        new Dumper().dump( directory, directory, archive, path -> path.getFileName().toString().equals( "subdir" ) );
+        new Dumper().dump( directory, directory, archive, compressionFormat, path -> path.getFileName().toString().equals( "subdir" ) );
         Path newDirectory = testDirectory.file( "the-new-directory" ).toPath();
         new Loader().load( archive, newDirectory, newDirectory );
 
@@ -152,8 +165,9 @@ public class ArchiveTest
         assertEquals( describeRecursively( expectedOutput ), describeRecursively( newDirectory ) );
     }
 
-    @Test
-    public void dumpAndLoadTransactionLogsFromCustomLocations() throws IOException, IncorrectFormat
+    @ParameterizedTest
+    @EnumSource( CompressionFormat.class )
+    void dumpAndLoadTransactionLogsFromCustomLocations( CompressionFormat compressionFormat ) throws IOException, IncorrectFormat
     {
         Path directory = testDirectory.directory( "dbDirectory" ).toPath();
         Path txLogsDirectory = testDirectory.directory( "txLogsDirectory" ).toPath();
@@ -161,7 +175,7 @@ public class ArchiveTest
         Files.write( txLogsDirectory.resolve( TransactionLogFiles.DEFAULT_NAME + ".0" ), new byte[0] );
 
         Path archive = testDirectory.file( "the-archive.dump" ).toPath();
-        new Dumper().dump( directory, txLogsDirectory, archive, Predicates.alwaysFalse() );
+        new Dumper().dump( directory, txLogsDirectory, archive, compressionFormat, Predicates.alwaysFalse() );
         Path newDirectory = testDirectory.file( "the-new-directory" ).toPath();
         Path newTxLogsDirectory = testDirectory.file( "newTxLogsDirectory" ).toPath();
         new Loader().load( archive, newDirectory, newTxLogsDirectory );
@@ -178,24 +192,21 @@ public class ArchiveTest
         assertEquals( describeRecursively( expectedTxLogs ), describeRecursively( newTxLogsDirectory ) );
     }
 
-    private void assertRoundTrips( Path oldDirectory ) throws IOException, IncorrectFormat
+    private void assertRoundTrips( Path oldDirectory, CompressionFormat compressionFormat ) throws IOException, IncorrectFormat
     {
         Path archive = testDirectory.file( "the-archive.dump" ).toPath();
-        new Dumper().dump( oldDirectory, oldDirectory, archive, Predicates.alwaysFalse() );
+        new Dumper().dump( oldDirectory, oldDirectory, archive, compressionFormat, Predicates.alwaysFalse() );
         Path newDirectory = testDirectory.file( "the-new-directory" ).toPath();
         new Loader().load( archive, newDirectory, newDirectory );
 
         assertEquals( describeRecursively( oldDirectory ), describeRecursively( newDirectory ) );
     }
 
-    private Map<Path, Description> describeRecursively( Path directory ) throws IOException
+    private Map<Path,Description> describeRecursively( Path directory ) throws IOException
     {
-        return Files.walk( directory )
-                .map( path -> pair( directory.relativize( path ), describe( path ) ) )
-                .collect( HashMap::new,
-                        ( pathDescriptionHashMap, pathDescriptionPair ) ->
-                                pathDescriptionHashMap.put( pathDescriptionPair.first(), pathDescriptionPair.other() ),
-                        HashMap::putAll );
+        return Files.walk( directory ).map( path -> pair( directory.relativize( path ), describe( path ) ) ).collect( HashMap::new,
+                ( pathDescriptionHashMap, pathDescriptionPair ) -> pathDescriptionHashMap.put( pathDescriptionPair.first(), pathDescriptionPair.other() ),
+                HashMap::putAll );
     }
 
     private Description describe( Path file )

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -24,14 +24,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.ServiceLoader;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import org.neo4j.graphdb.config.BaseSetting;
 import org.neo4j.graphdb.config.SettingGroup;
+import org.neo4j.helpers.collection.Iterators;
 
 /**
  * Every class which contains settings should implement this interface to allow the configuration to find the
- * settings via service loading.
+ * settings via service loading. Note that service loading requires you to additionally list the service class
+ * under META-INF/services/org.neo4j.configuration.LoadableConfig
  */
 public interface LoadableConfig
 {
@@ -76,6 +77,9 @@ public interface LoadableConfig
                     final Internal internalAnnotation = f.getAnnotation( Internal.class );
                     setting.setInternal( internalAnnotation != null );
 
+                    final Secret secretAnnotation = f.getAnnotation( Secret.class );
+                    setting.setSecret( secretAnnotation != null );
+
                     final Dynamic dynamicAnnotation = f.getAnnotation( Dynamic.class );
                     setting.setDynamic( dynamicAnnotation != null );
                 }
@@ -99,19 +103,6 @@ public interface LoadableConfig
      */
     static List<LoadableConfig> allConfigClasses()
     {
-        return StreamSupport.stream( ServiceLoader.load( LoadableConfig.class ).spliterator(), false )
-                .collect( Collectors.toList() );
-    }
-
-    /**
-     * Collects and returns settings of all known implementors.
-     * @return all ConfigOptions known at runtime.
-     */
-    static List<ConfigOptions> loadAllAvailableConfigOptions()
-    {
-        return StreamSupport.stream( ServiceLoader.load( LoadableConfig.class ).spliterator(), false )
-                .map( LoadableConfig::getConfigOptions )
-                .flatMap( List::stream )
-                .collect( Collectors.toList() );
+        return Iterators.stream( ServiceLoader.load( LoadableConfig.class ).iterator() ).collect( Collectors.toList() );
     }
 }

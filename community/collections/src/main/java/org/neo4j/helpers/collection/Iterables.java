@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -18,6 +18,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 package org.neo4j.helpers.collection;
+
+import org.eclipse.collections.api.list.ImmutableList;
+import org.eclipse.collections.api.map.ImmutableMap;
+import org.eclipse.collections.impl.list.immutable.ImmutableListFactoryImpl;
+import org.eclipse.collections.impl.map.immutable.ImmutableMapFactoryImpl;
 
 import java.lang.reflect.Array;
 import java.util.ArrayList;
@@ -39,9 +44,11 @@ import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import org.neo4j.function.Predicates;
+import org.neo4j.function.ThrowingConsumer;
 import org.neo4j.graphdb.Resource;
 import org.neo4j.graphdb.ResourceIterable;
 import org.neo4j.graphdb.ResourceIterator;
+import org.neo4j.helpers.Exceptions;
 
 import static org.neo4j.helpers.collection.Iterators.asResourceIterator;
 
@@ -249,7 +256,7 @@ public final class Iterables
         return concat( Arrays.asList( (Iterable<T>[]) iterables ) );
     }
 
-    public static <T> Iterable<T> concat( final Iterable<Iterable<T>> iterables )
+    public static <T> Iterable<T> concat( final Iterable<? extends Iterable<T>> iterables )
     {
         return new CombiningIterable<>( iterables );
     }
@@ -602,6 +609,16 @@ public final class Iterables
         return addToCollection( iterator, new ArrayList<>() );
     }
 
+    public static <T> ImmutableList<T> asImmutableList( Iterable<? extends T> iterator )
+    {
+        return ImmutableListFactoryImpl.INSTANCE.ofAll(iterator);
+    }
+
+    public static <T> ImmutableList<T> asImmutableList( Iterator<T> iterator )
+    {
+        return asImmutableList(() -> iterator);
+    }
+
     public static <T, U> Map<T, U> asMap( Iterable<Pair<T, U>> pairs )
     {
         Map<T, U> map = new HashMap<>();
@@ -610,6 +627,16 @@ public final class Iterables
             map.put( pair.first(), pair.other() );
         }
         return map;
+    }
+
+    public static <T, U> ImmutableMap<T, U> asImmutableMap( Map<T, U> map )
+    {
+        return ImmutableMapFactoryImpl.INSTANCE.ofAll( map );
+    }
+
+    public static <T, U> ImmutableMap<T, U> asImmutableMap( Iterable<Pair<T, U>> pairs )
+    {
+        return asImmutableMap( asMap( pairs ) );
     }
 
     /**
@@ -875,6 +902,36 @@ public final class Iterables
     {
         Objects.requireNonNull( iterable );
         return Iterators.stream( iterable.iterator(), characteristics );
+    }
+
+    /**
+     * Method for calling a lambda function on many objects when it is expected that the function might
+     * throw an exception. First exception will be thrown and subsequent will be suppressed.
+     * This method guarantees that all subjects will be consumed, unless {@link OutOfMemoryError} or some other serious error happens.
+     *
+     * @param consumer lambda function to call on each object passed
+     * @param subjects {@link Iterable} of objects to call the function on
+     * @param <E> the type of exception anticipated, inferred from the lambda
+     * @throws E if consumption fails with this exception
+     */
+    public static <T, E extends Exception> void safeForAll( ThrowingConsumer<T,E> consumer, Iterable<T> subjects ) throws E
+    {
+        E exception = null;
+        for ( T instance : subjects )
+        {
+            try
+            {
+                consumer.accept( instance );
+            }
+            catch ( Exception e )
+            {
+                exception = Exceptions.chain( exception, (E) e );
+            }
+        }
+        if ( exception != null )
+        {
+            throw exception;
+        }
     }
 
     private static class EmptyResourceIterable<T> implements ResourceIterable<T>

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,6 +19,7 @@
  */
 package org.neo4j.unsafe.impl.batchimport;
 
+import org.neo4j.kernel.impl.store.NodeStore;
 import org.neo4j.kernel.impl.store.RecordStore;
 import org.neo4j.kernel.impl.store.record.NodeRecord;
 import org.neo4j.kernel.impl.store.record.RelationshipGroupRecord;
@@ -39,7 +40,7 @@ public class NodeFirstGroupStage extends Stage
     public static final String NAME = "Node --> Group";
 
     public NodeFirstGroupStage( Configuration config, RecordStore<RelationshipGroupRecord> groupStore,
-            RecordStore<NodeRecord> nodeStore, ByteArray cache )
+            NodeStore nodeStore, ByteArray cache )
     {
         super( NAME, null, config, 0 );
         add( new BatchFeedStep( control(), config, allIn( groupStore, config ), groupStore.getRecordSize() ) );

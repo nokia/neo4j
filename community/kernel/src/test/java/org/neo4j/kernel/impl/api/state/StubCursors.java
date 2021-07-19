@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,24 +19,13 @@
  */
 package org.neo4j.kernel.impl.api.state;
 
-import org.eclipse.collections.api.set.primitive.MutableIntSet;
-import org.eclipse.collections.impl.factory.primitive.IntSets;
-import org.eclipse.collections.impl.set.mutable.primitive.IntHashSet;
+import org.eclipse.collections.api.set.primitive.MutableLongSet;
+import org.eclipse.collections.impl.set.mutable.primitive.LongHashSet;
 
-import java.util.Arrays;
 import java.util.Iterator;
 
 import org.neo4j.cursor.Cursor;
 import org.neo4j.helpers.collection.Iterables;
-import org.neo4j.kernel.api.properties.PropertyKeyValue;
-import org.neo4j.kernel.impl.locking.Lock;
-import org.neo4j.storageengine.api.NodeItem;
-import org.neo4j.storageengine.api.PropertyItem;
-import org.neo4j.storageengine.api.RelationshipItem;
-import org.neo4j.values.storable.Value;
-
-import static org.neo4j.helpers.collection.Iterables.map;
-import static org.neo4j.kernel.impl.locking.LockService.NO_LOCK;
 
 /**
  * Stub cursors to be used for testing.
@@ -47,229 +36,9 @@ public class StubCursors
     {
     }
 
-    public static Cursor<NodeItem> asNodeCursor( long... nodeIds )
+    public static MutableLongSet labels( final long... labels )
     {
-        NodeItem[] nodeItems = new NodeItem[nodeIds.length];
-        for ( int i = 0; i < nodeIds.length; i++ )
-        {
-            nodeItems[i] = new StubNodeItem( nodeIds[i], -1, IntSets.mutable.empty() );
-        }
-        return cursor( nodeItems );
-    }
-
-    public static Cursor<NodeItem> asNodeCursor( long nodeId )
-    {
-        return asNodeCursor( nodeId, -1 );
-    }
-
-    public static Cursor<NodeItem> asNodeCursor( long nodeId, long propertyId )
-    {
-        return asNodeCursor( nodeId, propertyId, IntSets.mutable.empty() );
-    }
-
-    public static Cursor<NodeItem> asNodeCursor( long nodeId, MutableIntSet labels )
-    {
-        return cursor( new StubNodeItem( nodeId, -1, labels ) );
-    }
-
-    public static Cursor<NodeItem> asNodeCursor( long nodeId, long propertyId, MutableIntSet labels )
-    {
-        return cursor( new StubNodeItem( nodeId, propertyId, labels ) );
-    }
-
-    private static class StubNodeItem implements NodeItem
-    {
-        private final long nodeId;
-        private final long propertyId;
-        private final MutableIntSet labels;
-
-        private StubNodeItem( long nodeId, long propertyId, MutableIntSet labels )
-        {
-            this.nodeId = nodeId;
-            this.propertyId = propertyId;
-            this.labels = labels;
-        }
-
-        @Override
-        public long id()
-        {
-            return nodeId;
-        }
-
-        @Override
-        public boolean hasLabel( int labelId )
-        {
-            return labels.contains( labelId );
-        }
-
-        @Override
-        public long nextGroupId()
-        {
-            throw new UnsupportedOperationException( "not supported" );
-        }
-
-        @Override
-        public long nextRelationshipId()
-        {
-            throw new UnsupportedOperationException( "not supported" );
-        }
-
-        @Override
-        public long nextPropertyId()
-        {
-            return propertyId;
-        }
-
-        @Override
-        public Lock lock()
-        {
-            return NO_LOCK;
-        }
-
-        @Override
-        public MutableIntSet labels()
-        {
-            return labels;
-        }
-
-        @Override
-        public boolean isDense()
-        {
-            throw new UnsupportedOperationException(  );
-        }
-    }
-
-    public static RelationshipItem relationship( long id, int type, long start, long end )
-    {
-        return new RelationshipItem()
-        {
-            @Override
-            public long id()
-            {
-                return id;
-            }
-
-            @Override
-            public int type()
-            {
-                return type;
-            }
-
-            @Override
-            public long startNode()
-            {
-                return start;
-            }
-
-            @Override
-            public long endNode()
-            {
-                return end;
-            }
-
-            @Override
-            public long otherNode( long nodeId )
-            {
-                if ( nodeId == start )
-                {
-                    return end;
-                }
-                else if ( nodeId == end )
-                {
-                    return start;
-                }
-                throw new IllegalStateException();
-            }
-
-            @Override
-            public long nextPropertyId()
-            {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public Lock lock()
-            {
-                throw new UnsupportedOperationException();
-            }
-        };
-    }
-
-    public static Cursor<RelationshipItem> asRelationshipCursor( final long relId, final int type,
-            final long startNode, final long endNode, long propertyId )
-    {
-        return cursor( new RelationshipItem()
-        {
-            @Override
-            public long id()
-            {
-                return relId;
-            }
-
-            @Override
-            public int type()
-            {
-                return type;
-            }
-
-            @Override
-            public long startNode()
-            {
-                return startNode;
-            }
-
-            @Override
-            public long endNode()
-            {
-                return endNode;
-            }
-
-            @Override
-            public long otherNode( long nodeId )
-            {
-                return startNode == nodeId ? endNode : startNode;
-            }
-
-            @Override
-            public long nextPropertyId()
-            {
-                return propertyId;
-            }
-
-            @Override
-            public Lock lock()
-            {
-                return NO_LOCK;
-            }
-        } );
-    }
-
-    public static MutableIntSet labels( final int... labels )
-    {
-        return IntHashSet.newSetWith( labels );
-    }
-
-    public static Cursor<PropertyItem> asPropertyCursor( final PropertyKeyValue... properties )
-    {
-        return cursor( map( StubCursors::asPropertyItem, Arrays.asList( properties ) ) );
-    }
-
-    private static PropertyItem asPropertyItem( final PropertyKeyValue property )
-    {
-        return new PropertyItem()
-        {
-            @Override
-            public int propertyKeyId()
-            {
-                return property.propertyKeyId();
-            }
-
-            @Override
-            public Value value()
-            {
-                return property.value();
-            }
-        };
+        return LongHashSet.newSetWith( labels );
     }
 
     @SafeVarargs

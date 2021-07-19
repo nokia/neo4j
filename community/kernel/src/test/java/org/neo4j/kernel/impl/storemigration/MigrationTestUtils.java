@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -26,7 +26,7 @@ import java.nio.ByteBuffer;
 import org.neo4j.io.fs.FileSystemAbstraction;
 import org.neo4j.io.fs.OpenMode;
 import org.neo4j.io.fs.StoreChannel;
-import org.neo4j.kernel.impl.store.MetaDataStore;
+import org.neo4j.io.layout.DatabaseLayout;
 import org.neo4j.kernel.impl.store.format.RecordFormatSelector;
 import org.neo4j.kernel.impl.store.format.standard.StandardV2_3;
 import org.neo4j.kernel.impl.store.format.standard.StandardV3_0;
@@ -52,26 +52,6 @@ public class MigrationTestUtils
 {
     private MigrationTestUtils()
     {
-    }
-
-    public static int[] makeLongArray()
-    {
-        int[] longArray = new int[100];
-        for ( int i = 0; i < 100; i++ )
-        {
-            longArray[i] = i;
-        }
-        return longArray;
-    }
-
-    public static String makeLongString()
-    {
-        StringBuilder builder = new StringBuilder();
-        for ( int i = 0; i < 100; i++ )
-        {
-            builder.append( "characters" );
-        }
-        return builder.toString();
     }
 
     static void changeVersionNumber( FileSystemAbstraction fileSystem, File storeFile, String versionString )
@@ -124,11 +104,10 @@ public class MigrationTestUtils
         return Unzip.unzip( Legacy23Store.class, "upgradeTest23Db.zip", targetDir );
     }
 
-    public static boolean checkNeoStoreHasDefaultFormatVersion( StoreVersionCheck check, File workingDirectory )
+    public static boolean checkNeoStoreHasDefaultFormatVersion( StoreVersionCheck check, DatabaseLayout databaseLayout )
     {
-        File neostoreFile = new File( workingDirectory, MetaDataStore.DEFAULT_NAME );
-        return check.hasVersion( neostoreFile, RecordFormatSelector.defaultFormat().storeVersion() )
-                .outcome.isSuccessful();
+        File metadataStore = databaseLayout.metadataStore();
+        return check.hasVersion( metadataStore, RecordFormatSelector.defaultFormat().storeVersion() ).outcome.isSuccessful();
     }
 
     public static void verifyFilesHaveSameContent( FileSystemAbstraction fileSystem, File original, File other )
@@ -169,10 +148,10 @@ public class MigrationTestUtils
         }
     }
 
-    public static void removeCheckPointFromTxLog( FileSystemAbstraction fileSystem, File workingDirectory )
+    public static void removeCheckPointFromTxLog( FileSystemAbstraction fileSystem, File databaseDirectory )
             throws IOException
     {
-        LogFiles logFiles = LogFilesBuilder.logFilesBasedOnlyBuilder( workingDirectory, fileSystem ).build();
+        LogFiles logFiles = LogFilesBuilder.logFilesBasedOnlyBuilder( databaseDirectory, fileSystem ).build();
         LogEntryReader<ReadableClosablePositionAwareChannel> logEntryReader = new VersionAwareLogEntryReader<>();
         LogTailScanner tailScanner = new LogTailScanner( logFiles, logEntryReader, new Monitors() );
         LogTailScanner.LogTailInformation logTailInformation = tailScanner.getTailInformation();

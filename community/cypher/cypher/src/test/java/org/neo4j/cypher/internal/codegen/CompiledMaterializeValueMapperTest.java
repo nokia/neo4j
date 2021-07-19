@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -41,7 +41,7 @@ import org.neo4j.values.virtual.RelationshipValue;
 import org.neo4j.values.virtual.VirtualValues;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertSame;
 
 public class CompiledMaterializeValueMapperTest
 {
@@ -103,12 +103,6 @@ public class CompiledMaterializeValueMapperTest
 
         @Override
         public RelationshipType getRelationshipTypeById( int type )
-        {
-            throw new IllegalStateException( "Should not be used" );
-        }
-
-        @Override
-        public int getRelationshipTypeIdByName( String typeName )
         {
             throw new IllegalStateException( "Should not be used" );
         }
@@ -205,6 +199,6 @@ public class CompiledMaterializeValueMapperTest
     private void verifyDoesNotTouchValue( AnyValue value )
     {
         AnyValue mappedValue = CompiledMaterializeValueMapper.mapAnyValue( spi, value );
-        assertTrue( value == mappedValue ); // Test with reference equality since we should get the same reference back
+        assertSame( value, mappedValue ); // Test with reference equality since we should get the same reference back
     }
 }

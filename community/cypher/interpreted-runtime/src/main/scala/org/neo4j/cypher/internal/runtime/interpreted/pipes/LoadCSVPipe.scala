@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,26 +20,24 @@
 package org.neo4j.cypher.internal.runtime.interpreted.pipes
 
 import java.net.URL
-import java.util
 
-import org.neo4j.cypher.internal.util.v3_5.LoadExternalResourceException
+import org.neo4j.cypher.internal.v3_5.util.LoadExternalResourceException
+import org.neo4j.cypher.internal.ir.v3_5.{CSVFormat, HasHeaders, NoHeaders}
 import org.neo4j.cypher.internal.runtime.interpreted.ExecutionContext
 import org.neo4j.cypher.internal.runtime.interpreted.commands.expressions.Expression
-import org.neo4j.cypher.internal.ir.v3_5.{CSVFormat, HasHeaders, NoHeaders}
 import org.neo4j.cypher.internal.runtime.{ArrayBackedMap, QueryContext}
-import org.neo4j.cypher.internal.util.v3_5.attribution.Id
+import org.neo4j.cypher.internal.v3_5.util.attribution.Id
 import org.neo4j.values._
 import org.neo4j.values.storable.{TextValue, Value, Values}
-import org.neo4j.values.virtual.VirtualValues
-
-import scala.collection.JavaConverters._
+import org.neo4j.values.virtual.{MapValueBuilder, VirtualValues}
 
 case class LoadCSVPipe(source: Pipe,
                        format: CSVFormat,
                        urlExpression: Expression,
                        variable: String,
                        fieldTerminator: Option[String],
-                       legacyCsvQuoteEscaping: Boolean)
+                       legacyCsvQuoteEscaping: Boolean,
+                        bufferSize: Int)
                       (val id: Id = Id.INVALID_ID)
   extends PipeWithSource(source) {
 
@@ -88,12 +86,13 @@ case class LoadCSVPipe(source: Pipe,
         //we need to make a copy here since someone may hold on this
         //reference, e.g. EagerPipe
 
-        val resultCopy = new util.HashMap[String, AnyValue](internalMap.size)
+
+        var builder = new MapValueBuilder
         for ((key, maybeNull) <- internalMap) {
           val value = if (maybeNull == null) Values.NO_VALUE else maybeNull
-          resultCopy.put(key, value)
+          builder.add(key, value)
         }
-        executionContextFactory.copyWith(context, variable, VirtualValues.map(resultCopy))
+        executionContextFactory.copyWith(context, variable, builder.build())
       } else null
     }
   }
@@ -112,12 +111,12 @@ case class LoadCSVPipe(source: Pipe,
 
       format match {
         case HasHeaders =>
-          val iterator: Iterator[Array[Value]] = state.resources.getCsvIterator(url, fieldTerminator, legacyCsvQuoteEscaping, headers = true)
+          val iterator: Iterator[Array[Value]] = state.resources.getCsvIterator(url, fieldTerminator, legacyCsvQuoteEscaping, bufferSize, headers = true)
             .map(_.map(s => Values.stringOrNoValue(s)))
           val headers = if (iterator.nonEmpty) iterator.next().toIndexedSeq else IndexedSeq.empty // First row is headers
           new IteratorWithHeaders(headers, context, iterator)
         case NoHeaders =>
-          val iterator: Iterator[Array[Value]] = state.resources.getCsvIterator(url, fieldTerminator, legacyCsvQuoteEscaping, headers = false)
+          val iterator: Iterator[Array[Value]] = state.resources.getCsvIterator(url, fieldTerminator, legacyCsvQuoteEscaping, bufferSize, headers = false)
             .map(_.map(s => Values.stringOrNoValue(s)))
           new IteratorWithoutHeaders(context, iterator)
       }

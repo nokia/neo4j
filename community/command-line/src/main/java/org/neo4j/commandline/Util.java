@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -30,6 +30,7 @@ import javax.annotation.Nonnull;
 import org.neo4j.commandline.admin.CommandFailed;
 import org.neo4j.io.fs.DefaultFileSystemAbstraction;
 import org.neo4j.io.fs.FileSystemAbstraction;
+import org.neo4j.io.layout.StoreLayout;
 import org.neo4j.kernel.StoreLockException;
 import org.neo4j.kernel.internal.locker.GlobalStoreLocker;
 import org.neo4j.kernel.internal.locker.StoreLocker;
@@ -78,10 +79,10 @@ public class Util
         return normalizedCandidate.startsWith( normalizedParent );
     }
 
-    public static void checkLock( Path databaseDirectory ) throws CommandFailed
+    public static void checkLock( StoreLayout storeLayout ) throws CommandFailed
     {
         try ( FileSystemAbstraction fileSystem = new DefaultFileSystemAbstraction();
-              StoreLocker storeLocker = new GlobalStoreLocker( fileSystem, databaseDirectory.toFile() ) )
+                StoreLocker storeLocker = new GlobalStoreLocker( fileSystem, storeLayout ) )
         {
             storeLocker.checkLock();
         }

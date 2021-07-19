@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -25,14 +25,17 @@ import java.util.Arrays;
 /**
  * Helper functions for working with strings.
  */
+@Deprecated
 public final class Strings
 {
+    @Deprecated
     public static final String TAB = "\t";
 
     private Strings()
     {
     }
 
+    @Deprecated
     public static String prettyPrint( Object o )
     {
         if ( o == null )
@@ -86,6 +89,7 @@ public final class Strings
         }
     }
 
+    @Deprecated
     public static String escape( String arg )
     {
         StringBuilder builder = new StringBuilder( arg.length() );
@@ -106,6 +110,7 @@ public final class Strings
      * @param elements - lines to join
      * @return joined line
      */
+    @Deprecated
     public static String joinAsLines( String... elements )
     {
         StringBuilder result = new StringBuilder();
@@ -116,6 +121,7 @@ public final class Strings
         return result.toString();
     }
 
+    @Deprecated
     public static void escape( Appendable output, String arg ) throws IOException
     {
         int len = arg.length();

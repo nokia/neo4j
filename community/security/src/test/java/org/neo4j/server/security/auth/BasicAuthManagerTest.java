@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -24,6 +24,10 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Map;
+
 import org.neo4j.internal.kernel.api.security.AuthenticationResult;
 import org.neo4j.internal.kernel.api.security.LoginContext;
 import org.neo4j.kernel.api.exceptions.InvalidArgumentsException;
@@ -42,6 +46,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.neo4j.helpers.collection.MapUtil.map;
@@ -84,7 +89,7 @@ public class BasicAuthManagerTest extends InitialUserTest
         final User user = user1;
 
         // When
-        when( authStrategy.authenticate( user, "abc123" )).thenReturn( SUCCESS );
+        when( authStrategy.authenticate( user, password( "abc123" ) ) ).thenReturn( SUCCESS );
 
         // Then
         assertLoginGivesResult( "jake", "abc123", SUCCESS );
@@ -100,7 +105,7 @@ public class BasicAuthManagerTest extends InitialUserTest
         final User user = user1;
 
         // When
-        when( authStrategy.authenticate( user, "abc123" )).thenReturn( TOO_MANY_ATTEMPTS );
+        when( authStrategy.authenticate( user, password( "abc123" ) ) ).thenReturn( TOO_MANY_ATTEMPTS );
 
         // Then
         assertLoginGivesResult( "jake", "abc123", TOO_MANY_ATTEMPTS );
@@ -116,7 +121,7 @@ public class BasicAuthManagerTest extends InitialUserTest
         final User user = user1;
 
         // When
-        when( authStrategy.authenticate( user, "abc123" )).thenReturn( SUCCESS );
+        when( authStrategy.authenticate( user, password( "abc123" ) )).thenReturn( SUCCESS );
 
         // Then
         assertLoginGivesResult( "jake", "abc123", PASSWORD_CHANGE_REQUIRED );
@@ -141,7 +146,7 @@ public class BasicAuthManagerTest extends InitialUserTest
         manager.start();
 
         // When
-        manager.newUser( "foo", "bar", true );
+        manager.newUser( "foo", password( "bar" ), true );
 
         // Then
         User user = users.getUserByName( "foo" );
@@ -155,7 +160,7 @@ public class BasicAuthManagerTest extends InitialUserTest
     {
         // Given
         manager.start();
-        manager.newUser( "jake", "abc123", true );
+        manager.newUser( "jake", password( "abc123" ), true );
 
         // When
         manager.deleteUser( "jake" );
@@ -169,7 +174,7 @@ public class BasicAuthManagerTest extends InitialUserTest
     {
         // Given
         manager.start();
-        manager.newUser( "jake", "abc123", true );
+        manager.newUser( "jake", password( "abc123" ), true );
 
         try
         {
@@ -195,15 +200,136 @@ public class BasicAuthManagerTest extends InitialUserTest
     {
         // Given
         manager.start();
-        manager.newUser( "jake", "abc123", true );
+        manager.newUser( "jake", password( "abc123" ), true );
 
         // When
-        manager.setUserPassword( "jake", "hello, world!", false );
+        manager.setUserPassword( "jake", password( "hello, world!" ), false );
 
         // Then
         User user = manager.getUser( "jake" );
         assertTrue( user.credentials().matchesPassword( "hello, world!" ) );
         assertThat( users.getUserByName( "jake" ), equalTo( user ) );
+    }
+
+    @Test
+    public void shouldClearPasswordOnLogin() throws Throwable
+    {
+        // Given
+        when( authStrategy.authenticate( any(), any() ) ).thenReturn( AuthenticationResult.SUCCESS );
+
+        manager.start();
+        manager.newUser( "jake", password( "abc123" ), true );
+        byte[] password = password( "abc123" );
+        Map<String,Object> authToken = AuthToken.newBasicAuthToken( "jake", password );
+
+        // When
+        manager.login( authToken );
+
+        // Then
+        assertThat( password, equalTo( clearedPasswordWithSameLenghtAs( "abc123" ) ) );
+        assertThat( authToken.get( AuthToken.CREDENTIALS ), equalTo( clearedPasswordWithSameLenghtAs( "abc123" ) ) );
+    }
+
+    @Test
+    public void shouldClearPasswordOnInvalidAuthToken() throws Throwable
+    {
+        // Given
+        manager.start();
+        byte[] password = password( "abc123" );
+        Map<String,Object> authToken = AuthToken.newBasicAuthToken( "jake", password );
+        authToken.put( AuthToken.SCHEME_KEY, null ); // Null is not a valid scheme
+
+        // When
+        try
+        {
+            manager.login( authToken );
+            fail( "exception expected" );
+        }
+        catch ( InvalidAuthTokenException e )
+        {
+            // expected
+        }
+        assertThat( password, equalTo( clearedPasswordWithSameLenghtAs( "abc123" ) ) );
+        assertThat( authToken.get( AuthToken.CREDENTIALS ), equalTo( clearedPasswordWithSameLenghtAs( "abc123" ) ) );
+    }
+
+    @Test
+    public void shouldClearPasswordOnNewUser() throws Throwable
+    {
+        // Given
+        manager.start();
+        byte[] password = password( "abc123" );
+
+        // When
+        manager.newUser( "jake", password, true );
+
+        // Then
+        assertThat( password, equalTo( clearedPasswordWithSameLenghtAs( "abc123" ) ) );
+        User user = manager.getUser( "jake" );
+        assertTrue( user.credentials().matchesPassword( "abc123" ) );
+    }
+
+    @Test
+    public void shouldClearPasswordOnNewUserAlreadyExists() throws Throwable
+    {
+        // Given
+        manager.start();
+        manager.newUser( "jake", password( "abc123" ), true );
+        byte[] password = password( "abc123" );
+
+        // When
+        try
+        {
+            manager.newUser( "jake", password, true );
+            fail( "exception expected" );
+        }
+        catch ( InvalidArgumentsException e )
+        {
+            // expected
+        }
+
+        // Then
+        assertThat( password, equalTo( clearedPasswordWithSameLenghtAs( "abc123" ) ) );
+    }
+
+    @Test
+    public void shouldClearPasswordOnSetUserPassword() throws Throwable
+    {
+        // Given
+        manager.start();
+        manager.newUser( "jake", password( "old" ), false );
+        byte[] newPassword = password( "abc123" );
+
+        // When
+        manager.setUserPassword( "jake", newPassword, false );
+
+        // Then
+        assertThat( newPassword, equalTo( clearedPasswordWithSameLenghtAs( "abc123" ) ) );
+        User user = manager.getUser( "jake" );
+        assertTrue( user.credentials().matchesPassword( "abc123" ) );
+    }
+
+    @Test
+    public void shouldClearPasswordOnSetUserPasswordWithInvalidPassword() throws Throwable
+    {
+        // Given
+        manager.start();
+        manager.newUser( "jake", password( "abc123" ), false );
+        byte[] newPassword = password( "abc123" );
+
+        // When
+        try
+        {
+            manager.setUserPassword( "jake", newPassword, false );
+            fail( "exception expected" );
+        }
+        catch ( InvalidArgumentsException e )
+        {
+            // expected
+        }
+
+        // Then
+        assertThat( newPassword, equalTo( clearedPasswordWithSameLenghtAs( "abc123" ) ) );
     }
 
     @Test
@@ -215,7 +341,7 @@ public class BasicAuthManagerTest extends InitialUserTest
         // When
         try
         {
-            manager.setUserPassword( "unknown", "hello, world!", false );
+            manager.setUserPassword( "unknown", password( "hello, world!" ), false );
             fail( "exception expected" );
         }
         catch ( InvalidArgumentsException e )
@@ -266,5 +392,17 @@ public class BasicAuthManagerTest extends InitialUserTest
     protected AuthManager authManager()
     {
         return manager;
+    }
+
+    public static byte[] password( String passwordString )
+    {
+        return passwordString != null ? passwordString.getBytes( StandardCharsets.UTF_8 ) : null;
+    }
+
+    public static byte[] clearedPasswordWithSameLenghtAs( String passwordString )
+    {
+        byte[] password = passwordString.getBytes( StandardCharsets.UTF_8 );
+        Arrays.fill( password, (byte) 0 );
+        return password;
     }
 }

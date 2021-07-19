@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -53,8 +53,7 @@ public class BufferingIdGeneratorFactoryTest
         BufferingIdGeneratorFactory bufferingIdGeneratorFactory = new BufferingIdGeneratorFactory(
                 actual, IdReuseEligibility.ALWAYS, new CommunityIdTypeConfigurationProvider() );
         bufferingIdGeneratorFactory.initialize( boundaries );
-        IdGenerator idGenerator = bufferingIdGeneratorFactory.open(
-                new File( "doesnt-matter" ), 10, IdType.STRING_BLOCK, () -> 0L, Integer.MAX_VALUE );
+        IdGenerator idGenerator = bufferingIdGeneratorFactory.open( new File( "doesnt-matter" ), 10, IdType.STRING_BLOCK, () -> 0L, Integer.MAX_VALUE );
 
         // WHEN
         idGenerator.freeId( 7 );
@@ -85,8 +84,7 @@ public class BufferingIdGeneratorFactoryTest
                 new CommunityIdTypeConfigurationProvider() );
         bufferingIdGeneratorFactory.initialize( boundaries );
 
-        IdGenerator idGenerator = bufferingIdGeneratorFactory.open(
-                new File( "doesnt-matter" ), 10, IdType.STRING_BLOCK, () -> 0L, Integer.MAX_VALUE );
+        IdGenerator idGenerator = bufferingIdGeneratorFactory.open( new File( "doesnt-matter" ), 10, IdType.STRING_BLOCK, () -> 0L, Integer.MAX_VALUE );
 
         // WHEN
         idGenerator.freeId( 7 );

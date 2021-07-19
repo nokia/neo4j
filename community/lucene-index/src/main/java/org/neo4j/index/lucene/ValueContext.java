@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -22,12 +22,15 @@ package org.neo4j.index.lucene;
 /**
  * ValueContext allows you to give not just a value, but to give the value
  * some context to live in.
+ * @deprecated This API will be removed in next major release. Please consider using schema indexes instead.
  */
+@Deprecated
 public class ValueContext
 {
     private final Object value;
     private boolean indexNumeric;
 
+    @Deprecated
     public ValueContext( Object value )
     {
         this.value = value;
@@ -36,6 +39,7 @@ public class ValueContext
     /**
      * @return the value object specified in the constructor.
      */
+    @Deprecated
     public Object getValue()
     {
         return value;
@@ -47,6 +51,7 @@ public class ValueContext
      *
      * @return a numeric ValueContext
      */
+    @Deprecated
     public ValueContext indexNumeric()
     {
         if ( !( this.value instanceof Number ) )
@@ -64,11 +69,13 @@ public class ValueContext
      *
      * @return the, by the user, intended value to index.
      */
+    @Deprecated
     public Object getCorrectValue()
     {
         return this.indexNumeric ? this.value : this.value.toString();
     }
 
+    @Deprecated
     @Override
     public String toString()
     {
@@ -76,11 +83,12 @@ public class ValueContext
     }
 
     /**
-     * Convience method to add a numeric value to an index.
+     * Convenience method to add a numeric value to an index.
      * @param value The value to add
      * @return A ValueContext that can be used with
      * {@link org.neo4j.graphdb.index.Index#add(org.neo4j.graphdb.PropertyContainer, String, Object)}
      */
+    @Deprecated
     public static ValueContext numeric( Number value )
     {
         return new ValueContext( value ).indexNumeric();

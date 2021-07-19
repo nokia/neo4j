@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,7 +19,6 @@
  */
 package org.neo4j.kernel.impl.store;
 
-import org.neo4j.kernel.impl.store.record.DynamicRecord;
 import org.neo4j.kernel.impl.store.record.NodeRecord;
 
 /**
@@ -57,13 +56,6 @@ public class NodeLabelsField
         return fieldPointsToDynamicRecordOfLabels( node.getLabelField() )
                 ? DynamicNodeLabels.get( node, nodeStore )
                 : InlineNodeLabels.get( node );
-    }
-
-    public static long[] get( NodeRecord node, RecordCursor<DynamicRecord> dynamicLabelCursor )
-    {
-        return fieldPointsToDynamicRecordOfLabels( node.getLabelField() )
-               ? DynamicNodeLabels.get( node, dynamicLabelCursor )
-               : InlineNodeLabels.get( node );
     }
 
     public static boolean fieldPointsToDynamicRecordOfLabels( long labelField )

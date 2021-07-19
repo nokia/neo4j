@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,12 +19,12 @@
  */
 package org.neo4j.kernel.impl.api.index;
 
-import org.neo4j.kernel.api.index.IndexProvider;
+import org.neo4j.internal.kernel.api.schema.IndexProviderDescriptor;
 
 public class TestIndexProviderDescriptor
 {
-    public static final IndexProvider.Descriptor PROVIDER_DESCRIPTOR =
-            new IndexProvider.Descriptor( "quantum-dex", "25.0" );
+    public static final IndexProviderDescriptor PROVIDER_DESCRIPTOR =
+            new IndexProviderDescriptor( "quantum-dex", "25.0" );
 
     private TestIndexProviderDescriptor()
     {

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -25,6 +25,7 @@ import org.neo4j.internal.kernel.api.schema.SchemaDescriptor;
 import org.neo4j.kernel.api.exceptions.index.IndexEntryConflictException;
 import org.neo4j.kernel.api.index.IndexEntryUpdate;
 import org.neo4j.kernel.impl.transaction.state.IndexUpdates;
+import org.neo4j.storageengine.api.EntityType;
 
 public interface IndexingUpdateService
 {
@@ -38,5 +39,5 @@ public interface IndexingUpdateService
      * application of the updates to the indexes, so that the properties reflect the exact state of the
      * transaction.
      */
-    Iterable<IndexEntryUpdate<SchemaDescriptor>> convertToIndexUpdates( NodeUpdates nodeUpdates );
+    Iterable<IndexEntryUpdate<SchemaDescriptor>> convertToIndexUpdates( EntityUpdates entityUpdates, EntityType type );
 }

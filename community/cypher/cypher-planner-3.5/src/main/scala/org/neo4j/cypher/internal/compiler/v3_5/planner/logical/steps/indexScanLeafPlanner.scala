@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,38 +19,45 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.steps
 
+import org.neo4j.cypher.internal.compiler.v3_5.IndexLookupUnfulfillableNotification
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.LeafPlansForVariable.maybeLeafPlans
+import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.ordering.ResultOrdering
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.plans._
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.{LeafPlanFromExpression, LeafPlanner, LeafPlansForVariable, LogicalPlanningContext}
-import org.neo4j.cypher.internal.frontend.v3_5.ast._
-import org.neo4j.cypher.internal.frontend.v3_5.notification.IndexLookupUnfulfillableNotification
-import org.neo4j.cypher.internal.ir.v3_5.QueryGraph
-import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.{Cardinalities, Solveds}
-import org.neo4j.cypher.internal.v3_5.logical.plans.{AsDynamicPropertyNonScannable, AsStringRangeNonSeekable, LogicalPlan}
+import org.neo4j.cypher.internal.ir.v3_5.{InterestingOrder, ProvidedOrder, QueryGraph}
+import org.neo4j.cypher.internal.v3_5.ast._
 import org.neo4j.cypher.internal.v3_5.expressions._
+import org.neo4j.cypher.internal.v3_5.logical.plans
+import org.neo4j.cypher.internal.v3_5.logical.plans._
+import org.neo4j.cypher.internal.v3_5.util.symbols._
 
 object indexScanLeafPlanner extends LeafPlanner with LeafPlanFromExpression {
 
-  override def producePlanFor(e: Expression, qg: QueryGraph, context: LogicalPlanningContext): Option[LeafPlansForVariable] = {
+  override def producePlanFor(e: Expression, qg: QueryGraph, interestingOrder: InterestingOrder, context: LogicalPlanningContext): Option[LeafPlansForVariable] = {
     val lpp = context.logicalPlanProducer
+
+    def onlyArgumentDependencies(expr: Expression): Boolean =
+      expr.dependencies.map(_.name).forall(qg.argumentIds)
 
     e match {
       // MATCH (n:User) WHERE n.prop CONTAINS 'substring' RETURN n
-      case predicate@Contains(prop@Property(Variable(name), propertyKey), expr) =>
-        val plans = produce(name, propertyKey.name, qg, prop, predicate, lpp.planNodeIndexContainsScan(_, _, _, _, _, expr, _, context), context)
+      case predicate@Contains(prop@Property(Variable(name), propertyKey), expr) if onlyArgumentDependencies(expr) =>
+        val plans = produce(name, propertyKey.name, qg, interestingOrder, prop, CTString, predicate,
+                            lpp.planNodeIndexContainsScan(_, _, _, _, _, expr, _, _, context), context)
         maybeLeafPlans(name, plans)
 
       // MATCH (n:User) WHERE n.prop ENDS WITH 'substring' RETURN n
-      case predicate@EndsWith(prop@Property(Variable(name), propertyKey), expr) =>
-        val plans = produce(name, propertyKey.name, qg, prop, predicate, lpp.planNodeIndexEndsWithScan(_, _, _, _, _, expr, _, context), context)
+      case predicate@EndsWith(prop@Property(Variable(name), propertyKey), expr) if onlyArgumentDependencies(expr) =>
+        val plans = produce(name, propertyKey.name, qg, interestingOrder, prop, CTString, predicate,
+                            lpp.planNodeIndexEndsWithScan(_, _, _, _, _, expr, _, _, context), context)
         maybeLeafPlans(name, plans)
 
       // MATCH (n:User) WHERE exists(n.prop) RETURN n
-      case predicate@AsPropertyScannable(scannable) =>
+      case AsPropertyScannable(scannable) =>
         val name = scannable.name
         val propertyKeyName = scannable.propertyKey.name
 
-        val plans = produce(name, propertyKeyName, qg, scannable.property, scannable.expr, lpp.planNodeIndexScan(_, _, _, _, _, _, context), context)
+        val plans = produce(name, propertyKeyName, qg, interestingOrder, scannable.property, CTAny, scannable.expr, lpp.planNodeIndexScan(_, _, _, _, _, _, _, context), context)
         maybeLeafPlans(name, plans)
 
       case _ =>
@@ -58,8 +65,8 @@ object indexScanLeafPlanner extends LeafPlanner with LeafPlanFromExpression {
     }
   }
 
-  override def apply(qg: QueryGraph, context: LogicalPlanningContext, solveds: Solveds, cardinalities: Cardinalities): Seq[LogicalPlan] = {
-    val resultPlans = qg.selections.flatPredicates.flatMap(e => producePlanFor(e, qg, context).toSeq.flatMap(_.plans))
+  override def apply(qg: QueryGraph, interestingOrder: InterestingOrder, context: LogicalPlanningContext): Seq[LogicalPlan] = {
+    val resultPlans = qg.selections.flatPredicates.flatMap(e => producePlanFor(e, qg, interestingOrder, context).toSeq.flatMap(_.plans))
 
     if (resultPlans.isEmpty) {
       DynamicPropertyNotifier.process(findNonScannableVariables(qg.selections.flatPredicates, context), IndexLookupUnfulfillableNotification, qg, context)
@@ -78,30 +85,43 @@ object indexScanLeafPlanner extends LeafPlanner with LeafPlanFromExpression {
         None
     }.toSet
 
-  type PlanProducer = (String, LabelToken, PropertyKeyToken, Seq[Expression], Option[UsingIndexHint], Set[String]) => LogicalPlan
+  type PlanProducer = (String, LabelToken, IndexedProperty, Seq[Expression], Option[UsingIndexHint], Set[String], ProvidedOrder) => LogicalPlan
 
-  private def produce(variableName: String, propertyKeyName: String, qg: QueryGraph, property: LogicalProperty,
-                      predicate: Expression, planProducer: PlanProducer, context: LogicalPlanningContext): Set[LogicalPlan] = {
-    val semanticTable = context.semanticTable
-    val labelPredicates: Map[String, Set[HasLabels]] = qg.selections.labelPredicates
-    val idName = variableName
+  private def produce(variableName: String,
+                      propertyKeyName: String,
+                      qg: QueryGraph,
+                      interestingOrder: InterestingOrder,
+                      property: LogicalProperty,
+                      propertyType: CypherType,
+                      predicate: Expression,
+                      planProducer: PlanProducer,
+                      context: LogicalPlanningContext): Set[LogicalPlan] = {
+    if (qg.argumentIds.contains(variableName)) Set.empty
+    else {
+      val semanticTable = context.semanticTable
+      val labelPredicates: Map[String, Set[HasLabels]] = qg.selections.labelPredicates
+      val idName = variableName
 
-    for (labelPredicate <- labelPredicates.getOrElse(idName, Set.empty);
-         labelName <- labelPredicate.labels;
-         indexDescriptor <- findIndexesFor(labelName.name, propertyKeyName, context);
-         labelId <- semanticTable.id(labelName))
-      yield {
-        val hint = qg.hints.collectFirst {
-          case hint@UsingIndexHint(Variable(`variableName`), `labelName`, properties, spec)
-            if spec.fulfilledByScan && properties.map(_.name) == Seq(propertyKeyName) => hint
+      for (labelPredicate <- labelPredicates.getOrElse(idName, Set.empty);
+           labelName <- labelPredicate.labels;
+           labelId <- semanticTable.id(labelName);
+           indexDescriptor <- context.planContext.indexGetForLabelAndProperties(labelName.name, Seq(propertyKeyName))
+           )
+        yield {
+          val hint = qg.hints.collectFirst {
+            case hint@UsingIndexHint(Variable(`variableName`), `labelName`, properties, spec)
+              if spec.fulfilledByScan && properties.map(_.name) == Seq(propertyKeyName) => hint
+          }
+          // Index scan is always on just one property
+          val getValueBehavior = indexDescriptor.valueCapability(Seq(propertyType)).head
+          val indexProperty = plans.IndexedProperty(PropertyKeyToken(property.propertyKey, semanticTable.id(property.propertyKey).head), getValueBehavior)
+          val orderColumnName = s"$variableName.${property.propertyKey.name}"
+          val providedOrder = ResultOrdering.withIndexOrderCapability(interestingOrder, Seq((orderColumnName, propertyType)), indexDescriptor.orderCapability)
+
+          val labelToken = LabelToken(labelName, labelId)
+          val predicates = Seq(predicate, labelPredicate)
+          planProducer(idName, labelToken, indexProperty, predicates, hint, qg.argumentIds, providedOrder)
         }
-        val keyToken = PropertyKeyToken(property.propertyKey, semanticTable.id(property.propertyKey).head)
-        val labelToken = LabelToken(labelName, labelId)
-        val predicates = Seq(predicate, labelPredicate)
-        planProducer(idName, labelToken, keyToken, predicates, hint, qg.argumentIds)
-      }
+    }
   }
-
-  private def findIndexesFor(label: String, property: String, context: LogicalPlanningContext) =
-    context.planContext.indexGet(label, Seq(property)) orElse context.planContext.uniqueIndexGet(label, Seq(property))
 }

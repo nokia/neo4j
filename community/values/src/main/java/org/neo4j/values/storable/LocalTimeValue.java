@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -29,7 +29,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalUnit;
-import java.util.Map;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -40,7 +39,6 @@ import org.neo4j.values.ValueMapper;
 import org.neo4j.values.utils.InvalidValuesArgumentException;
 import org.neo4j.values.utils.UnsupportedTemporalUnitException;
 import org.neo4j.values.virtual.MapValue;
-import org.neo4j.values.virtual.VirtualValues;
 
 import static java.lang.Integer.parseInt;
 import static java.util.Objects.requireNonNull;
@@ -63,7 +61,12 @@ public final class LocalTimeValue extends TemporalValue<LocalTime,LocalTimeValue
 
     public static LocalTimeValue localTime( long nanoOfDay )
     {
-        return new LocalTimeValue( assertValidArgument( () -> LocalTime.ofNanoOfDay( nanoOfDay ) ) );
+        return new LocalTimeValue( localTimeRaw( nanoOfDay ) );
+    }
+
+    public static LocalTime localTimeRaw( long nanoOfDay )
+    {
+        return assertValidArgument( () -> LocalTime.ofNanoOfDay( nanoOfDay ) );
     }
 
     public static LocalTimeValue parse( CharSequence text )
@@ -115,18 +118,21 @@ public final class LocalTimeValue extends TemporalValue<LocalTime,LocalTimeValue
         }
         else
         {
-            Map<String,AnyValue> updatedFields = fields.getMapCopy();
-            truncatedLT = updateFieldMapWithConflictingSubseconds( updatedFields, unit, truncatedLT );
-            if ( updatedFields.size() == 0 )
-            {
-                return localTime( truncatedLT );
-            }
-            updatedFields.put( "time", localTime( truncatedLT ) );
-            return build( VirtualValues.map( updatedFields ), defaultZone );
+            return updateFieldMapWithConflictingSubseconds( fields, unit, truncatedLT,
+                    ( mapValue, localTime1 ) -> {
+                        if ( mapValue.size() == 0 )
+                        {
+                            return localTime( localTime1 );
+                        }
+                        else
+                        {
+                            return build( mapValue.updatedWith( "time", localTime( localTime1 ) ), defaultZone );
+                        }
+                    } );
         }
     }
 
-    static final LocalTime DEFAULT_LOCAL_TIME = LocalTime.of( Field.hour.defaultValue, Field.minute.defaultValue );
+    static final LocalTime DEFAULT_LOCAL_TIME = LocalTime.of( TemporalFields.hour.defaultValue, TemporalFields.minute.defaultValue );
 
     static TimeValue.TimeBuilder<LocalTimeValue> builder( Supplier<ZoneId> defaultZone )
     {
@@ -142,9 +148,9 @@ public final class LocalTimeValue extends TemporalValue<LocalTime,LocalTimeValue
             public LocalTimeValue buildInternal()
             {
                 LocalTime result;
-                if ( fields.containsKey( Field.time ) )
+                if ( fields.containsKey( TemporalFields.time ) )
                 {
-                    AnyValue time = fields.get( Field.time );
+                    AnyValue time = fields.get( TemporalFields.time );
                     if ( !(time instanceof TemporalValue) )
                     {
                         throw new InvalidValuesArgumentException( String.format( "Cannot construct local time from: %s", time ) );
@@ -194,6 +200,12 @@ public final class LocalTimeValue extends TemporalValue<LocalTime,LocalTimeValue
     LocalTime temporal()
     {
         return value;
+    }
+
+    @Override
+    public String getTypeName()
+    {
+        return "LocalTime";
     }
 
     @Override

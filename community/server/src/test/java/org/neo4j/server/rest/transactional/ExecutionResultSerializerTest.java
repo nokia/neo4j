@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,7 +19,7 @@
  */
 package org.neo4j.server.rest.transactional;
 
-import org.codehaus.jackson.JsonNode;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.Test;
 import org.mockito.internal.stubbing.answers.ThrowsException;
 
@@ -57,7 +57,6 @@ import org.neo4j.graphdb.Path;
 import org.neo4j.graphdb.QueryExecutionType;
 import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.Result;
-import org.neo4j.graphdb.SpatialMocks;
 import org.neo4j.graphdb.impl.notification.NotificationCode;
 import org.neo4j.graphdb.spatial.Coordinate;
 import org.neo4j.helpers.collection.MapUtil;
@@ -69,6 +68,7 @@ import org.neo4j.server.rest.domain.JsonParseException;
 import org.neo4j.server.rest.transactional.error.Neo4jError;
 import org.neo4j.test.mockito.mock.GraphMock;
 import org.neo4j.test.mockito.mock.Link;
+import org.neo4j.test.mockito.mock.SpatialMocks;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Arrays.asList;
@@ -83,10 +83,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.neo4j.graphdb.SpatialMocks.mockCartesian;
-import static org.neo4j.graphdb.SpatialMocks.mockCartesian_3D;
-import static org.neo4j.graphdb.SpatialMocks.mockWGS84;
-import static org.neo4j.graphdb.SpatialMocks.mockWGS84_3D;
 import static org.neo4j.helpers.collection.Iterators.asSet;
 import static org.neo4j.helpers.collection.MapUtil.map;
 import static org.neo4j.server.rest.domain.JsonHelper.jsonNode;
@@ -97,6 +93,10 @@ import static org.neo4j.test.mockito.mock.GraphMock.node;
 import static org.neo4j.test.mockito.mock.GraphMock.path;
 import static org.neo4j.test.mockito.mock.GraphMock.relationship;
 import static org.neo4j.test.mockito.mock.Properties.properties;
+import static org.neo4j.test.mockito.mock.SpatialMocks.mockCartesian;
+import static org.neo4j.test.mockito.mock.SpatialMocks.mockCartesian_3D;
+import static org.neo4j.test.mockito.mock.SpatialMocks.mockWGS84;
+import static org.neo4j.test.mockito.mock.SpatialMocks.mockWGS84_3D;
 
 public class ExecutionResultSerializerTest extends TxStateCheckerTestSupport
 {
@@ -430,19 +430,19 @@ public class ExecutionResultSerializerTest extends TxStateCheckerTestSupport
         String result = output.toString( UTF_8.name() );
         assertEquals( "{\"results\":[{\"columns\":[\"geom\"],\"data\":[" +
                       "{\"row\":[{\"type\":\"Point\",\"coordinates\":[12.3,45.6],\"crs\":" +
-                        "{\"name\":\"WGS-84\",\"type\":\"link\",\"properties\":" +
+                        "{\"srid\":4326,\"name\":\"WGS-84\",\"type\":\"link\",\"properties\":" +
                           "{\"href\":\"http://spatialreference.org/ref/epsg/4326/ogcwkt/\",\"type\":\"ogcwkt\"}" +
                         "}}],\"meta\":[{\"type\":\"point\"}]}," +
                       "{\"row\":[{\"type\":\"Point\",\"coordinates\":[123.0,456.0],\"crs\":" +
-                        "{\"name\":\"cartesian\",\"type\":\"link\",\"properties\":" +
+                        "{\"srid\":7203,\"name\":\"cartesian\",\"type\":\"link\",\"properties\":" +
                           "{\"href\":\"http://spatialreference.org/ref/sr-org/7203/ogcwkt/\",\"type\":\"ogcwkt\"}" +
                         "}}],\"meta\":[{\"type\":\"point\"}]}," +
                       "{\"row\":[{\"type\":\"Point\",\"coordinates\":[12.3,45.6,78.9],\"crs\":" +
-                        "{\"name\":\"WGS-84-3D\",\"type\":\"link\",\"properties\":" +
+                        "{\"srid\":4979,\"name\":\"WGS-84-3D\",\"type\":\"link\",\"properties\":" +
                           "{\"href\":\"http://spatialreference.org/ref/epsg/4979/ogcwkt/\",\"type\":\"ogcwkt\"}" +
                         "}}],\"meta\":[{\"type\":\"point\"}]}," +
                       "{\"row\":[{\"type\":\"Point\",\"coordinates\":[123.0,456.0,789.0],\"crs\":" +
-                        "{\"name\":\"cartesian-3D\",\"type\":\"link\",\"properties\":" +
+                        "{\"srid\":9157,\"name\":\"cartesian-3D\",\"type\":\"link\",\"properties\":" +
                           "{\"href\":\"http://spatialreference.org/ref/sr-org/9157/ogcwkt/\",\"type\":\"ogcwkt\"}" +
                         "}}],\"meta\":[{\"type\":\"point\"}]}" +
                         "]}],\"errors\":[]}",
@@ -509,7 +509,7 @@ public class ExecutionResultSerializerTest extends TxStateCheckerTestSupport
         String result = output.toString( UTF_8.name() );
         assertThat( result, startsWith( "{\"results\":[{\"columns\":[\"geom\"],\"data\":[" +
                 "{\"row\":[{\"type\":\"LineString\",\"coordinates\":[[1.0,2.0],[2.0,3.0]],\"crs\":" +
-                "{\"name\":\"cartesian\",\"type\":\"link\",\"properties\":" +
+                "{\"srid\":7203,\"name\":\"cartesian\",\"type\":\"link\",\"properties\":" +
                 "{\"href\":\"http://spatialreference.org/ref/sr-org/7203/ogcwkt/\",\"type\":\"ogcwkt\"}}}],\"meta\":[]}]}]," +
                 "\"errors\":[{\"code\":\"Neo.DatabaseError.Statement.ExecutionFailed\"," +
                 "\"message\":\"Unsupported Geometry type: type=MockGeometry, value=LineString\"," +
@@ -681,20 +681,20 @@ public class ExecutionResultSerializerTest extends TxStateCheckerTestSupport
         JsonNode results = json.get( "results" ).get( 0 );
         for ( JsonNode column : results.get( "columns" ) )
         {
-            columns.put( column.getTextValue(), col++ );
+            columns.put( column.asText(), col++ );
         }
         JsonNode row = results.get( "data" ).get( 0 ).get( "rest" );
         JsonNode jsonNode = row.get( columns.get( "node" ) );
         JsonNode jsonRel = row.get( columns.get( "rel" ) );
         JsonNode jsonPath = row.get( columns.get( "path" ) );
         JsonNode jsonMap = row.get( columns.get( "map" ) );
-        assertEquals( "http://base.uri/node/0", jsonNode.get( "self" ).getTextValue() );
-        assertEquals( "http://base.uri/relationship/0", jsonRel.get( "self" ).getTextValue() );
-        assertEquals( 2, jsonPath.get( "length" ).getNumberValue() );
-        assertEquals( "http://base.uri/node/0", jsonPath.get( "start" ).getTextValue() );
-        assertEquals( "http://base.uri/node/2", jsonPath.get( "end" ).getTextValue() );
-        assertEquals( "http://base.uri/node/1", jsonMap.get( "n1" ).get( "self" ).getTextValue() );
-        assertEquals( "http://base.uri/relationship/1", jsonMap.get( "r1" ).get( "self" ).getTextValue() );
+        assertEquals( "http://base.uri/node/0", jsonNode.get( "self" ).asText() );
+        assertEquals( "http://base.uri/relationship/0", jsonRel.get( "self" ).asText() );
+        assertEquals( 2, jsonPath.get( "length" ).asInt() );
+        assertEquals( "http://base.uri/node/0", jsonPath.get( "start" ).asText() );
+        assertEquals( "http://base.uri/node/2", jsonPath.get( "end" ).asText() );
+        assertEquals( "http://base.uri/node/1", jsonMap.get( "n1" ).get( "self" ).asText() );
+        assertEquals( "http://base.uri/relationship/1", jsonMap.get( "r1" ).get( "self" ).asText() );
     }
 
     @Test
@@ -719,7 +719,7 @@ public class ExecutionResultSerializerTest extends TxStateCheckerTestSupport
         JsonNode results = json.get( "results" ).get( 0 );
         for ( JsonNode column : results.get( "columns" ) )
         {
-            columns.put( column.getTextValue(), col++ );
+            columns.put( column.asText(), col++ );
         }
         JsonNode row = results.get( "data" ).get( 0 ).get( "rest" );
         JsonNode jsonMap = row.get( columns.get( "map" ) );
@@ -823,7 +823,7 @@ public class ExecutionResultSerializerTest extends TxStateCheckerTestSupport
         String result = output.toString( UTF_8.name() );
         JsonNode root = assertIsPlanRoot( result );
 
-        assertEquals( "parent", root.get( "operatorType" ).getTextValue() );
+        assertEquals( "parent", root.get( "operatorType" ).asText() );
         assertEquals( 0, root.get( "id" ).asLong() );
         assertEquals( asSet( parentId ), identifiersOf( root ) );
 
@@ -832,7 +832,7 @@ public class ExecutionResultSerializerTest extends TxStateCheckerTestSupport
         for ( JsonNode child : root.get( "children" ) )
         {
             assertTrue( "Expected object", child.isObject() );
-            assertEquals( "child", child.get( "operatorType" ).getTextValue() );
+            assertEquals( "child", child.get( "operatorType" ).asText() );
             identifiers.add( identifiersOf( child ) );
             childIds.add( child.get( "id" ).asInt() );
         }

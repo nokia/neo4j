@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -25,21 +25,17 @@ import org.neo4j.internal.kernel.api.Kernel;
 import org.neo4j.internal.kernel.api.Transaction;
 import org.neo4j.internal.kernel.api.exceptions.schema.IllegalTokenNameException;
 import org.neo4j.internal.kernel.api.exceptions.schema.TooManyLabelsException;
-import org.neo4j.kernel.impl.store.id.IdGeneratorFactory;
-import org.neo4j.kernel.impl.store.id.IdType;
 
 public class DefaultLabelIdCreator extends IsolatedTransactionTokenCreator
 {
-    public DefaultLabelIdCreator( Supplier<Kernel> kernelSupplier, IdGeneratorFactory idGeneratorFactory )
+    public DefaultLabelIdCreator( Supplier<Kernel> kernelSupplier )
     {
-        super( kernelSupplier, idGeneratorFactory );
+        super( kernelSupplier );
     }
 
     @Override
     protected int createKey( Transaction transaction, String name ) throws IllegalTokenNameException, TooManyLabelsException
     {
-        int id = (int) idGeneratorFactory.get( IdType.LABEL_TOKEN ).nextId();
-        transaction.tokenWrite().labelCreateForName( name, id );
-        return id;
+        return transaction.tokenWrite().labelCreateForName( name );
     }
 }

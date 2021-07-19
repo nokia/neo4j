@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,7 +19,7 @@
  */
 package org.neo4j.internal.kernel.api.security;
 
-import java.util.function.Function;
+import java.util.function.ToIntFunction;
 
 import static org.neo4j.graphdb.security.AuthorizationViolationException.PERMISSION_DENIED;
 
@@ -62,7 +62,7 @@ public class SecurityContext implements LoginContext
     }
 
     @Override
-    public SecurityContext authorize( Function<String, Integer> propertyIdLookup )
+    public SecurityContext authorize( ToIntFunction<String> propertyIdLookup, String dbName )
     {
         return this;
     }

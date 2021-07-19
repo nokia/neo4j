@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -336,7 +336,7 @@ class CountsBuilderDecorator extends CheckDecorator.Adapter
 
     private static class MultiPassAvoidanceCondition<T extends AbstractBaseRecord> implements Predicate<T>
     {
-        // Stage which this condition is active, starting from 0, mimicing the CheckStage ordinal
+        // Stage which this condition is active, starting from 0, mimicking the CheckStage ordinal
         private final int activeStage;
         // The same thread updates this every time, the TaskExecutor. Other threads read it
         private volatile int stage = -1;

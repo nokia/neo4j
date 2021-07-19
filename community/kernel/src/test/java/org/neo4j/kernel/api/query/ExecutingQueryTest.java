@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -36,9 +36,9 @@ import java.util.concurrent.TimeUnit;
 import org.neo4j.helpers.MathUtil;
 import org.neo4j.io.pagecache.tracing.cursor.PageCursorCounters;
 import org.neo4j.io.pagecache.tracing.cursor.PageCursorTracer;
-import org.neo4j.kernel.impl.locking.LockWaitEvent;
 import org.neo4j.kernel.impl.query.clientconnection.ClientConnectionInfo;
 import org.neo4j.resources.HeapAllocation;
+import org.neo4j.storageengine.api.lock.LockWaitEvent;
 import org.neo4j.storageengine.api.lock.ResourceType;
 import org.neo4j.storageengine.api.lock.WaitStrategy;
 import org.neo4j.test.FakeCpuClock;
@@ -52,8 +52,8 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
-import static org.neo4j.values.virtual.VirtualValues.EMPTY_MAP;
 import static org.junit.Assert.assertTrue;
+import static org.neo4j.values.virtual.VirtualValues.EMPTY_MAP;
 
 public class ExecutingQueryTest
 {
@@ -71,8 +71,8 @@ public class ExecutingQueryTest
     public void shouldReportElapsedTime()
     {
         // when
-        clock.forward( 10, TimeUnit.SECONDS );
-        long elapsedTime = query.snapshot().elapsedTimeMillis();
+        clock.forward( 10, TimeUnit.MILLISECONDS );
+        long elapsedTime = query.snapshot().elapsedTimeMicros();
 
         // then
         assertEquals( 10_000, elapsedTime );
@@ -85,7 +85,7 @@ public class ExecutingQueryTest
         assertEquals( "planning", query.snapshot().status() );
 
         // when
-        query.planningCompleted( new PlannerInfo( "the-planner", "the-runtime", emptyList() ) );
+        query.compilationCompleted( new CompilerInfo( "the-planner", "the-runtime", emptyList() ), null );
 
         // then
         assertEquals( "running", query.snapshot().status() );
@@ -116,28 +116,28 @@ public class ExecutingQueryTest
     public void shouldReportPlanningTime()
     {
         // when
-        clock.forward( 124, TimeUnit.MILLISECONDS );
+        clock.forward( 124, TimeUnit.MICROSECONDS );
 
         // then
         QuerySnapshot snapshot = query.snapshot();
-        assertEquals( snapshot.planningTimeMillis(), snapshot.elapsedTimeMillis() );
+        assertEquals( snapshot.compilationTimeMicros(), snapshot.elapsedTimeMicros() );
 
         // when
-        clock.forward( 16, TimeUnit.MILLISECONDS );
-        query.planningCompleted( new PlannerInfo( "the-planner", "the-runtime", emptyList() ) );
-        clock.forward( 200, TimeUnit.MILLISECONDS );
+        clock.forward( 16, TimeUnit.MICROSECONDS );
+        query.compilationCompleted( new CompilerInfo( "the-planner", "the-runtime", emptyList() ), null );
+        clock.forward( 200, TimeUnit.MICROSECONDS );
 
         // then
         snapshot = query.snapshot();
-        assertEquals( 140, snapshot.planningTimeMillis() );
-        assertEquals( 340, snapshot.elapsedTimeMillis() );
+        assertEquals( 140, snapshot.compilationTimeMicros() );
+        assertEquals( 340, snapshot.elapsedTimeMicros() );
     }
 
     @Test
     public void shouldReportWaitTime()
     {
         // given
-        query.planningCompleted( new PlannerInfo( "the-planner", "the-runtime", emptyList() ) );
+        query.compilationCompleted( new CompilerInfo( "the-planner", "the-runtime", emptyList() ), null );
 
         // then
         assertEquals( "running", query.snapshot().status() );
@@ -155,12 +155,12 @@ public class ExecutingQueryTest
                     hasEntry( "waitTimeMillis", 5_000L ),
                     hasEntry( "resourceType", "NODE" ),
                     hasEntry( equalTo( "resourceIds" ), longArray( 17 ) ) ) );
-            assertEquals( 5_000, snapshot.waitTimeMillis() );
+            assertEquals( 5_000_000, snapshot.waitTimeMicros() );
         }
         {
             QuerySnapshot snapshot = query.snapshot();
             assertEquals( "running", snapshot.status() );
-            assertEquals( 5_000, snapshot.waitTimeMillis() );
+            assertEquals( 5_000_000, snapshot.waitTimeMicros() );
         }
 
         // when
@@ -176,12 +176,12 @@ public class ExecutingQueryTest
                     hasEntry( "waitTimeMillis", 1_000L ),
                     hasEntry( "resourceType", "RELATIONSHIP" ),
                     hasEntry( equalTo( "resourceIds" ), longArray( 612 ) ) ) );
-            assertEquals( 6_000, snapshot.waitTimeMillis() );
+            assertEquals( 6_000_000, snapshot.waitTimeMicros() );
         }
         {
             QuerySnapshot snapshot = query.snapshot();
             assertEquals( "running", snapshot.status() );
-            assertEquals( 6_000, snapshot.waitTimeMillis() );
+            assertEquals( 6_000_000, snapshot.waitTimeMicros() );
         }
     }
 
@@ -189,7 +189,7 @@ public class ExecutingQueryTest
     public void shouldReportQueryWaitTime()
     {
         // given
-        query.planningCompleted( new PlannerInfo( "the-planner", "the-runtime", emptyList() ) );
+        query.compilationCompleted( new CompilerInfo( "the-planner", "the-runtime", emptyList() ), null );
 
         // when
         query.waitsForQuery( subQuery );
@@ -197,7 +197,7 @@ public class ExecutingQueryTest
 
         // then
         QuerySnapshot snapshot = query.snapshot();
-        assertEquals( 5_000L, snapshot.waitTimeMillis() );
+        assertEquals( 5_000_000L, snapshot.waitTimeMicros() );
         assertEquals( "waiting", snapshot.status() );
         assertThat( snapshot.resourceInformation(), CoreMatchers.<Map<String,Object>>allOf(
                 hasEntry( "waitTimeMillis", 5_000L ),
@@ -210,7 +210,7 @@ public class ExecutingQueryTest
 
         // then
         snapshot = query.snapshot();
-        assertEquals( 6_000L, snapshot.waitTimeMillis() );
+        assertEquals( 6_000_000L, snapshot.waitTimeMicros() );
         assertEquals( "running", snapshot.status() );
     }
 
@@ -218,10 +218,10 @@ public class ExecutingQueryTest
     public void shouldReportCpuTime()
     {
         // given
-        cpuClock.add( 60, TimeUnit.MILLISECONDS );
+        cpuClock.add( 60, TimeUnit.MICROSECONDS );
 
         // when
-        long cpuTime = query.snapshot().cpuTimeMillis();
+        long cpuTime = query.snapshot().cpuTimeMicros();
 
         // then
         assertEquals( 60, cpuTime );
@@ -248,8 +248,8 @@ public class ExecutingQueryTest
         QuerySnapshot snapshot = query.snapshot();
 
         // then
-        assertNull( snapshot.cpuTimeMillis() );
-        assertNull( snapshot.idleTimeMillis() );
+        assertNull( snapshot.cpuTimeMicros() );
+        assertNull( snapshot.idleTimeMicros() );
     }
 
     @Test

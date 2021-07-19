@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -27,6 +27,7 @@ import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.ResourceIterable;
 import org.neo4j.graphdb.ResourceIterator;
 import org.neo4j.graphdb.Transaction;
+import org.neo4j.kernel.impl.factory.GraphDatabaseFacade;
 import org.neo4j.server.rest.domain.JsonHelper;
 import org.neo4j.server.rest.domain.JsonParseException;
 import org.neo4j.server.rest.web.RestfulGraphDatabase;
@@ -305,7 +306,12 @@ public class AutoIndexIT extends AbstractRestFunctionalTestBase
         int initialPropertiesSize = getAutoIndexedPropertiesForType( "node" ).size();
 
         String propName = "some-property" + System.currentTimeMillis();
-        server().getDatabase().getGraph().index().getNodeAutoIndexer().startAutoIndexingProperty( propName );
+        GraphDatabaseFacade db = server().getDatabase().getGraph();
+        try ( Transaction tx = db.beginTx() )
+        {
+            db.index().getNodeAutoIndexer().startAutoIndexingProperty( propName );
+            tx.success();
+        }
 
         List<String> properties = getAutoIndexedPropertiesForType( "node" );
 
@@ -355,7 +361,7 @@ public class AutoIndexIT extends AbstractRestFunctionalTestBase
 
     private void addRemoveAutoIndexedPropertyForType( String uriPartForType ) throws JsonParseException
     {
-        int intialPropertiesSize = getAutoIndexedPropertiesForType( uriPartForType ).size();
+        int initialPropertiesSize = getAutoIndexedPropertiesForType( uriPartForType ).size();
 
         long millis = System.currentTimeMillis();
         String myProperty1 = uriPartForType + "-myProperty1-" + millis;
@@ -371,7 +377,7 @@ public class AutoIndexIT extends AbstractRestFunctionalTestBase
                 .post( autoIndexURI( uriPartForType ) + "/properties" );
 
         List<String> properties = getAutoIndexedPropertiesForType( uriPartForType );
-        assertEquals( intialPropertiesSize + 2, properties.size() );
+        assertEquals( initialPropertiesSize + 2, properties.size() );
         assertTrue( properties.contains( myProperty1 ) );
         assertTrue( properties.contains( myProperty2 ) );
 
@@ -382,7 +388,7 @@ public class AutoIndexIT extends AbstractRestFunctionalTestBase
                          + "/properties/" + myProperty2 );
 
         properties = getAutoIndexedPropertiesForType( uriPartForType );
-        assertEquals( intialPropertiesSize + 1, properties.size() );
+        assertEquals( initialPropertiesSize + 1, properties.size() );
         assertTrue( properties.contains( myProperty1 ) );
     }
 

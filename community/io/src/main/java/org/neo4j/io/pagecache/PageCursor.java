@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -198,6 +198,16 @@ public abstract class PageCursor implements AutoCloseable
      * place through the read and write methods that do not take a specific offset as an argument.
      */
     public abstract int getOffset();
+
+    /**
+     * Mark the current offset. Only one offset can be marked at any time.
+     */
+    public abstract void mark();
+
+    /**
+     * Set the offset to the marked offset. This does not modify the value of the mark.
+     */
+    public abstract void setOffsetToMark();
 
     /**
      * Get the file page id that the cursor is currently positioned at, or

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -46,8 +46,7 @@ public class NodePropertyUniqueConstraintCreator extends BaseNodeConstraintCreat
         assertInUnterminatedTransaction();
 
         IndexDefinitionImpl definition =
-                new IndexDefinitionImpl( actions, label, propertyKeys.toArray( new String[propertyKeys.size()] ),
-                        true );
+                new IndexDefinitionImpl( actions, null, new Label[]{label}, propertyKeys.toArray( new String[0] ), true );
         return actions.createPropertyUniquenessConstraint( definition );
     }
 }

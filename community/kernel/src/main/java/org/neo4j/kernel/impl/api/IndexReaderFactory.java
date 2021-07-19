@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -22,23 +22,23 @@ package org.neo4j.kernel.impl.api;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.neo4j.kernel.api.exceptions.index.IndexNotFoundKernelException;
-import org.neo4j.kernel.api.schema.index.SchemaIndexDescriptor;
+import org.neo4j.internal.kernel.api.exceptions.schema.IndexNotFoundKernelException;
 import org.neo4j.kernel.impl.api.index.IndexProxy;
 import org.neo4j.kernel.impl.api.index.IndexingService;
+import org.neo4j.storageengine.api.schema.IndexDescriptor;
 import org.neo4j.storageengine.api.schema.IndexReader;
 
 public interface IndexReaderFactory
 {
-    IndexReader newReader( SchemaIndexDescriptor descriptor ) throws IndexNotFoundKernelException;
+    IndexReader newReader( IndexDescriptor descriptor ) throws IndexNotFoundKernelException;
 
-    IndexReader newUnCachedReader( SchemaIndexDescriptor descriptor ) throws IndexNotFoundKernelException;
+    IndexReader newUnCachedReader( IndexDescriptor descriptor ) throws IndexNotFoundKernelException;
 
     void close();
 
     class Caching implements IndexReaderFactory
     {
-        private Map<SchemaIndexDescriptor,IndexReader> indexReaders;
+        private Map<IndexDescriptor,IndexReader> indexReaders;
         private final IndexingService indexingService;
 
         public Caching( IndexingService indexingService )
@@ -47,7 +47,7 @@ public interface IndexReaderFactory
         }
 
         @Override
-        public IndexReader newReader( SchemaIndexDescriptor descriptor ) throws IndexNotFoundKernelException
+        public IndexReader newReader( IndexDescriptor descriptor ) throws IndexNotFoundKernelException
         {
             if ( indexReaders == null )
             {
@@ -64,7 +64,7 @@ public interface IndexReaderFactory
         }
 
         @Override
-        public IndexReader newUnCachedReader( SchemaIndexDescriptor descriptor ) throws IndexNotFoundKernelException
+        public IndexReader newUnCachedReader( IndexDescriptor descriptor ) throws IndexNotFoundKernelException
         {
             IndexProxy index = indexingService.getIndexProxy( descriptor.schema() );
             return index.newReader();

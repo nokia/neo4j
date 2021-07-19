@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -29,6 +29,7 @@ import org.neo4j.function.Factory;
  * cancelled en mass. Instances of {@link TaskControl} acquired through the {@link #newInstance()} method can be
  * notified of cancellation with the semantics of {@link CancellationRequest}.
  */
+@Deprecated
 public class TaskCoordinator implements Cancelable, Factory<TaskControl>
 {
     private static final AtomicIntegerFieldUpdater<TaskCoordinator> TASKS_UPDATER =
@@ -39,18 +40,21 @@ public class TaskCoordinator implements Cancelable, Factory<TaskControl>
     private final long sleepTime;
     private final TimeUnit sleepUnit;
 
+    @Deprecated
     public TaskCoordinator( long sleepTime, TimeUnit sleepUnit )
     {
         this.sleepTime = sleepTime;
         this.sleepUnit = sleepUnit;
     }
 
+    @Deprecated
     @Override
     public void cancel()
     {
         cancelled = true;
     }
 
+    @Deprecated
     public void awaitCompletion() throws InterruptedException
     {
         while ( tasks != 0 )
@@ -59,6 +63,7 @@ public class TaskCoordinator implements Cancelable, Factory<TaskControl>
         }
     }
 
+    @Deprecated
     @Override
     public TaskControl newInstance()
     {

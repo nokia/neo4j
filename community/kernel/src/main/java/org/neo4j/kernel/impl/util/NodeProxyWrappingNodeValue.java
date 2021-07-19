@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -24,6 +24,8 @@ import java.util.ArrayList;
 import org.neo4j.graphdb.Label;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.NotFoundException;
+import org.neo4j.kernel.impl.core.NodeProxy;
+import org.neo4j.kernel.impl.store.InvalidRecordException;
 import org.neo4j.values.AnyValueWriter;
 import org.neo4j.values.storable.TextArray;
 import org.neo4j.values.storable.Values;
@@ -58,11 +60,15 @@ public class NodeProxyWrappingNodeValue extends NodeValue
             l = labels();
             p = properties();
         }
-        catch ( NotFoundException e )
+        catch ( ReadAndDeleteTransactionConflictException e )
         {
+            if ( !e.wasDeletedInThisTransaction() )
+            {
+                throw e;
+            }
+            // If it isn't a transient error then the node was deleted in the current transaction and we should write an 'empty' node.
             l = Values.stringArray();
             p = VirtualValues.EMPTY_MAP;
-
         }
 
         if ( id() < 0 )
@@ -79,19 +85,25 @@ public class NodeProxyWrappingNodeValue extends NodeValue
         TextArray l = labels;
         if ( l == null )
         {
-            synchronized ( this )
+            try
             {
-                l = labels;
-                if ( l == null )
+                synchronized ( this )
                 {
-                    ArrayList<String> ls = new ArrayList<>();
-                    for ( Label label : node.getLabels() )
+                    l = labels;
+                    if ( l == null )
                     {
-                        ls.add( label.name() );
+                        ArrayList<String> ls = new ArrayList<>();
+                        for ( Label label : node.getLabels() )
+                        {
+                            ls.add( label.name() );
+                        }
+                        l = labels = Values.stringArray( ls.toArray( new String[0] ) );
                     }
-                    l = labels = Values.stringArray( ls.toArray( new String[ls.size()] ) );
-
                 }
+            }
+            catch ( NotFoundException | IllegalStateException | InvalidRecordException e )
+            {
+                throw new ReadAndDeleteTransactionConflictException( NodeProxy.isDeletedInCurrentTransaction( node ), e );
             }
         }
         return l;
@@ -103,13 +115,20 @@ public class NodeProxyWrappingNodeValue extends NodeValue
         MapValue m = properties;
         if ( m == null )
         {
-            synchronized ( this )
+            try
             {
-                m = properties;
-                if ( m == null )
+                synchronized ( this )
                 {
-                    m = properties = ValueUtils.asMapValue( node.getAllProperties() );
+                    m = properties;
+                    if ( m == null )
+                    {
+                        m = properties = ValueUtils.asMapValue( node.getAllProperties() );
+                    }
                 }
+            }
+            catch ( NotFoundException | IllegalStateException | InvalidRecordException e )
+            {
+                throw new ReadAndDeleteTransactionConflictException( NodeProxy.isDeletedInCurrentTransaction( node ), e );
             }
         }
         return m;

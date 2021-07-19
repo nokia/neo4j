@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,14 +21,16 @@ package org.neo4j.collection;
 
 import org.eclipse.collections.api.iterator.LongIterator;
 import org.eclipse.collections.api.set.primitive.LongSet;
-import org.eclipse.collections.impl.iterator.ImmutableEmptyLongIterator;
 import org.eclipse.collections.impl.set.mutable.primitive.LongHashSet;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -36,13 +38,16 @@ import java.util.function.Supplier;
 import org.neo4j.collection.PrimitiveLongCollections.PrimitiveLongBaseIterator;
 
 import static java.util.Arrays.asList;
+import static org.eclipse.collections.impl.set.mutable.primitive.LongHashSet.newSetWith;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.neo4j.collection.PrimitiveLongCollections.mergeToSet;
 
 class PrimitiveLongCollectionsTest
 {
@@ -103,26 +108,6 @@ class PrimitiveLongCollectionsTest
     }
 
     @Test
-    void singleWithDefaultMustAutoCloseIterator()
-    {
-        AtomicInteger counter = new AtomicInteger();
-        CountingPrimitiveLongIteratorResource itr = new CountingPrimitiveLongIteratorResource(
-                PrimitiveLongCollections.iterator( 13 ), counter );
-        assertEquals( PrimitiveLongCollections.single( itr, 2 ), 13 );
-        assertEquals( 1, counter.get() );
-    }
-
-    @Test
-    void singleWithDefaultMustAutoCloseEmptyIterator()
-    {
-        AtomicInteger counter = new AtomicInteger();
-        CountingPrimitiveLongIteratorResource itr = new CountingPrimitiveLongIteratorResource(
-                ImmutableEmptyLongIterator.INSTANCE, counter );
-        assertEquals( PrimitiveLongCollections.single( itr, 2 ), 2 );
-        assertEquals( 1, counter.get() );
-    }
-
-    @Test
     void indexOf()
     {
         // GIVEN
@@ -175,6 +160,31 @@ class PrimitiveLongCollectionsTest
     }
 
     @Test
+    void shouldDeduplicateWithRandomArrays()
+    {
+        int arrayLength = 5000;
+        int iterations = 10;
+        for ( int i = 0; i < iterations; i++ )
+        {
+            long[] array = ThreadLocalRandom.current().longs( arrayLength, 0, arrayLength ).sorted().toArray();
+            long[] dedupedActual = PrimitiveLongCollections.deduplicate( array );
+            TreeSet<Long> set = new TreeSet<>();
+            for ( long value : array )
+            {
+                set.add( value );
+            }
+            long[] dedupedExpected = new long[set.size()];
+            Iterator<Long> itr = set.iterator();
+            for ( int j = 0; j < dedupedExpected.length; j++ )
+            {
+                assertTrue( itr.hasNext() );
+                dedupedExpected[j] = itr.next();
+            }
+            assertArrayEquals( dedupedExpected, dedupedActual );
+        }
+    }
+
+    @Test
     void shouldNotContinueToCallNextOnHasNextFalse()
     {
         // GIVEN
@@ -214,9 +224,18 @@ class PrimitiveLongCollectionsTest
     @Test
     void convertPrimitiveSetToJavaSet()
     {
-        LongSet longSet = LongHashSet.newSetWith( 1L, 3L, 5L );
+        LongSet longSet = newSetWith( 1L, 3L, 5L );
         Set<Long> longs = PrimitiveLongCollections.toSet( longSet );
         assertThat( longs, containsInAnyOrder(1L, 3L, 5L) );
+    }
+
+    @Test
+    void mergeLongIterableToSet()
+    {
+        assertThat( mergeToSet( new LongHashSet(), new LongHashSet() ), equalTo( new LongHashSet() ) );
+        assertThat( mergeToSet( newSetWith( 1, 2, 3 ), new LongHashSet() ), equalTo( newSetWith( 1, 2, 3 ) ) );
+        assertThat( mergeToSet( newSetWith( 1, 2, 3 ), newSetWith( 1, 2, 3, 4, 5, 6 ) ), equalTo( newSetWith( 1, 2, 3, 4, 5, 6 ) ) );
+        assertThat( mergeToSet( newSetWith( 1, 2, 3 ), newSetWith( 4, 5, 6 ) ), equalTo( newSetWith( 1, 2, 3, 4, 5, 6 ) ) );
     }
 
     private void assertNoMoreItems( LongIterator iterator )

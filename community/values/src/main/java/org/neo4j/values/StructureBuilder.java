@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -30,20 +30,22 @@ public interface StructureBuilder<Input, Result>
 
     Result build();
 
-    static <T> T build( StructureBuilder<AnyValue,T> builder, MapValue map )
+    static <T> T build( final StructureBuilder<AnyValue,T> builder, MapValue map )
     {
         if ( map.size() == 0 )
         {
             throw new InvalidValuesArgumentException( "At least one temporal unit must be specified." );
         }
-        return build( builder, map.entrySet() );
+        map.foreach( builder::add );
+
+        return builder.build();
     }
 
     static <T> T build( StructureBuilder<AnyValue,T> builder, Iterable<Map.Entry<String,AnyValue>> entries )
     {
         for ( Map.Entry<String,AnyValue> entry : entries )
         {
-            builder = builder.add( entry.getKey(), entry.getValue() );
+            builder.add( entry.getKey(), entry.getValue() );
         }
         return builder.build();
     }

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -40,7 +40,8 @@ case class FilterFunction(collection: Expression, id: String, predicate: Predica
     val inputs = list.iterator()
     while (inputs.hasNext()) {
       val value = inputs.next()
-      if (predicate.isTrue(innerContext.set(id, value), state)) {
+      innerContext.set(id, value)
+      if (predicate.isTrue(innerContext, state)) {
         filtered += value
       }
     }

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -26,15 +26,16 @@ import org.neo4j.cypher.internal.planner.v3_5.spi.IndexDescriptor
 import org.neo4j.cypher.internal.runtime._
 import org.neo4j.cypher.internal.runtime.interpreted.{DelegatingOperations, DelegatingQueryTransactionalContext}
 import org.neo4j.cypher.internal.v3_5.expressions.SemanticDirection
-import org.neo4j.cypher.internal.v3_5.logical.plans.QualifiedName
-import org.neo4j.graphdb.{Node, Path, PropertyContainer}
-import org.neo4j.internal.kernel.api.{IndexQuery, IndexReference}
+import org.neo4j.cypher.internal.v3_5.logical.plans.{IndexOrder, QualifiedName}
+import org.neo4j.graphdb.{Path, PropertyContainer}
 import org.neo4j.internal.kernel.api.helpers.RelationshipSelectionCursor
+import org.neo4j.internal.kernel.api.procs.ProcedureCallContext
+import org.neo4j.internal.kernel.api.{IndexQuery, IndexReference, NodeValueIndexCursor}
 import org.neo4j.kernel.impl.api.store.RelationshipIterator
 import org.neo4j.kernel.impl.core.EmbeddedProxySPI
 import org.neo4j.values.AnyValue
-import org.neo4j.values.storable.Value
-import org.neo4j.values.virtual.{ListValue, NodeValue, RelationshipValue}
+import org.neo4j.values.storable.{TextValue, Value}
+import org.neo4j.values.virtual.{ListValue, MapValue, NodeValue, RelationshipValue}
 
 import scala.collection.Iterator
 
@@ -44,7 +45,7 @@ class ExceptionTranslatingQueryContext(val inner: QueryContext) extends QueryCon
 
   override def withActiveRead: QueryContext = inner.withActiveRead
 
-  override def resources: CloseableResource = inner.resources
+  override def resources: ResourceManager = inner.resources
 
   override def transactionalContext =
     new ExceptionTranslatingTransactionalContext(inner.transactionalContext)
@@ -52,11 +53,11 @@ class ExceptionTranslatingQueryContext(val inner: QueryContext) extends QueryCon
   override def setLabelsOnNode(node: Long, labelIds: Iterator[Int]): Int =
     translateException(inner.setLabelsOnNode(node, labelIds))
 
-  override def createNode(): Node =
-    translateException(inner.createNode())
+  override def createNode(labels: Array[Int]): NodeValue =
+    translateException(inner.createNode(labels))
 
-  override def createNodeId(): Long =
-    translateException(inner.createNodeId())
+  override def createNodeId(labels: Array[Int]): Long =
+    translateException(inner.createNodeId(labels))
 
   override def getLabelsForNode(node: Long): ListValue =
     translateException(inner.getLabelsForNode(node))
@@ -94,14 +95,20 @@ class ExceptionTranslatingQueryContext(val inner: QueryContext) extends QueryCon
   override def getOrCreatePropertyKeyId(propertyKey: String): Int =
     translateException(inner.getOrCreatePropertyKeyId(propertyKey))
 
+  override def getOrCreatePropertyKeyIds(propertyKeys: Array[String]): Array[Int] =
+    translateException(inner.getOrCreatePropertyKeyIds(propertyKeys))
+
   override def addIndexRule(descriptor: IndexDescriptor) =
     translateException(inner.addIndexRule(descriptor))
 
   override def dropIndexRule(descriptor: IndexDescriptor) =
     translateException(inner.dropIndexRule(descriptor))
 
-  override def indexSeek(index: IndexReference, values: Seq[IndexQuery]): Iterator[NodeValue] =
-    translateException(inner.indexSeek(index, values))
+  override def indexSeek[RESULT <: AnyRef](index: IndexReference,
+                                           needsValues: Boolean,
+                                           indexOrder: IndexOrder,
+                                           values: Seq[IndexQuery]): NodeValueIndexCursor =
+    translateException(inner.indexSeek(index, needsValues, indexOrder, values))
 
   override def getNodesByLabel(id: Int): Iterator[NodeValue] =
     translateException(inner.getNodesByLabel(id))
@@ -109,14 +116,27 @@ class ExceptionTranslatingQueryContext(val inner: QueryContext) extends QueryCon
   override def getNodesByLabelPrimitive(id: Int): LongIterator =
     translateException(inner.getNodesByLabelPrimitive(id))
 
-  override def nodeGetDegree(node: Long, dir: SemanticDirection): Int =
-    translateException(inner.nodeGetDegree(node, dir))
 
-  override def nodeGetDegree(node: Long, dir: SemanticDirection, relTypeId: Int): Int =
-    translateException(inner.nodeGetDegree(node, dir, relTypeId))
+  override def nodeAsMap(id: Long): MapValue = translateException(inner.nodeAsMap(id))
 
-  override def getOrCreateFromSchemaState[K, V](key: K, creator: => V): V =
-    translateException(inner.getOrCreateFromSchemaState(key, creator))
+  override def relationshipAsMap(id: Long): MapValue = translateException(inner.relationshipAsMap(id))
+
+  override def nodeGetOutgoingDegree(node: Long): Int =
+    translateException(inner.nodeGetOutgoingDegree(node))
+
+  override def nodeGetOutgoingDegree(node: Long, relationship: Int): Int =
+    translateException(inner.nodeGetOutgoingDegree(node, relationship))
+
+  override def nodeGetIncomingDegree(node: Long): Int =
+    translateException(inner.nodeGetIncomingDegree(node))
+
+  override def nodeGetIncomingDegree(node: Long, relationship: Int): Int =
+    translateException(inner.nodeGetIncomingDegree(node, relationship))
+
+  override def nodeGetTotalDegree(node: Long): Int = translateException(inner.nodeGetTotalDegree(node))
+
+  override def nodeGetTotalDegree(node: Long, relationship: Int): Int =
+    translateException(inner.nodeGetTotalDegree(node, relationship))
 
   override def createNodeKeyConstraint(descriptor: IndexDescriptor): Boolean =
     translateException(inner.createNodeKeyConstraint(descriptor))
@@ -142,29 +162,29 @@ class ExceptionTranslatingQueryContext(val inner: QueryContext) extends QueryCon
   override def dropRelationshipPropertyExistenceConstraint(relTypeId: Int, propertyKeyId: Int) =
     translateException(inner.dropRelationshipPropertyExistenceConstraint(relTypeId, propertyKeyId))
 
-  override def callReadOnlyProcedure(id: Int, args: Seq[Any], allowed: Array[String]): Iterator[Array[AnyRef]] =
-    translateIterator(inner.callReadOnlyProcedure(id, args, allowed))
+  override def callReadOnlyProcedure(id: Int, args: Seq[Any], allowed: Array[String], context: ProcedureCallContext): Iterator[Array[AnyRef]] =
+    translateIterator(inner.callReadOnlyProcedure(id, args, allowed, context))
 
-  override def callReadWriteProcedure(id: Int, args: Seq[Any], allowed: Array[String]): Iterator[Array[AnyRef]] =
-    translateIterator(inner.callReadWriteProcedure(id, args, allowed))
+  override def callReadWriteProcedure(id: Int, args: Seq[Any], allowed: Array[String], context: ProcedureCallContext): Iterator[Array[AnyRef]] =
+    translateIterator(inner.callReadWriteProcedure(id, args, allowed, context))
 
-  override def callSchemaWriteProcedure(id: Int, args: Seq[Any], allowed: Array[String]): Iterator[Array[AnyRef]] =
-    translateIterator(inner.callSchemaWriteProcedure(id, args, allowed))
+  override def callSchemaWriteProcedure(id: Int, args: Seq[Any], allowed: Array[String], context: ProcedureCallContext): Iterator[Array[AnyRef]] =
+    translateIterator(inner.callSchemaWriteProcedure(id, args, allowed, context))
 
-  override def callDbmsProcedure(id: Int, args: Seq[Any], allowed: Array[String]): Iterator[Array[AnyRef]] =
-    translateIterator(inner.callDbmsProcedure(id, args, allowed))
+  override def callDbmsProcedure(id: Int, args: Seq[Any], allowed: Array[String], context: ProcedureCallContext): Iterator[Array[AnyRef]] =
+    translateIterator(inner.callDbmsProcedure(id, args, allowed, context))
 
-  override def callReadOnlyProcedure(name: QualifiedName, args: Seq[Any], allowed: Array[String]): Iterator[Array[AnyRef]] =
-    translateIterator(inner.callReadOnlyProcedure(name, args, allowed))
+  override def callReadOnlyProcedure(name: QualifiedName, args: Seq[Any], allowed: Array[String], context: ProcedureCallContext): Iterator[Array[AnyRef]] =
+    translateIterator(inner.callReadOnlyProcedure(name, args, allowed, context))
 
-  override def callReadWriteProcedure(name: QualifiedName, args: Seq[Any], allowed: Array[String]): Iterator[Array[AnyRef]] =
-    translateIterator(inner.callReadWriteProcedure(name, args, allowed))
+  override def callReadWriteProcedure(name: QualifiedName, args: Seq[Any], allowed: Array[String], context: ProcedureCallContext): Iterator[Array[AnyRef]] =
+    translateIterator(inner.callReadWriteProcedure(name, args, allowed, context))
 
-  override def callSchemaWriteProcedure(name: QualifiedName, args: Seq[Any], allowed: Array[String]): Iterator[Array[AnyRef]] =
-    translateIterator(inner.callSchemaWriteProcedure(name, args, allowed))
+  override def callSchemaWriteProcedure(name: QualifiedName, args: Seq[Any], allowed: Array[String], context: ProcedureCallContext): Iterator[Array[AnyRef]] =
+    translateIterator(inner.callSchemaWriteProcedure(name, args, allowed, context))
 
-  override def callDbmsProcedure(name: QualifiedName, args: Seq[Any], allowed: Array[String]): Iterator[Array[AnyRef]] =
-    translateIterator(inner.callDbmsProcedure(name, args, allowed))
+  override def callDbmsProcedure(name: QualifiedName, args: Seq[Any], allowed: Array[String], context: ProcedureCallContext): Iterator[Array[AnyRef]] =
+    translateIterator(inner.callDbmsProcedure(name, args, allowed, context))
 
   override def callFunction(id: Int, args: Seq[AnyValue], allowed: Array[String]) =
     translateException(inner.callFunction(id, args, allowed))
@@ -179,9 +199,6 @@ class ExceptionTranslatingQueryContext(val inner: QueryContext) extends QueryCon
   override def aggregateFunction(name: QualifiedName,
                                  allowed: Array[String]): UserDefinedAggregator =
     translateException(inner.aggregateFunction(name, allowed))
-
-  override def isGraphKernelResultValue(v: Any): Boolean =
-    translateException(inner.isGraphKernelResultValue(v))
 
   override def withAnyOpenQueryContext[T](work: (QueryContext) => T): T =
     inner.withAnyOpenQueryContext(qc =>
@@ -198,17 +215,18 @@ class ExceptionTranslatingQueryContext(val inner: QueryContext) extends QueryCon
   override def getRelTypeName(id: Int) =
     translateException(inner.getRelTypeName(id))
 
-  override def lockingUniqueIndexSeek(index: IndexReference, values: Seq[IndexQuery.ExactPredicate]): Option[NodeValue] =
+  override def lockingUniqueIndexSeek[RESULT](index: IndexReference,
+                                              values: Seq[IndexQuery.ExactPredicate]): NodeValueIndexCursor =
     translateException(inner.lockingUniqueIndexSeek(index, values))
 
   override def getImportURL(url: URL) =
     translateException(inner.getImportURL(url))
 
-  override def edgeGetStartNode(edge: RelationshipValue) =
-    translateException(inner.edgeGetStartNode(edge))
+  override def relationshipGetStartNode(relationships: RelationshipValue) =
+    translateException(inner.relationshipGetStartNode(relationships))
 
-  override def edgeGetEndNode(edge: RelationshipValue) =
-    translateException(inner.edgeGetEndNode(edge))
+  override def relationshipGetEndNode(relationships: RelationshipValue) =
+    translateException(inner.relationshipGetEndNode(relationships))
 
   override def createRelationship(start: Long, end: Long, relType: Int) =
     translateException(inner.createRelationship(start, end, relType))
@@ -228,22 +246,27 @@ class ExceptionTranslatingQueryContext(val inner: QueryContext) extends QueryCon
   override def getRelationshipFor(relationshipId: Long, typeId: Int, startNodeId: Long, endNodeId: Long): RelationshipValue =
     translateException(inner.getRelationshipFor(relationshipId, typeId, startNodeId, endNodeId))
 
-  override def indexScanByContains(index: IndexReference, value: String) =
-    translateException(inner.indexScanByContains(index, value))
+  override def indexSeekByContains[RESULT <: AnyRef](index: IndexReference,
+                                                     needsValues: Boolean,
+                                                     indexOrder: IndexOrder,
+                                                     value: TextValue): NodeValueIndexCursor =
+    translateException(inner.indexSeekByContains(index, needsValues, indexOrder, value))
 
-  override def indexScanByEndsWith(index: IndexReference, value: String) =
-    translateException(inner.indexScanByEndsWith(index, value))
+  override def indexSeekByEndsWith[RESULT <: AnyRef](index: IndexReference,
+                                                     needsValues: Boolean,
+                                                     indexOrder: IndexOrder,
+                                                     value: TextValue): NodeValueIndexCursor =
+    translateException(inner.indexSeekByEndsWith(index, needsValues, indexOrder, value))
 
-  override def indexScan(index: IndexReference) =
-    translateException(inner.indexScan(index))
-
-  override def indexScanPrimitive(index: IndexReference) =
-    translateException(inner.indexScanPrimitive(index))
+  override def indexScan[RESULT <: AnyRef](index: IndexReference,
+                                           needsValues: Boolean,
+                                           indexOrder: IndexOrder): NodeValueIndexCursor =
+    translateException(inner.indexScan(index, needsValues, indexOrder))
 
   override def nodeIsDense(node: Long) =
     translateException(inner.nodeIsDense(node))
 
-  override def asObject(value: AnyValue) =
+  override def asObject(value: AnyValue): AnyRef =
     translateException(inner.asObject(value))
 
   override def variableLengthPathExpand(realNode: Long, minHops: Option[Int], maxHops: Option[Int], direction: SemanticDirection, relTypes: Seq[String]) =
@@ -292,7 +315,7 @@ class ExceptionTranslatingQueryContext(val inner: QueryContext) extends QueryCon
     override def hasProperty(id: Long, propertyKeyId: Int): Boolean =
       translateException(inner.hasProperty(id, propertyKeyId))
 
-    override def propertyKeyIds(id: Long): Iterator[Int] =
+    override def propertyKeyIds(id: Long): Array[Int] =
       translateException(inner.propertyKeyIds(id))
 
     override def removeProperty(id: Long, propertyKeyId: Int) =

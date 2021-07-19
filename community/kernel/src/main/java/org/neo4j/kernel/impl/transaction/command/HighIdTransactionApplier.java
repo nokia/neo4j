@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,7 +19,6 @@
  */
 package org.neo4j.kernel.impl.transaction.command;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -45,7 +44,6 @@ import org.neo4j.kernel.impl.transaction.command.Command.RelationshipGroupComman
 import org.neo4j.kernel.impl.transaction.command.Command.RelationshipTypeTokenCommand;
 import org.neo4j.kernel.impl.transaction.command.Command.SchemaRuleCommand;
 import org.neo4j.kernel.impl.transaction.command.Command.TokenCommand;
-import org.neo4j.storageengine.api.Token;
 
 import static java.lang.Math.max;
 
@@ -175,8 +173,7 @@ public class HighIdTransactionApplier extends TransactionApplier.Adapter
         }
     }
 
-    private <RECORD extends TokenRecord, TOKEN extends Token>
-    void trackToken( TokenStore<RECORD, TOKEN> tokenStore, TokenCommand<RECORD> tokenCommand )
+    private <RECORD extends TokenRecord> void trackToken( TokenStore<RECORD> tokenStore, TokenCommand<RECORD> tokenCommand )
     {
         track( tokenStore, tokenCommand.getAfter() );
         track( tokenStore.getNameStore(), tokenCommand.getAfter().getNameRecords() );

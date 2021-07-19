@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -32,6 +32,9 @@ public interface AuthManager extends Lifecycle
 {
     /**
      * Log in using the provided authentication token
+     *
+     * NOTE: The authToken will be cleared of any credentials
+     *
      * @param authToken The authentication token to login with. Typically contains principals and credentials.
      * @return An AuthSubject representing the newly logged-in user
      * @throws InvalidAuthTokenException if the authentication token is malformed
@@ -66,6 +69,7 @@ public interface AuthManager extends Lifecycle
         @Override
         public LoginContext login( Map<String,Object> authToken )
         {
+            AuthToken.clearCredentials( authToken );
             return LoginContext.AUTH_DISABLED;
         }
     };

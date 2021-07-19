@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -31,7 +31,6 @@ import java.io.UncheckedIOException;
 import java.io.Writer;
 import java.nio.charset.Charset;
 import java.nio.file.CopyOption;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -120,9 +119,9 @@ public abstract class FileSystemRule<FS extends FileSystemAbstraction> extends E
     }
 
     @Override
-    public boolean fileExists( File fileName )
+    public boolean fileExists( File file )
     {
-        return fs.fileExists( fileName );
+        return fs.fileExists( file );
     }
 
     @Override
@@ -201,13 +200,6 @@ public abstract class FileSystemRule<FS extends FileSystemAbstraction> extends E
     public void copyRecursively( File fromDirectory, File toDirectory ) throws IOException
     {
         fs.copyRecursively( fromDirectory, toDirectory );
-    }
-
-    @Override
-    public <K extends ThirdPartyFileSystem> K getOrCreateThirdPartyFileSystem( Class<K> clazz,
-            Function<Class<K>,K> creator )
-    {
-        return fs.getOrCreateThirdPartyFileSystem( clazz, creator );
     }
 
     @Override

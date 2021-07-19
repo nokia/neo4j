@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,19 +20,24 @@
 package org.neo4j.bolt.v1.runtime;
 
 import java.time.Clock;
-import java.util.Collections;
 
 import org.neo4j.bolt.BoltChannel;
+import org.neo4j.bolt.runtime.BoltConnectionFatality;
+import org.neo4j.bolt.runtime.BoltStateMachine;
+import org.neo4j.bolt.runtime.BoltStateMachineSPI;
+import org.neo4j.bolt.runtime.TransactionStateMachineSPI;
 import org.neo4j.bolt.security.auth.AuthenticationException;
-import org.neo4j.bolt.security.auth.AuthenticationResult;
+import org.neo4j.bolt.testing.BoltTestUtil;
+import org.neo4j.bolt.v1.messaging.request.DiscardAllMessage;
+import org.neo4j.bolt.v1.messaging.request.InitMessage;
+import org.neo4j.bolt.v1.messaging.request.RunMessage;
 import org.neo4j.kernel.api.security.AuthToken;
-import org.neo4j.kernel.impl.logging.NullLogService;
 import org.neo4j.values.virtual.MapValue;
 import org.neo4j.values.virtual.VirtualValues;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.RETURNS_MOCKS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -45,7 +50,7 @@ import static org.neo4j.bolt.testing.NullResponseHandler.nullResponseHandler;
 public class MachineRoom
 {
     static final MapValue EMPTY_PARAMS = VirtualValues.EMPTY_MAP;
-    static final String USER_AGENT = "BoltStateMachineTest/0.0";
+    static final String USER_AGENT = "BoltStateMachineV1Test/0.0";
 
     private MachineRoom()
     {
@@ -53,64 +58,50 @@ public class MachineRoom
 
     public static BoltStateMachine newMachine()
     {
-        BoltChannel boltChannel = mock( BoltChannel.class );
-        return new BoltStateMachine( mock( BoltStateMachineSPI.class, RETURNS_MOCKS ), boltChannel, Clock.systemUTC(), NullLogService.getInstance() );
+        return newMachine( mock( BoltStateMachineV1SPI.class, RETURNS_MOCKS ) );
     }
 
-    public static BoltStateMachine newMachine( BoltStateMachine.State state ) throws AuthenticationException, BoltConnectionFatality
+    public static BoltStateMachine newMachine( BoltStateMachineV1SPI spi )
     {
-        BoltStateMachine machine = newMachine();
-        init( machine );
-        machine.state = state;
-        return machine;
+        BoltChannel boltChannel = BoltTestUtil.newTestBoltChannel();
+        return new BoltStateMachineV1( spi, boltChannel, Clock.systemUTC() );
     }
 
-    public static BoltStateMachine newMachineWithOwner( BoltStateMachine.State state, String owner ) throws AuthenticationException, BoltConnectionFatality
-    {
-        BoltStateMachine machine = newMachine();
-        init( machine, owner );
-        machine.state = state;
-        return machine;
-    }
-
-    public static BoltStateMachine newMachineWithTransaction( BoltStateMachine.State state )
-            throws AuthenticationException, BoltConnectionFatality
+    public static BoltStateMachine newMachineWithTransaction() throws AuthenticationException, BoltConnectionFatality
     {
         BoltStateMachine machine = newMachine();
         init( machine );
         runBegin( machine );
-        machine.state = state;
         return machine;
     }
 
-    public static BoltStateMachine newMachineWithTransactionSPI( TransactionStateMachine.SPI transactionSPI ) throws
+    public static BoltStateMachine newMachineWithTransactionSPI( TransactionStateMachineSPI transactionSPI ) throws
             AuthenticationException, BoltConnectionFatality
     {
-        BoltStateMachine.SPI spi = mock( BoltStateMachine.SPI.class, RETURNS_MOCKS );
+        BoltStateMachineSPI spi = mock( BoltStateMachineSPI.class, RETURNS_MOCKS );
         when( spi.transactionSpi() ).thenReturn( transactionSPI );
 
-        BoltChannel boltChannel = mock( BoltChannel.class );
-        BoltStateMachine machine = new BoltStateMachine( spi, boltChannel, Clock.systemUTC(), NullLogService.getInstance() );
+        BoltChannel boltChannel = BoltTestUtil.newTestBoltChannel();
+        BoltStateMachine machine = new BoltStateMachineV1( spi, boltChannel, Clock.systemUTC() );
         init( machine );
         return machine;
     }
 
-    private static void init( BoltStateMachine machine ) throws AuthenticationException, BoltConnectionFatality
+    public static BoltStateMachine init( BoltStateMachine machine ) throws AuthenticationException, BoltConnectionFatality
     {
-        init( machine, null );
+        return init( machine, null );
     }
 
-    private static void init( BoltStateMachine machine, String owner ) throws AuthenticationException, BoltConnectionFatality
+    private static BoltStateMachine init( BoltStateMachine machine, String owner ) throws AuthenticationException, BoltConnectionFatality
     {
-        AuthenticationResult authenticationResult = mock( AuthenticationResult.class );
-        when( machine.spi.authenticate( any() ) ).thenReturn( authenticationResult );
-        machine.init( USER_AGENT, owner == null ? emptyMap() : Collections.singletonMap( AuthToken.PRINCIPAL, owner ), nullResponseHandler() );
+        machine.process( new InitMessage( USER_AGENT, owner == null ? emptyMap() : singletonMap( AuthToken.PRINCIPAL, owner ) ), nullResponseHandler() );
+        return machine;
     }
 
     private static void runBegin( BoltStateMachine machine ) throws BoltConnectionFatality
     {
-        machine.run( "BEGIN", EMPTY_PARAMS, nullResponseHandler() );
-        machine.discardAll( nullResponseHandler() );
+        machine.process( new RunMessage( "BEGIN", EMPTY_PARAMS ), nullResponseHandler() );
+        machine.process( DiscardAllMessage.INSTANCE, nullResponseHandler() );
         assertThat( machine, hasTransaction() );
     }
 

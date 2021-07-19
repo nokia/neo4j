@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,8 +19,8 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.cardinality
 
-import org.neo4j.cypher.internal.util.v3_5.Selectivity
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
+import org.neo4j.cypher.internal.v3_5.util.Selectivity
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
 
 class SelectivityCombinerTest extends CypherFunSuite {
 
@@ -48,6 +48,47 @@ class SelectivityCombinerTest extends CypherFunSuite {
 
     val selectivity = IndependenceCombiner.orTogetherSelectivities(selectivities).get.factor
     assert( selectivity === 0.28 +- 0.000000000000000028 )
+  }
+
+  test("OR: size 1") {
+    val a = 0.3
+    IndependenceCombiner.orTogetherSelectivities(Seq(a).map(Selectivity(_))).map(_.factor).get should be(a)
+  }
+
+  test("OR: size 2") {
+    val a = 0.3
+    val b = 0.85
+    IndependenceCombiner.orTogetherSelectivities(Seq(a, b).map(Selectivity(_))).map(_.factor).get should be(
+      a + b
+        - a * b
+        +- 0.001
+    )
+  }
+
+  test("OR: size 3") {
+    val a = 0.3
+    val b = 0.85
+    val c = 0.077
+    IndependenceCombiner.orTogetherSelectivities(Seq(a, b, c).map(Selectivity(_))).map(_.factor).get should be(
+      a + b + c
+        - a * b - a * c - b * c
+        + a * b * c
+        +- 0.001
+    )
+  }
+
+  test("OR: size 4") {
+    val a = 0.3
+    val b = 0.85
+    val c = 0.077
+    val d = 0.935489
+    IndependenceCombiner.orTogetherSelectivities(Seq(a, b, c, d).map(Selectivity(_))).map(_.factor).get should be(
+      a + b + c + d
+        - a * b - a * c - a * d - b * c - b * d - c * d
+        + a * b * c + a * b * d + a * c * d + b * c * d
+        - a * b * c * d
+        +- 0.001
+    )
   }
 
 }

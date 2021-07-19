@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -31,6 +31,9 @@ import java.util.List;
 
 import org.neo4j.collection.PrimitiveLongCollections;
 import org.neo4j.helpers.collection.PrefetchingIterator;
+import org.neo4j.kernel.impl.storageengine.impl.recordstorage.Loaders;
+import org.neo4j.kernel.impl.storageengine.impl.recordstorage.PropertyCreator;
+import org.neo4j.kernel.impl.storageengine.impl.recordstorage.PropertyTraverser;
 import org.neo4j.kernel.impl.store.AbstractDynamicStore;
 import org.neo4j.kernel.impl.store.NeoStores;
 import org.neo4j.kernel.impl.store.NodeLabelsField;
@@ -42,9 +45,6 @@ import org.neo4j.kernel.impl.store.record.PrimitiveRecord;
 import org.neo4j.kernel.impl.store.record.PropertyBlock;
 import org.neo4j.kernel.impl.store.record.PropertyRecord;
 import org.neo4j.kernel.impl.store.record.Record;
-import org.neo4j.kernel.impl.transaction.state.Loaders;
-import org.neo4j.kernel.impl.transaction.state.PropertyCreator;
-import org.neo4j.kernel.impl.transaction.state.PropertyTraverser;
 import org.neo4j.kernel.impl.transaction.state.RecordAccess;
 import org.neo4j.test.rule.NeoStoresRule;
 import org.neo4j.test.rule.RandomRule;
@@ -257,9 +257,6 @@ public class DeleteDuplicateNodesStepTest
     {
         step.start( 0 );
         step.receive( 0, null );
-        while ( !step.isCompleted() )
-        {
-            Thread.sleep( 10 );
-        }
+        step.awaitCompleted();
     }
 }

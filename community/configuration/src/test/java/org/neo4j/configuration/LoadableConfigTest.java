@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,7 +19,7 @@
  */
 package org.neo4j.configuration;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
@@ -32,15 +32,15 @@ import org.neo4j.graphdb.config.Setting;
 import org.neo4j.graphdb.config.SettingGroup;
 
 import static java.util.Collections.emptyMap;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.neo4j.helpers.collection.MapUtil.stringMap;
 
-public class LoadableConfigTest
+class LoadableConfigTest
 {
     @Test
-    public void getConfigOptions()
+    void getConfigOptions()
     {
         Map<String,String> config = stringMap(
                 TestConfig.integer.name(), "123",

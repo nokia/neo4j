@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -40,7 +40,6 @@ import static org.junit.Assert.assertTrue;
 import static org.neo4j.index.internal.gbptree.GenerationSafePointerPair.FLAG_READ;
 import static org.neo4j.index.internal.gbptree.GenerationSafePointerPair.FLAG_WRITE;
 import static org.neo4j.index.internal.gbptree.GenerationSafePointerPair.GENERATION_COMPARISON_MASK;
-import static org.neo4j.index.internal.gbptree.GenerationSafePointerPair.NO_LOGICAL_POS;
 import static org.neo4j.index.internal.gbptree.GenerationSafePointerPair.READ_OR_WRITE_MASK;
 import static org.neo4j.index.internal.gbptree.GenerationSafePointerPair.SHIFT_STATE_A;
 import static org.neo4j.index.internal.gbptree.GenerationSafePointerPair.SHIFT_STATE_B;
@@ -128,25 +127,7 @@ public class GenerationSafePointerPairTest
     private final PageCursor cursor = ByteArrayPageCursor.wrap( new byte[PAGE_SIZE] );
 
     @Test
-    public void shouldReadWithLogicalPosition()
-    {
-        // GIVEN
-        cursor.setOffset( SLOT_A_OFFSET );
-        long preStatePointerA = stateA.materialize( cursor, POINTER_A );
-        cursor.setOffset( SLOT_B_OFFSET );
-        long preStatePointerB = stateB.materialize( cursor, POINTER_B );
-        int pos = 1234;
-
-        // WHEN
-        cursor.setOffset( GSPP_OFFSET );
-        long result = GenerationSafePointerPair.read( cursor, STABLE_GENERATION, UNSTABLE_GENERATION, pos );
-
-        // THEN
-        expectedReadOutcome.verifyRead( cursor, result, stateA, stateB, preStatePointerA, preStatePointerB, pos );
-    }
-
-    @Test
-    public void shouldReadWithNoLogicalPosition()
+    public void shouldRead()
     {
         // GIVEN
         cursor.setOffset( SLOT_A_OFFSET );
@@ -156,11 +137,11 @@ public class GenerationSafePointerPairTest
 
         // WHEN
         cursor.setOffset( GSPP_OFFSET );
-        long result = GenerationSafePointerPair.read( cursor, STABLE_GENERATION, UNSTABLE_GENERATION, NO_LOGICAL_POS );
+        GenerationKeeper generationKeeper = new GenerationKeeper();
+        long result = GenerationSafePointerPair.read( cursor, STABLE_GENERATION, UNSTABLE_GENERATION, generationKeeper );
 
         // THEN
-        expectedReadOutcome.verifyRead( cursor, result, stateA, stateB, preStatePointerA, preStatePointerB,
-                NO_LOGICAL_POS );
+        expectedReadOutcome.verifyRead( cursor, result, stateA, stateB, preStatePointerA, preStatePointerB, generationKeeper.generation );
     }
 
     @Test
@@ -289,7 +270,7 @@ public class GenerationSafePointerPairTest
             }
 
             @Override
-            void verify( PageCursor cursor, long expectedPointer, boolean slotA, int logicalPos )
+            void verify( PageCursor cursor, long expectedPointer, boolean slotA )
             {
                 cursor.setOffset( slotA ? SLOT_A_OFFSET : SLOT_B_OFFSET );
 
@@ -371,9 +352,15 @@ public class GenerationSafePointerPairTest
          * @param expectedPointer expected pointer, as received from {@link #materialize(PageCursor, long)}.
          * @param slotA whether or not this is for slot A, otherwise B.
          */
-        void verify( PageCursor cursor, long expectedPointer, boolean slotA, int logicalPos )
+        void verify( PageCursor cursor, long expectedPointer, boolean slotA )
         {
             assertEquals( expectedPointer, slotA ? readSlotA( cursor ) : readSlotB( cursor ) );
+        }
+
+        public static long readGeneration( PageCursor cursor, boolean slotA )
+        {
+            cursor.setOffset( slotA ? SLOT_A_OFFSET : SLOT_B_OFFSET );
+            return GenerationSafePointer.readGeneration( cursor );
         }
     }
 
@@ -381,15 +368,14 @@ public class GenerationSafePointerPairTest
     {
         /**
          * @param cursor {@link PageCursor} to read actual result from.
-         * @param result read-result from {@link GenerationSafePointerPair#read(PageCursor, long, long, int)}.
+         * @param result read-result from {@link GenerationSafePointerPair#read(PageCursor, long, long, GBPTreeGenerationTarget)}.
          * @param stateA state of pointer A when read.
          * @param stateB state of pointer B when read.
          * @param preStatePointerA pointer A as it looked like in pre-state.
          * @param preStatePointerB pointer B as it looked like in pre-state.
-         * @param logicalPos expected logical pos.
+         * @param generation read generation.
          */
-        void verifyRead( PageCursor cursor, long result, State stateA, State stateB,
-                long preStatePointerA, long preStatePointerB, int logicalPos );
+        void verifyRead( PageCursor cursor, long result, State stateA, State stateB, long preStatePointerA, long preStatePointerB, long generation );
 
         /**
          * @param cursor {@link PageCursor} to read actual result from.
@@ -418,26 +404,15 @@ public class GenerationSafePointerPairTest
         }
 
         @Override
-        public void verifyRead( PageCursor cursor, long result, State stateA, State stateB,
-                long preStatePointerA, long preStatePointerB, int logicalPos )
+        public void verifyRead( PageCursor cursor, long result, State stateA, State stateB, long preStatePointerA, long preStatePointerB, long generation )
         {
             assertSuccess( result );
             long pointer = GenerationSafePointerPair.pointer( result );
             assertEquals( expectedPointer, pointer );
             assertEquals( expectedSlot == SLOT_A, GenerationSafePointerPair.resultIsFromSlotA( result ) );
-            if ( logicalPos == NO_LOGICAL_POS )
-            {
-                assertFalse( GenerationSafePointerPair.isLogicalPos( result ) );
-                assertEquals( GSPP_OFFSET, GenerationSafePointerPair.generationOffset( result ) );
-            }
-            else
-            {
-                assertTrue( GenerationSafePointerPair.isLogicalPos( result ) );
-                assertEquals( logicalPos, GenerationSafePointerPair.generationOffset( result ) );
-            }
-
-            stateA.verify( cursor, preStatePointerA, SLOT_A, logicalPos );
-            stateB.verify( cursor, preStatePointerB, SLOT_B, logicalPos );
+            stateA.verify( cursor, preStatePointerA, SLOT_A );
+            stateB.verify( cursor, preStatePointerB, SLOT_B );
+            assertEquals( State.readGeneration( cursor, expectedSlot ), generation );
         }
 
         @Override
@@ -484,12 +459,12 @@ public class GenerationSafePointerPairTest
         }
 
         @Override
-        public void verifyRead( PageCursor cursor, long result, State stateA, State stateB,
-                long preStatePointerA, long preStatePointerB, int logicalPos )
+        public void verifyRead( PageCursor cursor, long result, State stateA, State stateB, long preStatePointerA, long preStatePointerB, long generation )
         {
             assertFailure( result, FLAG_READ, generationComparison, stateA.byteValue, stateB.byteValue );
-            stateA.verify( cursor, preStatePointerA, SLOT_A, logicalPos );
-            stateB.verify( cursor, preStatePointerB, SLOT_B, logicalPos );
+            stateA.verify( cursor, preStatePointerA, SLOT_A );
+            stateB.verify( cursor, preStatePointerB, SLOT_B );
+            assertEquals( GenerationSafePointer.EMPTY_GENERATION, generation );
         }
 
         @Override
@@ -497,8 +472,8 @@ public class GenerationSafePointerPairTest
                 long preStatePointerA, long preStatePointerB )
         {
             assertFailure( result, FLAG_WRITE, generationComparison, stateA.byteValue, stateB.byteValue );
-            stateA.verify( cursor, preStatePointerA, SLOT_A, NO_LOGICAL_POS /*Don't care*/ );
-            stateB.verify( cursor, preStatePointerB, SLOT_B, NO_LOGICAL_POS /*Don't care*/ );
+            stateA.verify( cursor, preStatePointerA, SLOT_A );
+            stateB.verify( cursor, preStatePointerB, SLOT_B );
         }
     }
 }

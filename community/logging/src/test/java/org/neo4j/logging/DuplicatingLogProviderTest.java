@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,16 +19,16 @@
  */
 package org.neo4j.logging;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class DuplicatingLogProviderTest
+class DuplicatingLogProviderTest
 {
     @Test
-    public void shouldReturnSameLoggerForSameClass()
+    void shouldReturnSameLoggerForSameClass()
     {
         // Given
         DuplicatingLogProvider logProvider = new DuplicatingLogProvider();
@@ -39,7 +39,7 @@ public class DuplicatingLogProviderTest
     }
 
     @Test
-    public void shouldReturnSameLoggerForSameContext()
+    void shouldReturnSameLoggerForSameContext()
     {
         // Given
         DuplicatingLogProvider logProvider = new DuplicatingLogProvider();
@@ -50,7 +50,7 @@ public class DuplicatingLogProviderTest
     }
 
     @Test
-    public void shouldRemoveLogProviderFromDuplication()
+    void shouldRemoveLogProviderFromDuplication()
     {
         // Given
         AssertableLogProvider logProvider1 = new AssertableLogProvider();
@@ -61,7 +61,7 @@ public class DuplicatingLogProviderTest
         // When
         Log log = logProvider.getLog( getClass() );
         log.info( "When the going gets weird" );
-        assertThat( logProvider.remove( logProvider1 ), is( true ) );
+        assertTrue( logProvider.remove( logProvider1 ) );
         log.info( "The weird turn pro" );
 
         // Then

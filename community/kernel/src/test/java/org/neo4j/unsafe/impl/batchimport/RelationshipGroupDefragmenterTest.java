@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -33,16 +33,19 @@ import java.io.IOException;
 import java.util.BitSet;
 import java.util.Collection;
 
+import org.neo4j.io.pagecache.PageCursor;
 import org.neo4j.kernel.configuration.Config;
-import org.neo4j.kernel.impl.logging.NullLogService;
-import org.neo4j.kernel.impl.store.RecordCursor;
 import org.neo4j.kernel.impl.store.RecordStore;
+import org.neo4j.kernel.impl.store.RelationshipGroupStore;
 import org.neo4j.kernel.impl.store.format.ForcedSecondaryUnitRecordFormats;
 import org.neo4j.kernel.impl.store.format.RecordFormats;
 import org.neo4j.kernel.impl.store.format.standard.Standard;
 import org.neo4j.kernel.impl.store.record.NodeRecord;
 import org.neo4j.kernel.impl.store.record.Record;
 import org.neo4j.kernel.impl.store.record.RelationshipGroupRecord;
+import org.neo4j.logging.internal.NullLogService;
+import org.neo4j.scheduler.JobScheduler;
+import org.neo4j.scheduler.ThreadPoolJobScheduler;
 import org.neo4j.test.rule.RandomRule;
 import org.neo4j.test.rule.TestDirectory;
 import org.neo4j.test.rule.fs.DefaultFileSystemRule;
@@ -87,20 +90,23 @@ public class RelationshipGroupDefragmenterTest
     public int units;
 
     private BatchingNeoStores stores;
+    private JobScheduler jobScheduler;
 
     @Before
     public void start() throws IOException
     {
+        jobScheduler = new ThreadPoolJobScheduler();
         stores = BatchingNeoStores.batchingNeoStores( fileSystemRule.get(),
                 directory.absolutePath(), format, CONFIG, NullLogService.getInstance(),
-                AdditionalInitialIds.EMPTY, Config.defaults() );
+                AdditionalInitialIds.EMPTY, Config.defaults(), jobScheduler );
         stores.createNew();
     }
 
     @After
-    public void stop() throws IOException
+    public void stop() throws Exception
     {
         stores.close();
+        jobScheduler.close();
     }
 
     @Test
@@ -208,12 +214,11 @@ public class RelationshipGroupDefragmenterTest
 
     private void verifyGroupsAreSequentiallyOrderedByNode()
     {
-        RecordStore<RelationshipGroupRecord> store = stores.getRelationshipGroupStore();
+        RelationshipGroupStore store = stores.getRelationshipGroupStore();
         long firstId = store.getNumberOfReservedLowIds();
         long groupCount = store.getHighId() - firstId;
         RelationshipGroupRecord groupRecord = store.newRecord();
-        RecordCursor<RelationshipGroupRecord> groupCursor =
-                store.newRecordCursor( groupRecord ).acquire( firstId, CHECK );
+        PageCursor groupCursor = store.openPageCursorForReading( firstId );
         long highGroupId = store.getHighId();
         long currentNodeId = -1;
         int currentTypeId = -1;
@@ -221,7 +226,8 @@ public class RelationshipGroupDefragmenterTest
         int currentGroupLength = 0;
         for ( long id = firstId; id < highGroupId; id++, newGroupCount++ )
         {
-            if ( !groupCursor.next( id ) )
+            store.getRecordByCursor( id, groupRecord, CHECK, groupCursor );
+            if ( !groupRecord.inUse() )
             {
                 // This will be the case if we have double record units, just assert that fact
                 assertTrue( units > 1 );

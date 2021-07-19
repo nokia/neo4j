@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -30,6 +30,7 @@ import org.neo4j.kernel.internal.GraphDatabaseAPI;
 
 import static java.lang.String.format;
 
+@Deprecated
 public class JmxUtils
 {
     private static final MBeanServer mbeanServer = ManagementFactory.getPlatformMBeanServer();
@@ -70,11 +71,11 @@ public class JmxUtils
     }
 
     @SuppressWarnings( "unchecked" )
-    public static <T> T invoke( ObjectName objectName, String attribute, Object[] params, String[] signatur )
+    public static <T> T invoke( ObjectName objectName, String attribute, Object[] params, String[] signature )
     {
         try
         {
-            return (T) mbeanServer.invoke( objectName, attribute, params, signatur );
+            return (T) mbeanServer.invoke( objectName, attribute, params, signature );
         }
         catch ( Exception e )
         {

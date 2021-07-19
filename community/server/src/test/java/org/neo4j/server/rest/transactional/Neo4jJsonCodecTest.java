@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,9 +19,11 @@
  */
 package org.neo4j.server.rest.transactional;
 
-import org.codehaus.jackson.JsonGenerator;
+import com.fasterxml.jackson.core.JsonGenerator;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.InOrder;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,24 +36,26 @@ import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Path;
 import org.neo4j.graphdb.PropertyContainer;
 import org.neo4j.graphdb.Relationship;
-import org.neo4j.graphdb.SpatialMocks;
+import org.neo4j.graphdb.spatial.CRS;
 import org.neo4j.graphdb.spatial.Coordinate;
 import org.neo4j.graphdb.spatial.Geometry;
 import org.neo4j.graphdb.spatial.Point;
+import org.neo4j.test.mockito.mock.SpatialMocks;
 
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.neo4j.graphdb.SpatialMocks.mockCartesian;
-import static org.neo4j.graphdb.SpatialMocks.mockCartesian_3D;
-import static org.neo4j.graphdb.SpatialMocks.mockWGS84;
-import static org.neo4j.graphdb.SpatialMocks.mockWGS84_3D;
+import static org.neo4j.test.mockito.mock.SpatialMocks.mockCartesian;
+import static org.neo4j.test.mockito.mock.SpatialMocks.mockCartesian_3D;
+import static org.neo4j.test.mockito.mock.SpatialMocks.mockWGS84;
+import static org.neo4j.test.mockito.mock.SpatialMocks.mockWGS84_3D;
 
 public class Neo4jJsonCodecTest extends TxStateCheckerTestSupport
 {
@@ -296,5 +300,60 @@ public class Neo4jJsonCodecTest extends TxStateCheckerTestSupport
 
         //Then
         verify( jsonGenerator, times( 3 ) ).writeEndObject();
+    }
+
+    @Test
+    public void testGeometryCrsStructureCartesian() throws IOException
+    {
+        verifyCRSStructure( mockCartesian() );
+    }
+
+    @Test
+    public void testGeometryCrsStructureCartesian_3D() throws IOException
+    {
+        verifyCRSStructure( mockCartesian_3D() );
+    }
+
+    @Test
+    public void testGeometryCrsStructureWGS84() throws IOException
+    {
+        verifyCRSStructure( mockWGS84() );
+    }
+
+    @Test
+    public void testGeometryCrsStructureWGS84_3D() throws IOException
+    {
+        verifyCRSStructure( mockWGS84_3D() );
+    }
+
+    private void verifyCRSStructure( CRS crs ) throws IOException
+    {
+        // When
+        jsonCodec.writeValue( jsonGenerator, crs );
+
+        // Then verify in order
+        InOrder inOrder = Mockito.inOrder( jsonGenerator );
+
+        // Start CRS object
+        inOrder.verify( jsonGenerator ).writeStartObject();
+        // Code
+        inOrder.verify( jsonGenerator ).writeFieldName( "srid" );
+        inOrder.verify( jsonGenerator ).writeNumber( crs.getCode() );
+        // Name
+        inOrder.verify( jsonGenerator ).writeFieldName( "name" );
+        inOrder.verify( jsonGenerator ).writeString( crs.getType() );
+        // Type
+        inOrder.verify( jsonGenerator ).writeFieldName( "type" );
+        inOrder.verify( jsonGenerator ).writeString( "link" );
+        // Properties
+        inOrder.verify( jsonGenerator ).writeFieldName( "properties" );
+        // Properties object
+        inOrder.verify( jsonGenerator ).writeStartObject();
+        inOrder.verify( jsonGenerator ).writeFieldName( "href" );
+        inOrder.verify( jsonGenerator ).writeString( startsWith( crs.getHref() ) );
+        inOrder.verify( jsonGenerator ).writeFieldName( "type" );
+        inOrder.verify( jsonGenerator ).writeString( "ogcwkt" );
+        // Close both properties and CRS objects
+        inOrder.verify( jsonGenerator, times( 2 ) ).writeEndObject();
     }
 }

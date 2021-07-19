@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,10 +20,10 @@
 package org.neo4j.cypher.internal.compiler.v3_5.ast.convert.plannerQuery
 
 import org.neo4j.cypher.internal.compiler.v3_5.helpers.ListSupport
-import org.neo4j.cypher.internal.frontend.v3_5.ast.RelationshipStartItem
-import org.neo4j.cypher.internal.frontend.v3_5.semantics.SemanticTable
+import org.neo4j.cypher.internal.v3_5.ast.RelationshipStartItem
+import org.neo4j.cypher.internal.v3_5.ast.semantics.SemanticTable
 import org.neo4j.cypher.internal.ir.v3_5._
-import org.neo4j.cypher.internal.util.v3_5.UnNamedNameGenerator
+import org.neo4j.cypher.internal.v3_5.util.UnNamedNameGenerator
 import org.neo4j.cypher.internal.v3_5.expressions.SemanticDirection
 
 import scala.collection.mutable
@@ -42,6 +42,9 @@ case class PlannerQueryBuilder(private val q: PlannerQuery, semanticTable: Seman
   def withTail(newTail: PlannerQuery): PlannerQueryBuilder = {
     copy(q = q.updateTailOrSelf(_.withTail(newTail.amendQueryGraph(_.addArgumentIds(currentlyExposedSymbols.toIndexedSeq)))))
   }
+
+  def withInterestingOrder(interestingOrder: InterestingOrder): PlannerQueryBuilder =
+    copy(q = q.withTailInterestingOrder(interestingOrder))
 
   private def currentlyExposedSymbols: Set[String] = {
     q.lastQueryHorizon.exposedSymbols(q.lastQueryGraph.allCoveredIds)
@@ -135,7 +138,7 @@ case class PlannerQueryBuilder(private val q: PlannerQuery, semanticTable: Seman
     }
 
     def groupInequalities(plannerQuery: PlannerQuery): PlannerQuery = {
-      import org.neo4j.cypher.internal.util.v3_5.NonEmptyList._
+      import org.neo4j.cypher.internal.v3_5.util.NonEmptyList._
 
       plannerQuery
         .amendQueryGraph(_.mapSelections {

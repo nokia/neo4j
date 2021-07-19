@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -29,8 +29,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.neo4j.helpers.collection.MapUtil;
-import org.neo4j.kernel.api.index.IndexProvider;
-import org.neo4j.kernel.api.schema.index.SchemaIndexDescriptorFactory;
+import org.neo4j.kernel.api.schema.index.TestIndexDescriptorFactory;
 import org.neo4j.kernel.impl.index.IndexCommand;
 import org.neo4j.kernel.impl.index.IndexCommand.AddNodeCommand;
 import org.neo4j.kernel.impl.index.IndexCommand.AddRelationshipCommand;
@@ -40,7 +39,6 @@ import org.neo4j.kernel.impl.index.IndexCommand.RemoveCommand;
 import org.neo4j.kernel.impl.index.IndexDefineCommand;
 import org.neo4j.kernel.impl.index.IndexEntityType;
 import org.neo4j.kernel.impl.store.record.DynamicRecord;
-import org.neo4j.kernel.impl.store.record.IndexRule;
 import org.neo4j.kernel.impl.store.record.LabelTokenRecord;
 import org.neo4j.kernel.impl.store.record.NeoStoreRecord;
 import org.neo4j.kernel.impl.store.record.NodeRecord;
@@ -98,8 +96,7 @@ public class LogTruncationTest
         permutations.put( Command.SchemaRuleCommand.class, new Command[] { new Command.SchemaRuleCommand(
                 singletonList( dynamicRecord( 1L, false, true, -1L, 1, "hello".getBytes() ) ),
                 singletonList( dynamicRecord( 1L, true, true, -1L, 1, "hello".getBytes() ) ),
-                IndexRule.indexRule( 1, SchemaIndexDescriptorFactory.forLabel( 3, 4 ),
-                        new IndexProvider.Descriptor( "1", "2" ) ) ) } );
+                TestIndexDescriptorFactory.forLabel( 3, 4 ).withId( 1 ) ) } );
         permutations
                 .put( Command.RelationshipTypeTokenCommand.class,
                         new Command[] { new Command.RelationshipTypeTokenCommand(

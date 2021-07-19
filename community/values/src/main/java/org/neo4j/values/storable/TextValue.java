@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -30,7 +30,7 @@ import static org.neo4j.values.virtual.VirtualValues.fromArray;
 
 public abstract class TextValue extends ScalarValue
 {
-    protected static final ListValue EMPTY_SPLIT = fromArray( stringArray( "", "" ) );
+    static final ListValue EMPTY_SPLIT = fromArray( stringArray( "", "" ) );
 
     TextValue()
     {
@@ -68,6 +68,14 @@ public abstract class TextValue extends ScalarValue
 
     public abstract TextValue reverse();
 
+    public abstract TextValue plus( TextValue other );
+
+    public abstract boolean startsWith( TextValue other );
+
+    public abstract boolean endsWith( TextValue other );
+
+    public abstract boolean contains( TextValue other );
+
     public abstract int compareTo( TextValue other );
 
     @Override
@@ -94,6 +102,7 @@ public abstract class TextValue extends ScalarValue
         return false;
     }
 
+    @Override
     public ValueGroup valueGroup()
     {
         return ValueGroup.TEXT;

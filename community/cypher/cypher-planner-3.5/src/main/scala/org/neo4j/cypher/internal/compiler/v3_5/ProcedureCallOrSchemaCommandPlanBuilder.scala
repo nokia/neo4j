@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,19 +20,20 @@
 package org.neo4j.cypher.internal.compiler.v3_5
 
 import org.neo4j.cypher.internal.compiler.v3_5.phases._
-import org.neo4j.cypher.internal.frontend.v3_5.ast._
-import org.neo4j.cypher.internal.frontend.v3_5.phases.CompilationPhaseTracer.CompilationPhase
-import org.neo4j.cypher.internal.frontend.v3_5.phases.CompilationPhaseTracer.CompilationPhase.PIPE_BUILDING
-import org.neo4j.cypher.internal.frontend.v3_5.phases.{BaseState, Condition, Phase}
-import org.neo4j.cypher.internal.frontend.v3_5.semantics.{SemanticCheckResult, SemanticState}
-import org.neo4j.cypher.internal.util.v3_5.attribution.SequentialIdGen
+import org.neo4j.cypher.internal.planner.v3_5.spi.ProcedurePlannerName
 import org.neo4j.cypher.internal.v3_5.logical.plans
 import org.neo4j.cypher.internal.v3_5.logical.plans.{LogicalPlan, ResolvedCall}
+import org.neo4j.cypher.internal.v3_5.ast._
+import org.neo4j.cypher.internal.v3_5.ast.semantics.{SemanticCheckResult, SemanticState}
+import org.neo4j.cypher.internal.v3_5.frontend.phases.CompilationPhaseTracer.CompilationPhase
+import org.neo4j.cypher.internal.v3_5.frontend.phases.CompilationPhaseTracer.CompilationPhase.PIPE_BUILDING
+import org.neo4j.cypher.internal.v3_5.frontend.phases.{BaseState, Condition, Phase}
+import org.neo4j.cypher.internal.v3_5.util.attribution.SequentialIdGen
 
 /**
   * This planner takes on queries that requires no planning such as procedures and schema commands
   */
-case object ProcedureCallOrSchemaCommandPlanBuilder extends Phase[CompilerContext, BaseState, LogicalPlanState] {
+case object ProcedureCallOrSchemaCommandPlanBuilder extends Phase[PlannerContext, BaseState, LogicalPlanState] {
 
   override def phase: CompilationPhase = PIPE_BUILDING
 
@@ -40,7 +41,7 @@ case object ProcedureCallOrSchemaCommandPlanBuilder extends Phase[CompilerContex
 
   override def postConditions: Set[Condition] = Set.empty
 
-  override def process(from: BaseState, context: CompilerContext): LogicalPlanState = {
+  override def process(from: BaseState, context: PlannerContext): LogicalPlanState = {
     implicit val idGen = new SequentialIdGen()
     val maybeLogicalPlan: Option[LogicalPlan] = from.statement() match {
       // Global call: CALL foo.bar.baz("arg1", 2)
@@ -95,6 +96,10 @@ case object ProcedureCallOrSchemaCommandPlanBuilder extends Phase[CompilerContex
       case _ => None
     }
 
-    LogicalPlanState(from).withMaybeLogicalPlan(maybeLogicalPlan)
+    val planState = LogicalPlanState(from)
+
+    if (maybeLogicalPlan.isDefined)
+      planState.copy(maybeLogicalPlan = maybeLogicalPlan, plannerName = ProcedurePlannerName)
+    else planState
   }
 }

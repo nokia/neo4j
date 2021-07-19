@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -25,9 +25,10 @@ import org.junit.Test;
 import java.time.Duration;
 import java.util.concurrent.TimeoutException;
 
-import org.neo4j.kernel.AvailabilityGuard;
-import org.neo4j.kernel.api.exceptions.Status;
 import org.neo4j.internal.kernel.api.exceptions.TransactionFailureException;
+import org.neo4j.kernel.api.exceptions.Status;
+import org.neo4j.kernel.availability.AvailabilityGuard;
+import org.neo4j.kernel.availability.DatabaseAvailabilityGuard;
 import org.neo4j.kernel.impl.transaction.log.TransactionIdStore;
 
 import static java.time.Duration.ofMillis;
@@ -47,15 +48,15 @@ public class TransactionIdTrackerTest
     private static final Duration DEFAULT_DURATION = ofSeconds( 10 );
 
     private final TransactionIdStore transactionIdStore = mock( TransactionIdStore.class );
-    private final AvailabilityGuard availabilityGuard = mock( AvailabilityGuard.class );
+    private final AvailabilityGuard databaseAvailabilityGuard = mock( DatabaseAvailabilityGuard.class );
 
     private TransactionIdTracker transactionIdTracker;
 
     @Before
     public void setup()
     {
-        when( availabilityGuard.isAvailable() ).thenReturn( true );
-        transactionIdTracker = new TransactionIdTracker( () -> transactionIdStore, availabilityGuard );
+        when( databaseAvailabilityGuard.isAvailable() ).thenReturn( true );
+        transactionIdTracker = new TransactionIdTracker( () -> transactionIdStore, databaseAvailabilityGuard );
     }
 
     @Test
@@ -107,7 +108,7 @@ public class TransactionIdTrackerTest
     public void shouldNotWaitIfTheDatabaseIsUnavailable() throws Exception
     {
         // given
-        when( availabilityGuard.isAvailable() ).thenReturn( false );
+        when( databaseAvailabilityGuard.isAvailable() ).thenReturn( false );
 
         try
         {
@@ -122,5 +123,14 @@ public class TransactionIdTrackerTest
         }
 
         verify( transactionIdStore, never() ).awaitClosedTransactionId( anyLong(), anyLong() );
+    }
+
+    @Test
+    public void shouldReturnNewestTransactionId()
+    {
+        when( transactionIdStore.getLastClosedTransactionId() ).thenReturn( 42L );
+        when( transactionIdStore.getLastCommittedTransactionId() ).thenReturn( 4242L );
+
+        assertEquals( 4242L, transactionIdTracker.newestEncounteredTxId() );
     }
 }

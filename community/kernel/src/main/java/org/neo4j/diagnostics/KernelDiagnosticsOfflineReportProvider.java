@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -26,11 +26,12 @@ import java.util.List;
 import java.util.Set;
 
 import org.neo4j.graphdb.factory.GraphDatabaseSettings;
+import org.neo4j.internal.diagnostics.DiagnosticsPhase;
 import org.neo4j.io.fs.FileSystemAbstraction;
+import org.neo4j.io.layout.DatabaseLayout;
 import org.neo4j.kernel.configuration.Config;
 import org.neo4j.kernel.impl.transaction.log.files.LogFiles;
 import org.neo4j.kernel.impl.transaction.log.files.LogFilesBuilder;
-import org.neo4j.kernel.info.DiagnosticsPhase;
 import org.neo4j.kernel.internal.KernelDiagnostics;
 import org.neo4j.logging.BufferingLog;
 
@@ -42,7 +43,7 @@ public class KernelDiagnosticsOfflineReportProvider extends DiagnosticsOfflineRe
 {
     private FileSystemAbstraction fs;
     private Config config;
-    private File storeDirectory;
+    private DatabaseLayout databaseLayout;
 
     public KernelDiagnosticsOfflineReportProvider()
     {
@@ -54,7 +55,7 @@ public class KernelDiagnosticsOfflineReportProvider extends DiagnosticsOfflineRe
     {
         this.fs = fs;
         this.config = config;
-        this.storeDirectory = storeDirectory;
+        this.databaseLayout = DatabaseLayout.of( storeDirectory );
     }
 
     @Override
@@ -121,13 +122,13 @@ public class KernelDiagnosticsOfflineReportProvider extends DiagnosticsOfflineRe
     }
 
     /**
-     * Print a tree view of all the files in the graph.db directory with files sizes.
+     * Print a tree view of all the files in the database directory with files sizes.
      *
      * @param sources destination of the sources.
      */
     private void listDataDirectory( List<DiagnosticsReportSource> sources )
     {
-        KernelDiagnostics.StoreFiles storeFiles = new KernelDiagnostics.StoreFiles( storeDirectory );
+        KernelDiagnostics.StoreFiles storeFiles = new KernelDiagnostics.StoreFiles( databaseLayout );
 
         BufferingLog logger = new BufferingLog();
         storeFiles.dump( DiagnosticsPhase.INITIALIZED, logger.debugLogger() );
@@ -187,7 +188,7 @@ public class KernelDiagnosticsOfflineReportProvider extends DiagnosticsOfflineRe
     {
         try
         {
-            LogFiles logFiles = LogFilesBuilder.logFilesBasedOnlyBuilder( storeDirectory, fs ).build();
+            LogFiles logFiles = LogFilesBuilder.logFilesBasedOnlyBuilder( databaseLayout.databaseDirectory(), fs ).build();
             for ( File file : logFiles.logFiles() )
             {
                 sources.add( DiagnosticsReportSources.newDiagnosticsFile( "tx/" + file.getName(), fs, file ) );

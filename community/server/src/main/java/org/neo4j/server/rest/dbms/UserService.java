@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -42,6 +42,7 @@ import org.neo4j.server.rest.repr.ExceptionRepresentation;
 import org.neo4j.server.rest.repr.InputFormat;
 import org.neo4j.server.rest.repr.OutputFormat;
 import org.neo4j.server.rest.transactional.error.Neo4jError;
+import org.neo4j.string.UTF8;
 
 import static javax.ws.rs.core.Response.Status.BAD_REQUEST;
 import static org.neo4j.server.rest.dbms.AuthorizedRequestWrapper.getLoginContextFromUserPrincipal;
@@ -133,7 +134,7 @@ public class UserService
             else
             {
                 UserManager userManager = userManagerSupplier.getUserManager( loginContext.subject(), false );
-                userManager.setUserPassword( username, newPassword, false );
+                userManager.setUserPassword( username, UTF8.encode( newPassword ), false );
             }
         }
         catch ( IOException e )

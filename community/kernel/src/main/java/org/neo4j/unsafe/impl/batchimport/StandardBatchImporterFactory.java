@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,13 +19,13 @@
  */
 package org.neo4j.unsafe.impl.batchimport;
 
-import java.io.File;
-
 import org.neo4j.io.fs.FileSystemAbstraction;
+import org.neo4j.io.layout.DatabaseLayout;
 import org.neo4j.io.pagecache.PageCache;
 import org.neo4j.kernel.configuration.Config;
-import org.neo4j.kernel.impl.logging.LogService;
 import org.neo4j.kernel.impl.store.format.RecordFormats;
+import org.neo4j.logging.internal.LogService;
+import org.neo4j.scheduler.JobScheduler;
 import org.neo4j.unsafe.impl.batchimport.staging.ExecutionMonitor;
 
 public class StandardBatchImporterFactory extends BatchImporterFactory
@@ -38,11 +38,11 @@ public class StandardBatchImporterFactory extends BatchImporterFactory
     }
 
     @Override
-    public BatchImporter instantiate( File storeDir, FileSystemAbstraction fileSystem, PageCache externalPageCache, Configuration config,
+    public BatchImporter instantiate( DatabaseLayout directoryStructure, FileSystemAbstraction fileSystem, PageCache externalPageCache, Configuration config,
             LogService logService, ExecutionMonitor executionMonitor, AdditionalInitialIds additionalInitialIds, Config dbConfig,
-            RecordFormats recordFormats, ImportLogic.Monitor monitor )
+            RecordFormats recordFormats, ImportLogic.Monitor monitor, JobScheduler scheduler )
     {
-        return new ParallelBatchImporter( storeDir, fileSystem, externalPageCache, config, logService, executionMonitor,
-                additionalInitialIds, dbConfig, recordFormats, monitor );
+        return new ParallelBatchImporter( directoryStructure, fileSystem, externalPageCache, config, logService, executionMonitor,
+                additionalInitialIds, dbConfig, recordFormats, monitor, scheduler );
     }
 }

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -26,9 +26,13 @@ import org.junit.Test;
 
 import java.util.Arrays;
 
+import org.neo4j.bolt.v1.messaging.request.InitMessage;
 import org.neo4j.bolt.v1.runtime.Job;
 import org.neo4j.logging.Log;
+import org.neo4j.logging.internal.LogService;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singleton;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
@@ -43,10 +47,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.neo4j.bolt.testing.NullResponseHandler.nullResponseHandler;
 
 public class BoltConnectionReadLimiterTest
 {
-    private static final Job job = s -> s.run( "INIT", null, null );
+    private static final Job job = machine -> machine.process( new InitMessage( "INIT", emptyMap() ), nullResponseHandler() );
     private BoltConnection connection;
     private EmbeddedChannel channel;
     private Log log;
@@ -148,6 +153,39 @@ public class BoltConnectionReadLimiterTest
     }
 
     @Test
+    public void shouldDisableAndEnableAutoRead()
+    {
+        int lowWatermark = 3;
+        int highWatermark = 5;
+        BoltConnectionReadLimiter limiter = newLimiter( lowWatermark, highWatermark );
+
+        assertTrue( channel.config().isAutoRead() );
+
+        for ( int i = 0; i < highWatermark + 1; i++ )
+        {
+            limiter.enqueued( connection, job );
+        }
+        assertFalse( channel.config().isAutoRead() );
+
+        limiter.drained( connection, singleton( job ) );
+        assertFalse( channel.config().isAutoRead() );
+        limiter.drained( connection, singleton( job ) );
+        assertFalse( channel.config().isAutoRead() );
+
+        limiter.drained( connection, singleton( job ) );
+        assertTrue( channel.config().isAutoRead() );
+
+        for ( int i = 0; i < 3; i++ )
+        {
+            limiter.enqueued( connection, job );
+        }
+        assertFalse( channel.config().isAutoRead() );
+
+        limiter.drained( connection, Arrays.asList( job, job, job, job, job, job ) );
+        assertTrue( channel.config().isAutoRead() );
+    }
+
+    @Test
     public void shouldNotAcceptNegativeLowWatermark()
     {
         try
@@ -219,6 +257,8 @@ public class BoltConnectionReadLimiterTest
 
     private BoltConnectionReadLimiter newLimiter( int low, int high )
     {
-        return new BoltConnectionReadLimiter( log, low, high );
+        LogService logService = mock( LogService.class );
+        when( logService.getInternalLog( BoltConnectionReadLimiter.class ) ).thenReturn( log );
+        return new BoltConnectionReadLimiter( logService, low, high );
     }
 }

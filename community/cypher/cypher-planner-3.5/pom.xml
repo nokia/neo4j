@@ -3,19 +3,20 @@
   <parent>
     <groupId>org.neo4j</groupId>
     <artifactId>cypher-parent</artifactId>
-    <version>3.5.0-SNAPSHOT</version>
+    <version>3.5.30-SNAPSHOT</version>
     <relativePath>../</relativePath>
   </parent>
 
   <modelVersion>4.0.0</modelVersion>
   <artifactId>neo4j-cypher-planner-3.5</artifactId>
   <packaging>jar</packaging>
-  <version>3.5.0-SNAPSHOT</version>
+  <version>3.5.30-SNAPSHOT</version>
   <name>Neo4j - Cypher Planner</name>
   <description>Planner for Cypher</description>
   <url>http://components.neo4j.org/${project.artifactId}/${project.version}</url>
 
   <properties>
+    <license-text.header>headers/GPL-3-header.txt</license-text.header>
     <moduleName>org.neo4j.cypher.internal.compiler.v3_5</moduleName>
   </properties>
 
@@ -92,12 +93,6 @@
 
     <dependency>
       <groupId>org.neo4j</groupId>
-      <artifactId>openCypher-frontend-1</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-
-    <dependency>
-      <groupId>org.neo4j</groupId>
       <artifactId>neo4j-cypher-ir-3.5</artifactId>
       <version>${project.version}</version>
     </dependency>
@@ -125,30 +120,6 @@
 
     <dependency>
       <groupId>org.neo4j</groupId>
-      <artifactId>neo4j-cypher-util-3.5</artifactId>
-      <version>${project.version}</version>
-      <type>test-jar</type>
-      <scope>test</scope>
-    </dependency>
-
-    <dependency>
-      <groupId>org.neo4j</groupId>
-      <artifactId>neo4j-cypher-expression-3.5</artifactId>
-      <version>${project.version}</version>
-      <type>test-jar</type>
-      <scope>test</scope>
-    </dependency>
-
-    <dependency>
-      <groupId>org.neo4j</groupId>
-      <artifactId>openCypher-frontend-1</artifactId>
-      <version>${project.version}</version>
-      <type>test-jar</type>
-      <scope>test</scope>
-    </dependency>
-
-    <dependency>
-      <groupId>org.neo4j</groupId>
       <artifactId>neo4j-cypher-planner-spi-3.5</artifactId>
       <version>${project.version}</version>
       <type>test-jar</type>
@@ -158,6 +129,38 @@
     <dependency>
       <groupId>org.neo4j</groupId>
       <artifactId>neo4j-io</artifactId>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.neo4j</groupId>
+      <artifactId>neo4j-util-3.5</artifactId>
+      <version>${project.version}</version>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.neo4j</groupId>
+      <artifactId>neo4j-ast-3.5</artifactId>
+      <version>${project.version}</version>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.neo4j</groupId>
+      <artifactId>neo4j-parser-3.5</artifactId>
+      <version>${project.version}</version>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.neo4j</groupId>
+      <artifactId>neo4j-expressions-3.5</artifactId>
+      <version>${project.version}</version>
       <type>test-jar</type>
       <scope>test</scope>
     </dependency>

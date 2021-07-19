@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,32 +19,37 @@
  */
 package org.neo4j.io.mem;
 
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 
 import org.neo4j.io.ByteUnit;
 import org.neo4j.io.pagecache.PageCache;
 import org.neo4j.memory.LocalMemoryTracker;
 import org.neo4j.unsafe.impl.internal.dragons.UnsafeUtil;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
-public class MemoryAllocatorTest
+class MemoryAllocatorTest
 {
-    protected static final String ONE_PAGE = PageCache.PAGE_SIZE + "";
-    protected static final String EIGHT_PAGES = (8 * PageCache.PAGE_SIZE) + "";
+    private static final String ONE_PAGE = PageCache.PAGE_SIZE + "";
+    private static final String EIGHT_PAGES = (8 * PageCache.PAGE_SIZE) + "";
 
-    protected MemoryAllocator createAllocator( String expectedMaxMemory )
+    private MemoryAllocator allocator;
+
+    @AfterEach
+    void tearDown()
     {
-        return MemoryAllocator.createAllocator( expectedMaxMemory, new LocalMemoryTracker() );
+        closeAllocator();
     }
 
     @Test
-    public void allocatedPointerMustNotBeNull()
+    void allocatedPointerMustNotBeNull()
     {
         MemoryAllocator mman = createAllocator( EIGHT_PAGES );
         long address = mman.allocateAligned( PageCache.PAGE_SIZE, 8 );
@@ -52,7 +57,7 @@ public class MemoryAllocatorTest
     }
 
     @Test
-    public void allocatedPointerMustBePageAligned()
+    void allocatedPointerMustBePageAligned()
     {
         MemoryAllocator mman = createAllocator( EIGHT_PAGES );
         long address = mman.allocateAligned( PageCache.PAGE_SIZE, UnsafeUtil.pageSize() );
@@ -60,7 +65,25 @@ public class MemoryAllocatorTest
     }
 
     @Test
-    public void mustBeAbleToAllocatePastMemoryLimit()
+    void allocatedPointerMustBeAlignedToArbitraryByte()
+    {
+        int pageSize = UnsafeUtil.pageSize();
+        for ( int initialOffset = 0; initialOffset < 8; initialOffset++ )
+        {
+            for ( int i = 0; i < pageSize - 1; i++ )
+            {
+                MemoryAllocator mman = createAllocator( ONE_PAGE );
+                mman.allocateAligned( initialOffset, 1 );
+                long alignment = 1 + i;
+                long address = mman.allocateAligned( PageCache.PAGE_SIZE, alignment );
+                assertThat( "With initial offset " + initialOffset + ", iteration " + i + ", aligning to " + alignment + " and got address " + address,
+                        address % alignment, is( 0L ) );
+            }
+        }
+    }
+
+    @Test
+    void mustBeAbleToAllocatePastMemoryLimit()
     {
         MemoryAllocator mman = createAllocator( ONE_PAGE );
         for ( int i = 0; i < 4100; i++ )
@@ -70,14 +93,32 @@ public class MemoryAllocatorTest
         // Also asserts that no OutOfMemoryError is thrown.
     }
 
-    @Test( expected = IllegalArgumentException.class )
-    public void alignmentCannotBeZero()
+    @Test
+    void allocatedPointersMustBeAlignedPastMemoryLimit()
     {
-        createAllocator( ONE_PAGE ).allocateAligned( 8, 0 );
+        MemoryAllocator mman = createAllocator( ONE_PAGE );
+        for ( int i = 0; i < 4100; i++ )
+        {
+            assertThat( mman.allocateAligned( 1, 2 ) % 2, is( 0L ) );
+        }
+
+        int pageSize = UnsafeUtil.pageSize();
+        for ( int i = 0; i < pageSize - 1; i++ )
+        {
+            int alignment = pageSize - i;
+            long address = mman.allocateAligned( PageCache.PAGE_SIZE, alignment );
+            assertThat( "iteration " + i + ", aligning to " + alignment, address % alignment, is( 0L ) );
+        }
     }
 
     @Test
-    public void mustBeAbleToAllocateSlabsLargerThanGrabSize()
+    void alignmentCannotBeZero()
+    {
+        assertThrows( IllegalArgumentException.class, () -> createAllocator( ONE_PAGE ).allocateAligned( 8, 0 ) );
+    }
+
+    @Test
+    void mustBeAbleToAllocateSlabsLargerThanGrabSize()
     {
         MemoryAllocator mman = createAllocator( "2 MiB" );
         long page1 = mman.allocateAligned( UnsafeUtil.pageSize(), 1 );
@@ -89,7 +130,7 @@ public class MemoryAllocatorTest
     }
 
     @Test
-    public void allocatingMustIncreaseMemoryUsedAndDecreaseAvailableMemory()
+    void allocatingMustIncreaseMemoryUsedAndDecreaseAvailableMemory()
     {
         MemoryAllocator mman = createAllocator( ONE_PAGE );
         // We haven't allocated anything, so usedMemory should be zero, and the available memory should be the
@@ -119,7 +160,7 @@ public class MemoryAllocatorTest
     }
 
     @Test
-    public void trackMemoryAllocations() throws Throwable
+    void trackMemoryAllocations()
     {
         LocalMemoryTracker memoryTracker = new LocalMemoryTracker();
         GrabAllocator allocator = (GrabAllocator) MemoryAllocator.createAllocator( "2m", memoryTracker );
@@ -130,8 +171,53 @@ public class MemoryAllocatorTest
 
         assertEquals( ByteUnit.mebiBytes( 1 ), memoryTracker.usedDirectMemory() );
 
-        //noinspection FinalizeCalledExplicitly
-        allocator.finalize();
+        allocator.close();
         assertEquals( 0, memoryTracker.usedDirectMemory() );
+    }
+
+    @Test
+    void allAllocatedMemoryMustBeAccessibleForAllAlignments() throws Exception
+    {
+        // This test relies on the native access bounds checks that are enabled in Unsafeutil during tests.
+        int k512 = (int) ByteUnit.kibiBytes( 512 );
+        int maxAlign = PageCache.PAGE_SIZE >> 2;
+        for ( int align = 1; align <= maxAlign; align += Long.BYTES )
+        {
+            for ( int alloc = PageCache.PAGE_SIZE; alloc <= k512; alloc += PageCache.PAGE_SIZE )
+            {
+                createAllocator( "2 MiB" );
+                long addr = allocator.allocateAligned( alloc, align );
+                int i = 0;
+                try
+                {
+                    // This must not throw any bad access exceptions.
+                    UnsafeUtil.getLong( addr + i ); // Start of allocation.
+                    i = alloc - Long.BYTES;
+                    UnsafeUtil.getLong( addr + i ); // End of allocation.
+                }
+                catch ( Throwable e )
+                {
+                    throw new Exception( String.format(
+                            "Access failed at offset %s (%x) into allocated address %s (%x) of size %s (align %s).",
+                            i, i, addr, addr, alloc, align ), e );
+                }
+            }
+        }
+    }
+
+    private void closeAllocator()
+    {
+        if ( allocator != null )
+        {
+            allocator.close();
+            allocator = null;
+        }
+    }
+
+    private MemoryAllocator createAllocator( String expectedMaxMemory )
+    {
+        closeAllocator();
+        allocator = MemoryAllocator.createAllocator( expectedMaxMemory, new LocalMemoryTracker() );
+        return allocator;
     }
 }

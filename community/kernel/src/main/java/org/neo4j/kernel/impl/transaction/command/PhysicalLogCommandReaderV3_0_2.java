@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -29,7 +29,7 @@ import java.util.Collection;
 import java.util.Map;
 
 import org.neo4j.helpers.collection.Iterables;
-import org.neo4j.kernel.api.exceptions.schema.MalformedSchemaRuleException;
+import org.neo4j.internal.kernel.api.exceptions.schema.MalformedSchemaRuleException;
 import org.neo4j.kernel.impl.index.IndexCommand;
 import org.neo4j.kernel.impl.index.IndexCommand.AddNodeCommand;
 import org.neo4j.kernel.impl.index.IndexCommand.AddRelationshipCommand;
@@ -55,6 +55,7 @@ import org.neo4j.kernel.impl.transaction.command.CommandReading.DynamicRecordAdd
 import org.neo4j.storageengine.api.ReadableChannel;
 import org.neo4j.storageengine.api.schema.SchemaRule;
 
+import static org.neo4j.helpers.Numbers.unsignedByteToInt;
 import static org.neo4j.helpers.Numbers.unsignedShortToInt;
 import static org.neo4j.kernel.impl.transaction.command.CommandReading.COLLECTION_DYNAMIC_RECORD_ADDER;
 import static org.neo4j.kernel.impl.transaction.command.CommandReading.PROPERTY_BLOCK_DYNAMIC_RECORD_ADDER;
@@ -90,6 +91,8 @@ public class PhysicalLogCommandReaderV3_0_2 extends BaseCommandReader
             return visitSchemaRuleCommand( channel );
         case NeoCommandType.REL_GROUP_COMMAND:
             return visitRelationshipGroupCommand( channel );
+        case NeoCommandType.REL_GROUP_EXTENDED_COMMAND:
+            return visitRelationshipGroupExtendedCommand( channel );
         case NeoCommandType.INDEX_DEFINE_COMMAND:
             return visitIndexDefineCommand( channel );
         case NeoCommandType.INDEX_ADD_COMMAND:
@@ -214,6 +217,41 @@ public class PhysicalLogCommandReaderV3_0_2 extends BaseCommandReader
         boolean usesFixedReferenceFormat = bitFlag( flags, Record.USES_FIXED_REFERENCE_FORMAT );
 
         int type = unsignedShortToInt( channel.getShort() );
+        RelationshipGroupRecord record = new RelationshipGroupRecord( id, type );
+        record.setInUse( inUse );
+        record.setNext( channel.getLong() );
+        record.setFirstOut( channel.getLong() );
+        record.setFirstIn( channel.getLong() );
+        record.setFirstLoop( channel.getLong() );
+        record.setOwningNode( channel.getLong() );
+        record.setRequiresSecondaryUnit( requireSecondaryUnit );
+        if ( hasSecondaryUnit )
+        {
+            record.setSecondaryUnitId( channel.getLong() );
+        }
+        record.setUseFixedReferences( usesFixedReferenceFormat );
+        return record;
+    }
+
+    private Command visitRelationshipGroupExtendedCommand( ReadableChannel channel ) throws IOException
+    {
+        long id = channel.getLong();
+        RelationshipGroupRecord before = readRelationshipGroupExtendedRecord( id, channel );
+        RelationshipGroupRecord after = readRelationshipGroupExtendedRecord( id, channel );
+        return new Command.RelationshipGroupCommand( before, after );
+    }
+
+    private RelationshipGroupRecord readRelationshipGroupExtendedRecord( long id, ReadableChannel channel )
+            throws IOException
+    {
+        byte flags = channel.get();
+        boolean inUse = bitFlag( flags, Record.IN_USE.byteValue() );
+        boolean requireSecondaryUnit = bitFlag( flags, Record.REQUIRE_SECONDARY_UNIT );
+        boolean hasSecondaryUnit = bitFlag( flags, Record.HAS_SECONDARY_UNIT );
+        boolean usesFixedReferenceFormat = bitFlag( flags, Record.USES_FIXED_REFERENCE_FORMAT );
+
+        int type = unsignedShortToInt( channel.getShort() );
+        type |= unsignedByteToInt( channel.get() ) << Short.SIZE;
         RelationshipGroupRecord record = new RelationshipGroupRecord( id, type );
         record.setInUse( inUse );
         record.setNext( channel.getLong() );

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -22,18 +22,20 @@ package org.neo4j.kernel.api.impl.schema.reader;
 import org.apache.lucene.document.Document;
 
 import java.util.Iterator;
+import java.util.function.ToLongFunction;
 
 import org.neo4j.helpers.collection.BoundedIterable;
-
-import static org.neo4j.kernel.api.impl.schema.LuceneDocumentStructure.getNodeId;
+import org.neo4j.kernel.api.impl.schema.LuceneDocumentStructure;
 
 public class LuceneAllEntriesIndexAccessorReader implements BoundedIterable<Long>
 {
     private final BoundedIterable<Document> documents;
+    private final ToLongFunction<Document> entityIdReader;
 
-    public LuceneAllEntriesIndexAccessorReader( BoundedIterable<Document> documents )
+    public LuceneAllEntriesIndexAccessorReader( BoundedIterable<Document> documents, ToLongFunction<Document> entityIdReader )
     {
         this.documents = documents;
+        this.entityIdReader = entityIdReader;
     }
 
     @Override
@@ -57,7 +59,7 @@ public class LuceneAllEntriesIndexAccessorReader implements BoundedIterable<Long
             @Override
             public Long next()
             {
-                return getNodeId( iterator.next() );
+                return entityIdReader.applyAsLong( iterator.next() );
             }
         };
     }

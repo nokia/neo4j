@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -175,22 +175,22 @@ public class JumpingFileSystemAbstraction extends DelegatingFileSystemAbstractio
                 long jumpIndex = (actualRecord + sizePerJump) / 0x100000000L;
                 long diff = actualRecord - jumpIndex * 0x100000000L;
                 diff = assertWithinDiff( diff, allowFix );
-                long offsettedRecord = jumpIndex * sizePerJump + diff;
-                return offsettedRecord * recordSize;
+                long offsetRecord = jumpIndex * sizePerJump + diff;
+                return offsetRecord * recordSize;
             }
         }
 
-        private long translateOutgoing( long offsettedPosition )
+        private long translateOutgoing( long offsetPosition )
         {
-            long offsettedRecord = offsettedPosition / recordSize;
-            if ( offsettedRecord < sizePerJump / 2 )
+            long offsetRecord = offsetPosition / recordSize;
+            if ( offsetRecord < sizePerJump / 2 )
             {
-                return offsettedPosition;
+                return offsetPosition;
             }
             else
             {
-                long jumpIndex = (offsettedRecord - sizePerJump / 2) / sizePerJump + 1;
-                long diff = ((offsettedRecord - sizePerJump / 2) % sizePerJump) - sizePerJump / 2;
+                long jumpIndex = (offsetRecord - sizePerJump / 2) / sizePerJump + 1;
+                long diff = ((offsetRecord - sizePerJump / 2) % sizePerJump) - sizePerJump / 2;
                 assertWithinDiff( diff, false );
                 long actualRecord = jumpIndex * 0x100000000L - sizePerJump / 2 + diff;
                 return actualRecord * recordSize;

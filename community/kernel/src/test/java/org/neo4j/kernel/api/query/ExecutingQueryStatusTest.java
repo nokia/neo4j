@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -34,6 +34,7 @@ import org.neo4j.storageengine.api.lock.WaitStrategy;
 import org.neo4j.test.FakeCpuClock;
 import org.neo4j.time.Clocks;
 import org.neo4j.time.FakeClock;
+import org.neo4j.values.virtual.VirtualValues;
 
 import static org.junit.Assert.assertEquals;
 
@@ -97,8 +98,8 @@ public class ExecutingQueryStatusTest
                                 12,
                                 null,
                                 null,
-                                null,
-                                null,
+                                "",
+                                VirtualValues.emptyMap(),
                                 null,
                                 ( /*activeLockCount:*/ ) -> 0,
                                 PageCursorTracer.NULL,

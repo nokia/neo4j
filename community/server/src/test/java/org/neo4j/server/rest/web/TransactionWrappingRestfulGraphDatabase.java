@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -24,7 +24,6 @@ import javax.ws.rs.core.UriInfo;
 
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Transaction;
-import org.neo4j.server.rest.domain.TraverserReturnType;
 
 /**
  * A convenient class for testing RestfulGraphDatabase: just wraps every "web call" in a transaction like the
@@ -113,16 +112,6 @@ public class TransactionWrappingRestfulGraphDatabase extends RestfulGraphDatabas
         try ( Transaction transaction = graph.beginTx() )
         {
             Response response = restfulGraphDatabase.getAllNodeProperties( nodeId );
-            return response;
-        }
-    }
-
-    @Override
-    public Response traverse( long startNode, TraverserReturnType returnType, String body )
-    {
-        try ( Transaction transaction = graph.beginTx() )
-        {
-            Response response = restfulGraphDatabase.traverse( startNode, returnType, body );
             return response;
         }
     }
@@ -279,40 +268,6 @@ public class TransactionWrappingRestfulGraphDatabase extends RestfulGraphDatabas
         try ( Transaction transaction = graph.beginTx() )
         {
             return restfulGraphDatabase.singlePath( startNode, body );
-        }
-    }
-
-    @Override
-    public Response createPagedTraverser( long startNode, TraverserReturnType returnType, int pageSize,
-                                          int leaseTimeInSeconds, String body )
-    {
-        try ( Transaction transaction = graph.beginTx() )
-        {
-            Response response = restfulGraphDatabase.createPagedTraverser( startNode, returnType, pageSize,
-                    leaseTimeInSeconds, body );
-            transaction.success();
-            return response;
-        }
-    }
-
-    @Override
-    public Response pagedTraverse( String traverserId,
-                                   TraverserReturnType returnType )
-    {
-        try ( Transaction transaction = graph.beginTx() )
-        {
-            return restfulGraphDatabase.pagedTraverse( traverserId, returnType );
-        }
-    }
-
-    @Override
-    public Response removePagedTraverser( String traverserId )
-    {
-        try ( Transaction transaction = graph.beginTx() )
-        {
-            Response response = restfulGraphDatabase.removePagedTraverser( traverserId );
-            transaction.success();
-            return response;
         }
     }
 

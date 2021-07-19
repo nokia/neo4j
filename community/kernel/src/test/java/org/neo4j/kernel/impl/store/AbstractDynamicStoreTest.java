@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -27,6 +27,7 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 
 import org.neo4j.io.fs.FileSystemAbstraction;
 import org.neo4j.io.fs.StoreChannel;
@@ -56,7 +57,8 @@ public class AbstractDynamicStoreTest
     @Rule
     public final PageCacheRule pageCacheRule = new PageCacheRule();
 
-    private final File fileName = new File( "store" );
+    private final File storeFile = new File( "store" );
+    private final File idFile = new File( "idStore" );
     private final RecordFormats formats = Standard.LATEST_RECORD_FORMATS;
     private PageCache pageCache;
     private FileSystemAbstraction fs;
@@ -66,7 +68,7 @@ public class AbstractDynamicStoreTest
     {
         fs = fsr.get();
         pageCache = pageCacheRule.getPageCache( fsr.get() );
-        try ( StoreChannel channel = fs.create( fileName ) )
+        try ( StoreChannel channel = fs.create( storeFile ) )
         {
             ByteBuffer buffer = ByteBuffer.allocate( 4 );
             buffer.putInt( BLOCK_SIZE );
@@ -90,14 +92,14 @@ public class AbstractDynamicStoreTest
             second.setNextBlock( third.getId() );
             store.updateRecord( second );
 
-            RecordCursor<DynamicRecord> recordsCursor = store.newRecordCursor( store.newRecord() ).acquire( 1, NORMAL );
-            assertTrue( recordsCursor.next() );
-            assertEquals( first, recordsCursor.get() );
-            assertTrue( recordsCursor.next() );
-            assertEquals( second, recordsCursor.get() );
-            assertTrue( recordsCursor.next() );
-            assertEquals( third, recordsCursor.get() );
-            assertFalse( recordsCursor.next() );
+            Iterator<DynamicRecord> records = store.getRecords( 1, NORMAL ).iterator();
+            assertTrue( records.hasNext() );
+            assertEquals( first, records.next() );
+            assertTrue( records.hasNext() );
+            assertEquals( second, records.next() );
+            assertTrue( records.hasNext() );
+            assertEquals( third, records.next() );
+            assertFalse( records.hasNext() );
         }
     }
 
@@ -118,15 +120,17 @@ public class AbstractDynamicStoreTest
             second.setInUse( false );
             store.updateRecord( second );
 
-            RecordCursor<DynamicRecord> recordsCursor = store.newRecordCursor( store.newRecord() ).acquire( 1, FORCE );
-            assertTrue( recordsCursor.next() );
-            assertEquals( first, recordsCursor.get() );
-            assertFalse( recordsCursor.next() );
-            assertEquals( second, recordsCursor.get() );
+            Iterator<DynamicRecord> records = store.getRecords( 1, FORCE ).iterator();
+            assertTrue( records.hasNext() );
+            assertEquals( first, records.next() );
+            assertTrue( records.hasNext() );
+            DynamicRecord secondReadRecord = records.next();
+            assertEquals( second, secondReadRecord );
+            assertFalse( secondReadRecord.inUse() );
             // because mode == FORCE we can still move through the chain
-            assertTrue( recordsCursor.next() );
-            assertEquals( third, recordsCursor.get() );
-            assertFalse( recordsCursor.next() );
+            assertTrue( records.hasNext() );
+            assertEquals( third, records.next() );
+            assertFalse( records.hasNext() );
         }
     }
 
@@ -142,7 +146,7 @@ public class AbstractDynamicStoreTest
     private AbstractDynamicStore newTestableDynamicStore()
     {
         DefaultIdGeneratorFactory idGeneratorFactory = new DefaultIdGeneratorFactory( fs );
-        AbstractDynamicStore store = new AbstractDynamicStore( fileName, Config.defaults(), IdType.ARRAY_BLOCK,
+        AbstractDynamicStore store = new AbstractDynamicStore( storeFile, idFile, Config.defaults(), IdType.ARRAY_BLOCK,
                 idGeneratorFactory, pageCache, NullLogProvider.getInstance(), "test", BLOCK_SIZE,
                 formats.dynamic(), formats.storeVersion() )
         {

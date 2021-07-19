@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,9 +19,9 @@
  */
 package migration;
 
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.io.File;
 
@@ -38,50 +38,33 @@ import org.neo4j.kernel.impl.store.format.standard.StandardV3_4;
 import org.neo4j.kernel.impl.storemigration.StoreUpgrader;
 import org.neo4j.kernel.impl.storemigration.UpgradeNotAllowedByConfigurationException;
 import org.neo4j.kernel.internal.GraphDatabaseAPI;
+import org.neo4j.test.extension.Inject;
+import org.neo4j.test.extension.TestDirectoryExtension;
 import org.neo4j.test.rule.TestDirectory;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertSame;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.neo4j.graphdb.factory.GraphDatabaseSettings.allow_upgrade;
 import static org.neo4j.graphdb.factory.GraphDatabaseSettings.record_format;
 import static org.neo4j.kernel.configuration.Settings.FALSE;
 import static org.neo4j.kernel.configuration.Settings.TRUE;
 
-public class RecordFormatMigrationIT
+@ExtendWith( TestDirectoryExtension.class )
+class RecordFormatMigrationIT
 {
-    @Rule
-    public final TestDirectory testDirectory = TestDirectory.testDirectory();
+    @Inject
+    private TestDirectory testDirectory;
     private File storeDir;
 
-    @Before
-    public void setUp()
+    @BeforeEach
+    void setUp()
     {
-        storeDir = testDirectory.graphDbDir();
+        storeDir = testDirectory.storeDir();
     }
 
     @Test
-    public void failToDowngradeFormatWhenUpgradeNotAllowed()
-    {
-        GraphDatabaseService database = startDatabaseWithFormatUnspecifiedUpgrade( storeDir, StandardV3_4.NAME );
-        try ( Transaction transaction = database.beginTx() )
-        {
-            Node node = database.createNode();
-            node.setProperty( "a", "b" );
-            transaction.success();
-        }
-        database.shutdown();
-        try
-        {
-            startDatabaseWithFormatUnspecifiedUpgrade( storeDir, StandardV3_2.NAME );
-        }
-        catch ( Throwable t )
-        {
-            assertSame( UpgradeNotAllowedByConfigurationException.class, Exceptions.rootCause( t ).getClass() );
-        }
-    }
-
-    @Test
-    public void failToDowngradeFormatWheUpgradeAllowed()
+    void failToDowngradeFormatWhenUpgradeNotAllowed()
     {
         GraphDatabaseService database = startDatabaseWithFormatUnspecifiedUpgrade( storeDir, StandardV3_4.NAME );
         try ( Transaction transaction = database.beginTx() )
@@ -91,21 +74,30 @@ public class RecordFormatMigrationIT
             transaction.success();
         }
         database.shutdown();
-        try
-        {
-            new GraphDatabaseFactory().newEmbeddedDatabaseBuilder( storeDir )
-                    .setConfig( record_format, StandardV3_2.NAME )
-                    .setConfig( allow_upgrade, Settings.TRUE )
-                    .newGraphDatabase();
-        }
-        catch ( Throwable t )
-        {
-            assertSame( StoreUpgrader.AttemptedDowngradeException.class, Exceptions.rootCause( t ).getClass() );
-        }
+        Throwable throwable = assertThrows( Throwable.class, () -> startDatabaseWithFormatUnspecifiedUpgrade( storeDir, StandardV3_2.NAME ) );
+        assertSame( UpgradeNotAllowedByConfigurationException.class, Exceptions.rootCause( throwable ).getClass() );
     }
 
     @Test
-    public void skipMigrationIfFormatSpecifiedInConfig()
+    void failToDowngradeFormatWheUpgradeAllowed()
+    {
+        GraphDatabaseService database = startDatabaseWithFormatUnspecifiedUpgrade( storeDir, StandardV3_4.NAME );
+        try ( Transaction transaction = database.beginTx() )
+        {
+            Node node = database.createNode();
+            node.setProperty( "a", "b" );
+            transaction.success();
+        }
+        database.shutdown();
+        Throwable throwable = assertThrows( Throwable.class,
+                () -> new GraphDatabaseFactory().newEmbeddedDatabaseBuilder( storeDir )
+                        .setConfig( record_format, StandardV3_2.NAME )
+                        .setConfig( allow_upgrade, Settings.TRUE ).newGraphDatabase() );
+        assertSame( StoreUpgrader.AttemptedDowngradeException.class, Exceptions.rootCause( throwable ).getClass() );
+    }
+
+    @Test
+    void skipMigrationIfFormatSpecifiedInConfig()
     {
         GraphDatabaseService database = startDatabaseWithFormatUnspecifiedUpgrade( storeDir, StandardV3_2.NAME );
         try ( Transaction transaction = database.beginTx() )
@@ -123,7 +115,7 @@ public class RecordFormatMigrationIT
     }
 
     @Test
-    public void skipMigrationIfStoreFormatNotSpecifiedButIsAvailableInRuntime()
+    void skipMigrationIfStoreFormatNotSpecifiedButIsAvailableInRuntime()
     {
         GraphDatabaseService database = startDatabaseWithFormatUnspecifiedUpgrade( storeDir, StandardV3_2.NAME );
         try ( Transaction transaction = database.beginTx() )
@@ -142,7 +134,7 @@ public class RecordFormatMigrationIT
     }
 
     @Test
-    public void latestRecordNotMigratedWhenFormatBumped()
+    void latestRecordNotMigratedWhenFormatBumped()
     {
         GraphDatabaseService database = startDatabaseWithFormatUnspecifiedUpgrade( storeDir, StandardV3_2.NAME );
         try ( Transaction transaction = database.beginTx() )
@@ -153,14 +145,8 @@ public class RecordFormatMigrationIT
         }
         database.shutdown();
 
-        try
-        {
-            startDatabaseWithFormatUnspecifiedUpgrade( storeDir, Standard.LATEST_NAME );
-        }
-        catch ( Throwable t )
-        {
-            assertSame( UpgradeNotAllowedByConfigurationException.class, Exceptions.rootCause( t ).getClass() );
-        }
+        Throwable exception = assertThrows( Throwable.class, () -> startDatabaseWithFormatUnspecifiedUpgrade( storeDir, Standard.LATEST_NAME ) );
+        assertSame( UpgradeNotAllowedByConfigurationException.class, Exceptions.rootCause( exception ).getClass() );
     }
 
     private static GraphDatabaseService startDatabaseWithFormatUnspecifiedUpgrade( File storeDir, String formatName )

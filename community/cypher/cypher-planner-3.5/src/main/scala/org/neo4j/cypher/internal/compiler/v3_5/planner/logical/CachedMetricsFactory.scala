@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,18 +19,39 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical
 
-import org.neo4j.cypher.internal.compiler.v3_5.CypherCompilerConfiguration
+import org.neo4j.cypher.internal.compiler.v3_5.CypherPlannerConfiguration
 import org.neo4j.cypher.internal.compiler.v3_5.helpers.CachedFunction
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.Metrics.{CardinalityModel, QueryGraphCardinalityModel}
+import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.cardinality.ExpressionSelectivityCalculator
+import org.neo4j.cypher.internal.ir.v3_5.{PlannerQuery, QueryGraph}
 import org.neo4j.cypher.internal.planner.v3_5.spi.GraphStatistics
+import org.neo4j.cypher.internal.v3_5.ast.semantics.SemanticTable
+import org.neo4j.cypher.internal.v3_5.util.Cardinality
 
 case class CachedMetricsFactory(metricsFactory: MetricsFactory) extends MetricsFactory {
-  def newCardinalityEstimator(queryGraphCardinalityModel: QueryGraphCardinalityModel, evaluator: ExpressionEvaluator): CardinalityModel =
-    CachedFunction(metricsFactory.newCardinalityEstimator(queryGraphCardinalityModel, evaluator))
+  def newCardinalityEstimator(queryGraphCardinalityModel: QueryGraphCardinalityModel, evaluator: ExpressionEvaluator): CardinalityModel = {
+    val wrapped: CardinalityModel = metricsFactory.newCardinalityEstimator(queryGraphCardinalityModel, evaluator)
+    val cached = CachedFunction[PlannerQuery, Metrics.QueryGraphSolverInput, SemanticTable, Cardinality] { (a, b, c) => wrapped(a, b, c) }
+    new CardinalityModel {
+      override def apply(query: PlannerQuery, input: Metrics.QueryGraphSolverInput, semanticTable: SemanticTable): Cardinality = {
+        cached.apply(query, input, semanticTable)
+      }
+    }
+  }
 
-  def newCostModel(config: CypherCompilerConfiguration) =
-    CachedFunction(metricsFactory.newCostModel(config: CypherCompilerConfiguration))
+  def newCostModel(config: CypherPlannerConfiguration) =
+    CachedFunction(metricsFactory.newCostModel(config: CypherPlannerConfiguration))
 
-  def newQueryGraphCardinalityModel(statistics: GraphStatistics) =
-    CachedFunction(metricsFactory.newQueryGraphCardinalityModel(statistics))
+  def newQueryGraphCardinalityModel(statistics: GraphStatistics): QueryGraphCardinalityModel = {
+    val wrapped: QueryGraphCardinalityModel = metricsFactory.newQueryGraphCardinalityModel(statistics)
+    val cached = CachedFunction[QueryGraph, Metrics.QueryGraphSolverInput, SemanticTable, Cardinality] { (a, b, c) => wrapped(a, b, c) }
+    new QueryGraphCardinalityModel {
+      override def apply(queryGraph: QueryGraph, input: Metrics.QueryGraphSolverInput, semanticTable: SemanticTable): Cardinality = {
+        cached.apply(queryGraph, input, semanticTable)
+      }
+
+      override val expressionSelectivityCalculator: ExpressionSelectivityCalculator = wrapped.expressionSelectivityCalculator
+    }
+  }
+
 }

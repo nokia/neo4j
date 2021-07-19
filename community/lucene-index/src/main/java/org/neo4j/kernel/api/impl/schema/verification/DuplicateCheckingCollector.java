@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -30,23 +30,23 @@ import org.neo4j.internal.kernel.api.exceptions.KernelException;
 import org.neo4j.kernel.api.exceptions.index.IndexEntryConflictException;
 import org.neo4j.kernel.api.impl.schema.LuceneDocumentStructure;
 import org.neo4j.kernel.api.impl.schema.verification.DuplicateCheckStrategy.BucketsDuplicateCheckStrategy;
-import org.neo4j.kernel.api.index.PropertyAccessor;
+import org.neo4j.storageengine.api.NodePropertyAccessor;
 import org.neo4j.values.storable.Value;
 
 public class DuplicateCheckingCollector extends SimpleCollector
 {
-    protected final PropertyAccessor accessor;
+    protected final NodePropertyAccessor accessor;
     private final int propertyKeyId;
     protected LeafReader reader;
     DuplicateCheckStrategy duplicateCheckStrategy;
 
-    static DuplicateCheckingCollector forProperties( PropertyAccessor accessor, int[] propertyKeyIds )
+    static DuplicateCheckingCollector forProperties( NodePropertyAccessor accessor, int[] propertyKeyIds )
     {
         return (propertyKeyIds.length == 1) ? new DuplicateCheckingCollector( accessor, propertyKeyIds[0] )
                                             : new CompositeDuplicateCheckingCollector( accessor, propertyKeyIds );
     }
 
-    DuplicateCheckingCollector( PropertyAccessor accessor, int propertyKeyId )
+    DuplicateCheckingCollector( NodePropertyAccessor accessor, int propertyKeyId )
     {
         this.accessor = accessor;
         this.propertyKeyId = propertyKeyId;
@@ -73,7 +73,7 @@ public class DuplicateCheckingCollector extends SimpleCollector
     {
         Document document = reader.document( doc );
         long nodeId = LuceneDocumentStructure.getNodeId( document );
-        Value value = accessor.getPropertyValue( nodeId, propertyKeyId );
+        Value value = accessor.getNodePropertyValue( nodeId, propertyKeyId );
         duplicateCheckStrategy.checkForDuplicate( value, nodeId );
     }
 

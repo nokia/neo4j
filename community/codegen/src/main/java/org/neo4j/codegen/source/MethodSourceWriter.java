@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -106,6 +106,12 @@ class MethodSourceWriter implements MethodEmitter, ExpressionVisitor
         indent().append( "return " );
         value.accept( this );
         append( ";\n" );
+    }
+
+    @Override
+    public void continues()
+    {
+        indent().append( "continue;\n" );
     }
 
     @Override
@@ -263,7 +269,23 @@ class MethodSourceWriter implements MethodEmitter, ExpressionVisitor
         }
         else if ( value instanceof Double )
         {
-            append( value.toString() );
+            Double doubleValue = (Double) value;
+            if ( Double.isNaN( doubleValue ) )
+            {
+                append( "Double.NaN" );
+            }
+            else if ( doubleValue == Double.POSITIVE_INFINITY )
+            {
+                append( "Double.POSITIVE_INFINITY" );
+            }
+            else if ( doubleValue == Double.NEGATIVE_INFINITY )
+            {
+                append( "Double.NEGATIVE_INFINITY" );
+            }
+            else
+            {
+                append( value.toString() );
+            }
         }
         else if ( value instanceof Boolean )
         {
@@ -422,6 +444,13 @@ class MethodSourceWriter implements MethodEmitter, ExpressionVisitor
         append( "(" ).append( type.fullName() ).append( ") " );
         expression.accept( this );
         append( ")" );
+    }
+
+    @Override
+    public void instanceOf( TypeReference type, Expression expression )
+    {
+        expression.accept( this );
+        append( " instanceof " ).append( type.fullName() );
     }
 
     @Override

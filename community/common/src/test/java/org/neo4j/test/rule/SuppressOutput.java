@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -153,7 +153,7 @@ public final class SuppressOutput implements TestRule
 
     public <T> T call( Callable<T> callable ) throws Exception
     {
-        voices = captureVoices();
+        captureVoices();
         boolean failure = true;
         try
         {
@@ -210,7 +210,7 @@ public final class SuppressOutput implements TestRule
             @Override
             public void evaluate() throws Throwable
             {
-                voices = captureVoices();
+                captureVoices();
                 boolean failure = true;
                 try
                 {
@@ -273,7 +273,7 @@ public final class SuppressOutput implements TestRule
         abstract void restore( boolean failure ) throws IOException;
     }
 
-    Voice[] captureVoices()
+    public void captureVoices()
     {
         Voice[] voices = new Voice[suppressibles.length];
         boolean ok = false;
@@ -292,7 +292,12 @@ public final class SuppressOutput implements TestRule
                 releaseVoices( voices, false );
             }
         }
-        return voices;
+        this.voices = voices;
+    }
+
+    public void releaseVoices( boolean failure )
+    {
+        releaseVoices( voices, failure );
     }
 
     void releaseVoices( Voice[] voices, boolean failure )

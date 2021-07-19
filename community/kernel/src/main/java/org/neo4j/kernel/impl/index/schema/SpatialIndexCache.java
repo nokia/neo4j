@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,10 +21,6 @@ package org.neo4j.kernel.impl.index.schema;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Iterator;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
 import org.neo4j.values.storable.CoordinateReferenceSystem;
@@ -37,13 +33,9 @@ import org.neo4j.values.storable.CoordinateReferenceSystem;
  *
  * @param <T> Type of parts
  */
-class SpatialIndexCache<T> implements Iterable<T>
+class SpatialIndexCache<T> extends IndexPartsCache<CoordinateReferenceSystem,T>
 {
     private final Factory<T> factory;
-    private ConcurrentHashMap<CoordinateReferenceSystem,T> spatials = new ConcurrentHashMap<>();
-    private final Lock instantiateCloseLock = new ReentrantLock();
-    // guarded by instantiateCloseLock
-    private boolean closed;
 
     SpatialIndexCache( Factory<T> factory )
     {
@@ -59,7 +51,7 @@ class SpatialIndexCache<T> implements Iterable<T>
      */
     T uncheckedSelect( CoordinateReferenceSystem crs )
     {
-        T existing = spatials.get( crs );
+        T existing = cache.get( crs );
         if ( existing != null )
         {
             return existing;
@@ -72,7 +64,7 @@ class SpatialIndexCache<T> implements Iterable<T>
         try
         {
             assertOpen();
-            return spatials.computeIfAbsent( crs, key ->
+            return cache.computeIfAbsent( crs, key ->
             {
                 try
                 {
@@ -90,21 +82,6 @@ class SpatialIndexCache<T> implements Iterable<T>
         }
     }
 
-    protected void assertOpen()
-    {
-        if ( closed )
-        {
-            throw new IllegalStateException( this + " is already closed" );
-        }
-    }
-
-    void closeInstantiateCloseLock()
-    {
-        instantiateCloseLock.lock();
-        closed = true;
-        instantiateCloseLock.unlock();
-    }
-
     /**
      * Select the part corresponding to the given CoordinateReferenceSystem. Creates the part if needed,
      * in which case an exception of type E might be thrown.
@@ -112,16 +89,9 @@ class SpatialIndexCache<T> implements Iterable<T>
      * @param crs target coordinate reference system
      * @return selected part
      */
-    T select( CoordinateReferenceSystem crs ) throws IOException
+    T select( CoordinateReferenceSystem crs )
     {
-        try
-        {
-            return uncheckedSelect( crs );
-        }
-        catch ( UncheckedIOException e )
-        {
-            throw e.getCause();
-        }
+        return uncheckedSelect( crs );
     }
 
     /**
@@ -136,7 +106,7 @@ class SpatialIndexCache<T> implements Iterable<T>
      */
     <RESULT> RESULT selectOrElse( CoordinateReferenceSystem crs, Function<T, RESULT> function, RESULT orElse )
     {
-        T part = spatials.get( crs );
+        T part = cache.get( crs );
         if ( part == null )
         {
             return orElse;
@@ -150,12 +120,6 @@ class SpatialIndexCache<T> implements Iterable<T>
         {
             uncheckedSelect( crs );
         }
-    }
-
-    @Override
-    public Iterator<T> iterator()
-    {
-        return spatials.values().iterator();
     }
 
     /**

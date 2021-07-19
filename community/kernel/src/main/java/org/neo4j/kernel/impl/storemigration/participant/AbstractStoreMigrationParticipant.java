@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,9 +19,9 @@
  */
 package org.neo4j.kernel.impl.storemigration.participant;
 
-import java.io.File;
 import java.io.IOException;
 
+import org.neo4j.io.layout.DatabaseLayout;
 import org.neo4j.kernel.impl.storemigration.StoreMigrationParticipant;
 import org.neo4j.kernel.impl.util.monitoring.ProgressReporter;
 
@@ -41,19 +41,19 @@ public class AbstractStoreMigrationParticipant implements StoreMigrationParticip
     }
 
     @Override
-    public void migrate( File storeDir, File migrationDir, ProgressReporter progressMonitor,
+    public void migrate( DatabaseLayout directoryLayout, DatabaseLayout migrationLayout, ProgressReporter progressMonitor,
             String versionToMigrateFrom, String versionToMigrateTo ) throws IOException
     {
     }
 
     @Override
-    public void moveMigratedFiles( File migrationDir, File storeDir, String versionToMigrateFrom,
+    public void moveMigratedFiles( DatabaseLayout migrationLayout, DatabaseLayout directoryLayout, String versionToMigrateFrom,
             String versionToMigrateTo ) throws IOException
     {
     }
 
     @Override
-    public void cleanup( File migrationDir ) throws IOException
+    public void cleanup( DatabaseLayout migrationLayout ) throws IOException
     {
     }
 

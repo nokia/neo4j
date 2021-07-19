@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,14 +19,15 @@
  */
 package org.neo4j.harness;
 
+import org.neo4j.kernel.extension.ExtensionType;
 import org.neo4j.kernel.extension.KernelExtensionFactory;
 import org.neo4j.kernel.impl.core.ThreadToStatementContextBridge;
-import org.neo4j.kernel.impl.logging.LogService;
 import org.neo4j.kernel.impl.proc.Procedures;
 import org.neo4j.kernel.impl.spi.KernelContext;
 import org.neo4j.kernel.internal.GraphDatabaseAPI;
 import org.neo4j.kernel.lifecycle.Lifecycle;
 import org.neo4j.kernel.lifecycle.LifecycleAdapter;
+import org.neo4j.logging.internal.LogService;
 
 // Similar to the MyExtensionThatAddsInjectable, this demonstrates a
 // non-public mechanism for adding new context components, but in this
@@ -37,7 +38,7 @@ public class MyExtensionThatAddsAlternativeCoreAPI
 {
     public MyExtensionThatAddsAlternativeCoreAPI()
     {
-        super( "my-ext" );
+        super( ExtensionType.DATABASE, "my-ext" );
     }
 
     @Override

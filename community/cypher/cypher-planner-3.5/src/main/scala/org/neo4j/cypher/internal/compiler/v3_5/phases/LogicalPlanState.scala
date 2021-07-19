@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,15 +19,16 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.phases
 
-import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.{Cardinalities, Solveds}
-import org.neo4j.cypher.internal.util.v3_5.InputPosition
-import org.neo4j.cypher.internal.frontend.v3_5.PlannerName
-import org.neo4j.cypher.internal.frontend.v3_5.ast.{Query, Statement}
-import org.neo4j.cypher.internal.frontend.v3_5.phases.{BaseState, Condition}
-import org.neo4j.cypher.internal.frontend.v3_5.semantics.{SemanticState, SemanticTable}
 import org.neo4j.cypher.internal.ir.v3_5.{PeriodicCommit, UnionQuery}
-import org.neo4j.cypher.internal.util.v3_5.symbols.CypherType
+import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes
+import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.{Cardinalities, ProvidedOrders, Solveds}
 import org.neo4j.cypher.internal.v3_5.logical.plans.LogicalPlan
+import org.neo4j.cypher.internal.v3_5.ast.semantics.{SemanticState, SemanticTable}
+import org.neo4j.cypher.internal.v3_5.ast.{Query, Statement}
+import org.neo4j.cypher.internal.v3_5.frontend.PlannerName
+import org.neo4j.cypher.internal.v3_5.frontend.phases.{BaseState, Condition}
+import org.neo4j.cypher.internal.v3_5.util.InputPosition
+import org.neo4j.cypher.internal.v3_5.util.symbols.CypherType
 
 /*
 This is the state that is used during query compilation. It accumulates more and more values as it passes through
@@ -39,8 +40,7 @@ the pipe line
 case class LogicalPlanState(queryText: String,
                             startPosition: Option[InputPosition],
                             plannerName: PlannerName,
-                            solveds: Solveds,
-                            cardinalities: Cardinalities,
+                            planningAttributes: PlanningAttributes,
                             maybeStatement: Option[Statement] = None,
                             maybeSemantics: Option[SemanticState] = None,
                             maybeExtractedParams: Option[Map[String, Any]] = None,
@@ -70,8 +70,7 @@ object LogicalPlanState {
                      startPosition = state.startPosition,
                      plannerName = state.plannerName,
                      initialFields = state.initialFields,
-                     solveds = new Solveds,
-                     cardinalities = new Cardinalities,
+                     planningAttributes = PlanningAttributes(new Solveds, new Cardinalities, new ProvidedOrders),
                      maybeStatement = state.maybeStatement,
                      maybeSemantics = state.maybeSemantics,
                      maybeExtractedParams = state.maybeExtractedParams,

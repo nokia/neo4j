@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,10 +19,17 @@
  */
 package org.neo4j.index.internal.gbptree;
 
+import org.hamcrest.CoreMatchers;
+import org.junit.Test;
+
+import java.io.IOException;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
+import static org.neo4j.index.internal.gbptree.TreeNode.Type.INTERNAL;
+
 public class InternalTreeLogicDynamicSizeTest extends InternalTreeLogicTestBase<RawBytes,RawBytes>
 {
-    private SimpleByteArrayLayout layout = new SimpleByteArrayLayout();
-
     @Override
     protected ValueMerger<RawBytes,RawBytes> getAdder()
     {
@@ -30,7 +37,9 @@ public class InternalTreeLogicDynamicSizeTest extends InternalTreeLogicTestBase<
         {
             long baseSeed = layout.keySeed( base );
             long addSeed = layout.keySeed( add );
-            return layout.value( baseSeed + addSeed );
+            RawBytes merged = layout.value( baseSeed + addSeed );
+            base.copyFrom( merged );
+            return ValueMerger.MergeResult.MERGED;
         };
     }
 
@@ -43,6 +52,71 @@ public class InternalTreeLogicDynamicSizeTest extends InternalTreeLogicTestBase<
     @Override
     protected TestLayout<RawBytes,RawBytes> getLayout()
     {
-        return layout;
+        return new SimpleByteArrayLayout();
+    }
+
+    @Test
+    public void shouldFailToInsertTooLargeKeys() throws IOException
+    {
+        RawBytes key = layout.newKey();
+        RawBytes value = layout.newValue();
+        key.bytes = new byte[node.keyValueSizeCap() + 1];
+        value.bytes = new byte[0];
+
+        shouldFailToInsertTooLargeKeyAndValue( key, value );
+    }
+
+    @Test
+    public void shouldFailToInsertTooLargeKeyAndValueLargeKey() throws IOException
+    {
+        RawBytes key = layout.newKey();
+        RawBytes value = layout.newValue();
+        key.bytes = new byte[node.keyValueSizeCap()];
+        value.bytes = new byte[1];
+
+        shouldFailToInsertTooLargeKeyAndValue( key, value );
+    }
+
+    @Test
+    public void shouldFailToInsertTooLargeKeyAndValueLargeValue() throws IOException
+    {
+        RawBytes key = layout.newKey();
+        RawBytes value = layout.newValue();
+        key.bytes = new byte[1];
+        value.bytes = new byte[node.keyValueSizeCap()];
+
+        shouldFailToInsertTooLargeKeyAndValue( key, value );
+    }
+
+    private void shouldFailToInsertTooLargeKeyAndValue( RawBytes key, RawBytes value ) throws IOException
+    {
+        initialize();
+        try
+        {
+            insert( key, value );
+        }
+        catch ( IllegalArgumentException e )
+        {
+            assertThat( e.getMessage(), CoreMatchers.containsString( "Index key-value size it to large. Please see index documentation for limitations." ) );
+        }
+    }
+
+    @Test
+    public void storeOnlyMinimalKeyDividerInInternal() throws IOException
+    {
+        // given
+        initialize();
+        long key = 0;
+        while ( numberOfRootSplits == 0 )
+        {
+            insert( key( key ), value( key ) );
+            key++;
+        }
+
+        // when
+        RawBytes rawBytes = keyAt( root.id(), 0, INTERNAL );
+
+        // then
+        assertEquals( "expected no tail on internal key but was " + rawBytes.toString(), Long.BYTES, rawBytes.bytes.length );
     }
 }

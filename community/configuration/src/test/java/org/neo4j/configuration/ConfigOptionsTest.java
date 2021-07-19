@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,8 +19,8 @@
  */
 package org.neo4j.configuration;
 
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
 import java.util.List;
@@ -33,7 +33,7 @@ import org.neo4j.graphdb.config.Setting;
 
 import static org.junit.Assert.assertEquals;
 
-public class ConfigOptionsTest
+class ConfigOptionsTest
 {
     private Setting<Integer> setting = new BaseSetting<Integer>()
     {
@@ -75,20 +75,20 @@ public class ConfigOptionsTest
     };
     private ConfigOptions configOptions;
 
-    @Before
-    public void setup()
+    @BeforeEach
+    void setup()
     {
         this.configOptions = new ConfigOptions( setting );
     }
 
     @Test
-    public void setting()
+    void setting()
     {
         assertEquals( setting, configOptions.settingGroup() );
     }
 
     @Test
-    public void asConfigValue()
+    void asConfigValue()
     {
         List<ConfigValue> values = configOptions.asConfigValues( Collections.singletonMap( "myInt", "123" ) );
 

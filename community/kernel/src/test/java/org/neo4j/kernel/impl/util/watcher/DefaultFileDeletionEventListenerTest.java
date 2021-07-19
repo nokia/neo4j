@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,10 +21,10 @@ package org.neo4j.kernel.impl.util.watcher;
 
 import org.junit.Test;
 
-import org.neo4j.kernel.impl.logging.SimpleLogService;
 import org.neo4j.kernel.impl.transaction.log.files.TransactionLogFiles;
 import org.neo4j.logging.AssertableLogProvider;
 import org.neo4j.logging.NullLogProvider;
+import org.neo4j.logging.internal.SimpleLogService;
 
 public class DefaultFileDeletionEventListenerTest
 {
@@ -36,9 +36,9 @@ public class DefaultFileDeletionEventListenerTest
         listener.fileDeleted( "testFile.db" );
         listener.fileDeleted( "anotherDirectory" );
 
-        internalLogProvider.assertContainsMessageContaining(
+        internalLogProvider.rawMessageMatcher().assertContains(
                 "'testFile.db' which belongs to the store was deleted while database was running." );
-        internalLogProvider.assertContainsMessageContaining(
+        internalLogProvider.rawMessageMatcher().assertContains(
                 "'anotherDirectory' which belongs to the store was deleted while database was running." );
     }
 

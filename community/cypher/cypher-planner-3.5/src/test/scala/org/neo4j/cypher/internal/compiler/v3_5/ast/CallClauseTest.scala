@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,12 +19,12 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.ast
 
-import org.neo4j.cypher.internal.frontend.v3_5.ast._
-import org.neo4j.cypher.internal.frontend.v3_5.semantics.{SemanticCheckResult, SemanticState}
-import org.neo4j.cypher.internal.util.v3_5.symbols._
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
+import org.neo4j.cypher.internal.v3_5.ast._
+import org.neo4j.cypher.internal.v3_5.ast.semantics.{SemanticCheckResult, SemanticState}
 import org.neo4j.cypher.internal.v3_5.expressions._
 import org.neo4j.cypher.internal.v3_5.logical.plans._
+import org.neo4j.cypher.internal.v3_5.util.symbols._
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
 
 class CallClauseTest extends CypherFunSuite with AstConstructionTestSupport {
 
@@ -56,7 +56,7 @@ class CallClauseTest extends CypherFunSuite with AstConstructionTestSupport {
 
     QualifiedName(unresolved) should equal(resolved.qualifiedName)
     resolved.callResultTypes should equal(Seq("x" -> CTInteger, "y" -> CTList(CTNode)))
-    resolved.callResultIndices should equal(Seq(0 -> "x", 1 -> "y"))
+    resolved.callResultIndices should equal(Seq(0 -> ("x", "x"), 1 -> ("y", "y")))
   }
 
   test("should resolve void CALL my.proc.foo") {
@@ -108,7 +108,7 @@ class CallClauseTest extends CypherFunSuite with AstConstructionTestSupport {
 
     QualifiedName(unresolved) should equal(resolved.qualifiedName)
     resolved.callResultTypes should equal(Seq("x" -> CTInteger, "y" -> CTList(CTNode)))
-    resolved.callResultIndices should equal(Seq(0 -> "x", 1 -> "y"))
+    resolved.callResultIndices should equal(Seq(0 -> ("x", "x"), 1 -> ("y", "y")))
   }
 
   test("should resolve CALL my.proc.foo(a)") {
@@ -134,7 +134,7 @@ class CallClauseTest extends CypherFunSuite with AstConstructionTestSupport {
 
     QualifiedName(unresolved) should equal(resolved.qualifiedName)
     resolved.callResultTypes should equal(Seq("x" -> CTInteger, "y" -> CTList(CTNode)))
-    resolved.callResultIndices should equal(Seq(0 -> "x", 1 -> "y"))
+    resolved.callResultIndices should equal(Seq(0 -> ("x", "x"), 1 -> ("y", "y")))
   }
 
   test("should resolve void CALL my.proc.foo(a)") {
@@ -187,7 +187,7 @@ class CallClauseTest extends CypherFunSuite with AstConstructionTestSupport {
       )(pos)
     )
     resolved.callResultTypes should equal(Seq("x" -> CTInteger, "z" -> CTList(CTNode)))
-    resolved.callResultIndices should equal(Seq(0 -> "x", 1 -> "z"))
+    resolved.callResultIndices should equal(Seq(0 -> ("x", "x"), 1 -> ("z", "y")))
   }
 
   test("pretends to be based on user-declared arguments and results upon request") {
@@ -224,7 +224,7 @@ class CallClauseTest extends CypherFunSuite with AstConstructionTestSupport {
       )(pos)
     )
     coerced.callResultTypes should equal(Seq("x" -> CTInteger, "z" -> CTList(CTNode)))
-    coerced.callResultIndices should equal(Seq(0 -> "x", 1 -> "z"))
+    coerced.callResultIndices should equal(Seq(0 -> ("x", "x"), 1 -> ("z", "y")))
   }
 
   test("should verify number of arguments during semantic checking of resolved calls") {
@@ -242,10 +242,11 @@ class CallClauseTest extends CypherFunSuite with AstConstructionTestSupport {
 
     val toList: List[String] = errorTexts(resolved.semanticCheck(SemanticState.clean)).toList
     toList should equal(List(
-      """Procedure call does not provide the required number of arguments: got 0 expected 1.
+      """Procedure call does not provide the required number of arguments: got 0 expected at least 1 (total: 1, 0 of which have default values).
         |
         |Procedure my.proc.foo has signature: my.proc.foo(a :: INTEGER?) :: x :: INTEGER?, y :: LIST? OF NODE?
-        |meaning that it expects 1 argument of type INTEGER? (line 1, column 0 (offset: 0))""".stripMargin
+        |meaning that it expects at least 1 argument of type INTEGER?
+        | (line 1, column 0 (offset: 0))""".stripMargin
     ))
   }
 

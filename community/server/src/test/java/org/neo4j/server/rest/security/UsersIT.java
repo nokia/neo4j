@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,8 +19,7 @@
  */
 package org.neo4j.server.rest.security;
 
-import com.sun.jersey.core.util.Base64;
-import org.codehaus.jackson.JsonNode;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -35,7 +34,6 @@ import org.neo4j.server.helpers.CommunityServerBuilder;
 import org.neo4j.server.rest.RESTRequestGenerator;
 import org.neo4j.server.rest.domain.JsonHelper;
 import org.neo4j.server.rest.domain.JsonParseException;
-import org.neo4j.string.UTF8;
 import org.neo4j.test.TestData;
 import org.neo4j.test.server.ExclusiveServerTestBase;
 import org.neo4j.test.server.HTTP;
@@ -62,7 +60,7 @@ public class UsersIT extends ExclusiveServerTestBase
         // Document
         RESTRequestGenerator.ResponseEntity response = gen.get()
                 .expectedStatus( 200 )
-                .withHeader( HttpHeaders.AUTHORIZATION, challengeResponse( "neo4j", "secret" ) )
+                .withHeader( HttpHeaders.AUTHORIZATION, HTTP.basicAuthHeader( "neo4j", "secret" ) )
                 .get( userURL( "neo4j" ) );
 
         // Then
@@ -85,7 +83,7 @@ public class UsersIT extends ExclusiveServerTestBase
         // Document
         RESTRequestGenerator.ResponseEntity response = gen.get()
                 .expectedStatus( 200 )
-                .withHeader( HttpHeaders.AUTHORIZATION, challengeResponse( "neo4j", "neo4j" ) )
+                .withHeader( HttpHeaders.AUTHORIZATION, HTTP.basicAuthHeader( "neo4j", "neo4j" ) )
                 .get( userURL( "neo4j" ) );
 
         // Then
@@ -109,17 +107,15 @@ public class UsersIT extends ExclusiveServerTestBase
         // Document
         RESTRequestGenerator.ResponseEntity response = gen.get()
                 .expectedStatus( 200 )
-                .withHeader( HttpHeaders.AUTHORIZATION, challengeResponse( "neo4j", "neo4j" ) )
+                .withHeader( HttpHeaders.AUTHORIZATION, HTTP.basicAuthHeader( "neo4j", "neo4j" ) )
                 .payload( quotedJson( "{'password':'secret'}" ) )
                 .post( server.baseUri().resolve( "/user/neo4j/password" ).toString() );
 
         // Then the new password should work
-        assertEquals( 200, HTTP.withHeaders( HttpHeaders.AUTHORIZATION,
-                challengeResponse( "neo4j", "secret" ) ).GET( dataURL() ).status() );
+        assertEquals( 200, HTTP.withBasicAuth( "neo4j", "secret" ).GET( dataURL() ).status() );
 
         // Then the old password should not be invalid
-        assertEquals( 401, HTTP.withHeaders( HttpHeaders.AUTHORIZATION,
-                challengeResponse( "neo4j", "neo4j" ) ).POST( dataURL() ).status() );
+        assertEquals( 401, HTTP.withBasicAuth( "neo4j", "neo4j" ).POST( dataURL() ).status() );
     }
 
     @Test
@@ -129,7 +125,7 @@ public class UsersIT extends ExclusiveServerTestBase
         startServer( true );
 
         // When
-        HTTP.Response res = HTTP.withHeaders( HttpHeaders.AUTHORIZATION, challengeResponse( "neo4j", "neo4j" ) ).POST(
+        HTTP.Response res = HTTP.withBasicAuth( "neo4j", "neo4j" ).POST(
                 server.baseUri().resolve( "/user/neo4j/password" ).toString(),
                 HTTP.RawPayload.quotedJson( "{'password':'neo4j'}" ) );
 
@@ -158,16 +154,11 @@ public class UsersIT extends ExclusiveServerTestBase
     {
         startServer( true );
         // Set the password
-        HTTP.Response post = HTTP.withHeaders( HttpHeaders.AUTHORIZATION, challengeResponse( "neo4j", "neo4j" ) ).POST(
+        HTTP.Response post = HTTP.withBasicAuth( "neo4j", "neo4j" ).POST(
                 server.baseUri().resolve( "/user/neo4j/password" ).toString(),
                 HTTP.RawPayload.quotedJson( "{'password':'secret'}" )
         );
         assertEquals( 200, post.status() );
-    }
-
-    private String challengeResponse( String username, String password )
-    {
-        return "Basic " + base64( username + ":" + password );
     }
 
     private String dataURL()
@@ -183,11 +174,6 @@ public class UsersIT extends ExclusiveServerTestBase
     private String passwordURL( String username )
     {
         return server.baseUri().resolve( "user/" + username + "/password" ).toString();
-    }
-
-    private String base64( String value )
-    {
-        return UTF8.decode( Base64.encode( value ) );
     }
 
     private String quotedJson( String singleQuoted )

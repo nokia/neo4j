@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -113,11 +113,11 @@ public class LuceneExplicitIndexUpgraderTest
         @Override
         protected boolean matchesSafely( ExplicitIndexMigrationException item, Description mismatchDescription )
         {
-            String brokendIndexName = item.getFailedIndexName();
-            boolean matched = Arrays.asList(failedIndexNames).contains( brokendIndexName );
+            String brokenIndexName = item.getFailedIndexName();
+            boolean matched = Arrays.asList(failedIndexNames).contains( brokenIndexName );
             if ( !matched )
             {
-                mismatchDescription.appendText( "Failed index is: " ).appendText( brokendIndexName );
+                mismatchDescription.appendText( "Failed index is: " ).appendText( brokenIndexName );
             }
             return matched;
         }

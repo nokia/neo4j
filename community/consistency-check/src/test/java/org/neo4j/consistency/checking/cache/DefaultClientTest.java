@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,9 +19,9 @@
  */
 package org.neo4j.consistency.checking.cache;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -30,28 +30,28 @@ import java.util.concurrent.Future;
 
 import org.neo4j.consistency.statistics.DefaultCounts;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class DefaultClientTest
+class DefaultClientTest
 {
 
     private static ExecutorService executor;
 
-    @BeforeClass
-    public static void setUp()
+    @BeforeAll
+    static void setUp()
     {
         executor = Executors.newSingleThreadExecutor();
     }
 
-    @AfterClass
-    public static void tearDown()
+    @AfterAll
+    static void tearDown()
     {
         executor.shutdown();
     }
 
     @Test
-    public void checkClientsIdBounds() throws ExecutionException, InterruptedException
+    void checkClientsIdBounds() throws ExecutionException, InterruptedException
     {
         int threads = 2;
         DefaultCounts counts = new DefaultCounts( threads );

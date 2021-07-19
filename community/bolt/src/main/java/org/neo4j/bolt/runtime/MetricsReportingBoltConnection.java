@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -23,9 +23,8 @@ import java.time.Clock;
 
 import org.neo4j.bolt.BoltChannel;
 import org.neo4j.bolt.v1.packstream.PackOutput;
-import org.neo4j.bolt.v1.runtime.BoltStateMachine;
 import org.neo4j.bolt.v1.runtime.Job;
-import org.neo4j.kernel.impl.logging.LogService;
+import org.neo4j.logging.internal.LogService;
 
 public class MetricsReportingBoltConnection extends DefaultBoltConnection
 {
@@ -78,13 +77,13 @@ public class MetricsReportingBoltConnection extends DefaultBoltConnection
     }
 
     @Override
-    public boolean processNextBatch( int batchCount )
+    public boolean processNextBatch( int batchCount, boolean exitIfNoJobsAvailable )
     {
         metricsMonitor.connectionActivated();
 
         try
         {
-            boolean continueProcessing = super.processNextBatch( batchCount );
+            boolean continueProcessing = super.processNextBatch( batchCount, exitIfNoJobsAvailable );
 
             if ( !continueProcessing )
             {

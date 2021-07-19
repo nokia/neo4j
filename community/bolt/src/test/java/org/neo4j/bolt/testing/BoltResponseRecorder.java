@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -22,9 +22,9 @@ package org.neo4j.bolt.testing;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
-import org.neo4j.bolt.v1.runtime.BoltResponseHandler;
-import org.neo4j.bolt.v1.runtime.Neo4jError;
-import org.neo4j.bolt.v1.runtime.spi.BoltResult;
+import org.neo4j.bolt.runtime.BoltResponseHandler;
+import org.neo4j.bolt.runtime.BoltResult;
+import org.neo4j.bolt.runtime.Neo4jError;
 import org.neo4j.cypher.result.QueryResult;
 import org.neo4j.values.AnyValue;
 
@@ -50,11 +50,6 @@ public class BoltResponseRecorder implements BoltResponseHandler
     {
         responses = new LinkedBlockingQueue<>();
         currentResponse = new RecordedBoltResponse();
-    }
-
-    @Override
-    public void onStart()
-    {
     }
 
     @Override

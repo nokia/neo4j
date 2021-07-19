@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -42,14 +42,6 @@ public class RelationshipTypeTokenRecord extends TokenRecord
     @Override
     public RelationshipTypeTokenRecord clone()
     {
-        RelationshipTypeTokenRecord relationshipTypeTokenRecord = new RelationshipTypeTokenRecord( getIntId() );
-        relationshipTypeTokenRecord.setInUse( inUse() );
-        if ( isCreated() )
-        {
-            relationshipTypeTokenRecord.setCreated();
-        }
-        relationshipTypeTokenRecord.setNameId( getNameId() );
-        relationshipTypeTokenRecord.addNameRecords( getNameRecords() );
-        return relationshipTypeTokenRecord;
+        return (RelationshipTypeTokenRecord) super.clone();
     }
 }

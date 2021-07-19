@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -29,17 +29,17 @@ import org.neo4j.kernel.impl.store.id.IdGeneratorFactory;
 import org.neo4j.kernel.impl.store.id.IdType;
 import org.neo4j.kernel.impl.store.record.LabelTokenRecord;
 import org.neo4j.logging.LogProvider;
-import org.neo4j.storageengine.api.Token;
 
 /**
  * Implementation of the label store.
  */
-public class LabelTokenStore extends TokenStore<LabelTokenRecord, Token>
+public class LabelTokenStore extends TokenStore<LabelTokenRecord>
 {
     public static final String TYPE_DESCRIPTOR = "LabelTokenStore";
 
     public LabelTokenStore(
             File file,
+            File idFile,
             Config config,
             IdGeneratorFactory idGeneratorFactory,
             PageCache pageCache,
@@ -48,8 +48,8 @@ public class LabelTokenStore extends TokenStore<LabelTokenRecord, Token>
             RecordFormats recordFormats,
             OpenOption... openOptions )
     {
-        super( file, config, IdType.LABEL_TOKEN, idGeneratorFactory, pageCache,
-                logProvider, nameStore, TYPE_DESCRIPTOR, new Token.Factory(), recordFormats.labelToken(),
+        super( file, idFile, config, IdType.LABEL_TOKEN, idGeneratorFactory, pageCache,
+                logProvider, nameStore, TYPE_DESCRIPTOR, recordFormats.labelToken(),
                 recordFormats.storeVersion(), openOptions );
     }
 

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -69,16 +69,16 @@ public class TestJumpingIdGenerator
     }
 
     @Test
-    public void testOffsettedFileChannel() throws Exception
+    public void testOffsetFileChannel() throws Exception
     {
-        try ( JumpingFileSystemAbstraction offsettedFileSystem = new JumpingFileSystemAbstraction( 10 ) )
+        try ( JumpingFileSystemAbstraction offsetFileSystem = new JumpingFileSystemAbstraction( 10 ) )
         {
             File fileName = new File( "target/var/neostore.nodestore.db" );
-            offsettedFileSystem.deleteFile( fileName );
-            offsettedFileSystem.mkdirs( fileName.getParentFile() );
+            offsetFileSystem.deleteFile( fileName );
+            offsetFileSystem.mkdirs( fileName.getParentFile() );
             IdGenerator idGenerator = new JumpingIdGeneratorFactory( 10 ).get( IdType.NODE );
 
-            try ( JumpingFileChannel channel = (JumpingFileChannel) offsettedFileSystem.open( fileName, OpenMode.READ_WRITE ) )
+            try ( JumpingFileChannel channel = (JumpingFileChannel) offsetFileSystem.open( fileName, OpenMode.READ_WRITE ) )
             {
                 for ( int i = 0; i < 16; i++ )
                 {
@@ -86,7 +86,7 @@ public class TestJumpingIdGenerator
                 }
 
             }
-            try ( JumpingFileChannel channel = (JumpingFileChannel) offsettedFileSystem.open( fileName, OpenMode.READ_WRITE ) )
+            try ( JumpingFileChannel channel = (JumpingFileChannel) offsetFileSystem.open( fileName, OpenMode.READ_WRITE ) )
             {
                 idGenerator = new JumpingIdGeneratorFactory( 10 ).get( IdType.NODE );
 

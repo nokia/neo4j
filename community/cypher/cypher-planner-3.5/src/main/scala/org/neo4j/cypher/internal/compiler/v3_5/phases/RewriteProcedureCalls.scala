@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,17 +19,17 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.phases
 
-import org.neo4j.cypher.internal.util.v3_5.{Rewriter, bottomUp}
-import org.neo4j.cypher.internal.frontend.v3_5.ast._
-import org.neo4j.cypher.internal.frontend.v3_5.ast.conditions.{StatementCondition, containsNoNodesOfType}
-import org.neo4j.cypher.internal.frontend.v3_5.phases.CompilationPhaseTracer.CompilationPhase.AST_REWRITE
-import org.neo4j.cypher.internal.frontend.v3_5.phases.{BaseState, Condition, Phase}
 import org.neo4j.cypher.internal.planner.v3_5.spi.PlanContext
 import org.neo4j.cypher.internal.v3_5.logical.plans.{ResolvedCall, ResolvedFunctionInvocation}
+import org.neo4j.cypher.internal.v3_5.ast._
 import org.neo4j.cypher.internal.v3_5.expressions.FunctionInvocation
+import org.neo4j.cypher.internal.v3_5.frontend.phases.CompilationPhaseTracer.CompilationPhase.AST_REWRITE
+import org.neo4j.cypher.internal.v3_5.frontend.phases.{BaseState, Condition, Phase, StatementCondition}
+import org.neo4j.cypher.internal.v3_5.rewriting.conditions.containsNoNodesOfType
+import org.neo4j.cypher.internal.v3_5.util.{Rewriter, bottomUp}
 
 // Given a way to lookup procedure signatures, this phase rewrites unresolved calls into resolved calls
-case object RewriteProcedureCalls extends Phase[CompilerContext, BaseState, BaseState] {
+case object RewriteProcedureCalls extends Phase[PlannerContext, BaseState, BaseState] {
 
   // Current procedure calling syntax allows simplified short-hand syntax for queries
   // that only consist of a standalone procedure call. In all other cases attempts to
@@ -68,7 +68,7 @@ case object RewriteProcedureCalls extends Phase[CompilerContext, BaseState, Base
 
   override def description = "resolve procedure calls"
 
-  override def process(from: BaseState, context: CompilerContext): BaseState = {
+  override def process(from: BaseState, context: PlannerContext): BaseState = {
     val rewrittenStatement = from.statement().endoRewrite(rewriter(context.planContext))
     from.withStatement(rewrittenStatement)
   }

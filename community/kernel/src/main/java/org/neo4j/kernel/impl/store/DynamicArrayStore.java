@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -101,7 +101,8 @@ public class DynamicArrayStore extends AbstractDynamicStore
     private final boolean allowStorePointsAndTemporal;
 
     public DynamicArrayStore(
-            File fileName,
+            File file,
+            File idFile,
             Config configuration,
             IdType idType,
             IdGeneratorFactory idGeneratorFactory,
@@ -111,7 +112,7 @@ public class DynamicArrayStore extends AbstractDynamicStore
             RecordFormats recordFormats,
             OpenOption... openOptions )
     {
-        super( fileName, configuration, idType, idGeneratorFactory, pageCache,
+        super( file, idFile, configuration, idType, idGeneratorFactory, pageCache,
                 logProvider, TYPE_DESCRIPTOR, dataSizeFromConfiguration, recordFormats.dynamic(), recordFormats.storeVersion(), openOptions );
         allowStorePointsAndTemporal = recordFormats.hasCapability( Capability.POINT_PROPERTIES )
                 && recordFormats.hasCapability( Capability.TEMPORAL_PROPERTIES );

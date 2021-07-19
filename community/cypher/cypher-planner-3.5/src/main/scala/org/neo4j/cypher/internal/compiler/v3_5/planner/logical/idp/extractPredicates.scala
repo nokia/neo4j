@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,22 +19,23 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.idp
 
-import org.neo4j.cypher.internal.util.v3_5.{Rewriter, bottomUp}
 import org.neo4j.cypher.internal.v3_5.expressions._
+import org.neo4j.cypher.internal.v3_5.util.{Rewriter, bottomUp}
 
 object extractPredicates {
 
   // Using type predicates to make this more readable.
-  type NodePredicates = List[Expression]
-  type EdgePredicates = List[Expression]
-  type SolvedPredicates = List[Expression]
+  type NodePredicates = List[Expression] // for slotted runtime
+  type RelationshipPredicates = List[Expression] // for slotted runtime
+  type LegacyPredicates = List[(LogicalVariable, Expression)] // for interpreted runtime
+  type SolvedPredicates = List[Expression] // for marking predicates as solved
 
   def apply(availablePredicates: Seq[Expression],
-            originalEdgeName: String,
-            tempEdge: String,
+            originalRelationshipName: String,
+            tempRelationship: String,
             tempNode: String,
             originalNodeName: String)
-    : (NodePredicates, EdgePredicates, SolvedPredicates) = {
+    : (NodePredicates, RelationshipPredicates, LegacyPredicates, SolvedPredicates) = {
 
     /*
     We extract predicates that we can evaluate eagerly during the traversal, which allows us to abort traversing
@@ -43,43 +44,73 @@ object extractPredicates {
 
     During the folding, we also accumulate the original predicate, which we can mark as solved by this plan.
      */
-    val seed: (NodePredicates, EdgePredicates, SolvedPredicates) =
-      (List.empty, List.empty, List.empty)
+    val seed: (NodePredicates, RelationshipPredicates, LegacyPredicates, SolvedPredicates) =
+      (List.empty, List.empty, List.empty, List.empty)
+
+    /**
+      * Checks if an inner predicate depends on the path (i.e. the original start node or relationship). In that case
+      * we cannot solve the predicates during the traversal.
+      *
+      * We don't need to check for dependencies on the end node, since such predicates are not even suggested as
+      * available predicates here.
+      */
+    def pathDependent(innerPredicate: Expression) = {
+      val names = innerPredicate.dependencies.map(_.name)
+      names.contains(originalRelationshipName)
+    }
+
+    /**
+      * We do not solve Expressions with sub-queries during the expansion of a VarExpand, because
+      * a) RollUpApply cannot be used inside a loop
+      * b) Slotted does currently not cope with NestedPlanExpressions inside of VarExpand
+      */
+    def containsSubQuery(innerPredicate: Expression) = {
+      innerPredicate.treeExists {
+        case _:PatternComprehension|_:PatternExpression => true
+      }
+    }
 
     availablePredicates.foldLeft(seed) {
 
       //MATCH ()-[r* {prop:1337}]->()
       case (
-          (n, e, s),
-          p @ AllRelationships(variable, `originalEdgeName`, innerPredicate)) =>
-        val rewrittenPredicate = innerPredicate.endoRewrite(replaceVariable(variable, tempEdge))
-        (n, e :+ rewrittenPredicate, s :+ p)
+          (n, e, l, s),
+          p @ AllRelationships(variable, `originalRelationshipName`, innerPredicate))
+          if !containsSubQuery(innerPredicate) =>
+        val rewrittenPredicate = innerPredicate.endoRewrite(replaceVariable(variable, tempRelationship))
+        (n, e :+ rewrittenPredicate, l :+ (variable -> innerPredicate), s :+ p)
 
       //MATCH p = (a)-[x*]->(b) WHERE ALL(r in rels(p) WHERE r.prop > 5)
-      case ((n, e, s),
-            p @ AllRelationshipsInPath(`originalNodeName`, `originalEdgeName`, variable, innerPredicate)) =>
-        val rewrittenPredicate = innerPredicate.endoRewrite(replaceVariable(variable, tempEdge))
-        (n, e :+ rewrittenPredicate, s :+ p)
+      case ((n, e, l, s),
+            p @ AllRelationshipsInPath(`originalNodeName`, `originalRelationshipName`, variable, innerPredicate))
+            if !pathDependent(innerPredicate) && !containsSubQuery(innerPredicate) =>
+        val rewrittenPredicate = innerPredicate.endoRewrite(replaceVariable(variable, tempRelationship))
+        (n, e :+ rewrittenPredicate, l :+ (variable -> innerPredicate), s :+ p)
 
       //MATCH p = ()-[*]->() WHERE NONE(r in rels(p) WHERE <innerPredicate>)
-      case ((n, e, s),
-            p @ NoRelationshipInPath(`originalNodeName`, `originalEdgeName`, variable, innerPredicate)) =>
-        val rewrittenPredicate = innerPredicate.endoRewrite(replaceVariable(variable, tempEdge))
+      case ((n, e, l, s),
+            p @ NoRelationshipInPath(`originalNodeName`, `originalRelationshipName`, variable, innerPredicate))
+            if !pathDependent(innerPredicate) && !containsSubQuery(innerPredicate) =>
+        val rewrittenPredicate = innerPredicate.endoRewrite(replaceVariable(variable, tempRelationship))
+        val negatedLegacyPredicate = Not(innerPredicate)(innerPredicate.position)
         val negatedPredicate = Not(rewrittenPredicate)(innerPredicate.position)
-        (n, e :+ negatedPredicate, s :+ p)
+        (n, e :+ negatedPredicate, l :+ (variable -> negatedLegacyPredicate), s :+ p)
 
       //MATCH p = ()-[*]->() WHERE ALL(r in nodes(p) WHERE <innerPredicate>)
-      case ((n, e, s),
-            p @ AllNodesInPath(`originalNodeName`, `originalEdgeName`, variable, innerPredicate)) =>
+      case ((n, e, l, s),
+            p @ AllNodesInPath(`originalNodeName`, `originalRelationshipName`, variable, innerPredicate))
+            if !pathDependent(innerPredicate) && !containsSubQuery(innerPredicate) =>
         val rewrittenPredicate = innerPredicate.endoRewrite(replaceVariable(variable, tempNode))
-        (n :+ rewrittenPredicate, e, s :+ p)
+        (n :+ rewrittenPredicate, e, l :+ (variable -> innerPredicate), s :+ p)
 
       //MATCH p = ()-[*]->() WHERE NONE(r in nodes(p) WHERE <innerPredicate>)
-      case ((n, e, s),
-            p @ NoNodeInPath(`originalNodeName`, `originalEdgeName`, variable, innerPredicate)) =>
+      case ((n, e, l, s),
+            p @ NoNodeInPath(`originalNodeName`, `originalRelationshipName`, variable, innerPredicate))
+            if !pathDependent(innerPredicate) && !containsSubQuery(innerPredicate) =>
         val rewrittenPredicate = innerPredicate.endoRewrite(replaceVariable(variable, tempNode))
+        val negatedLegacyPredicate = Not(innerPredicate)(innerPredicate.position)
         val negatedPredicate = Not(rewrittenPredicate)(innerPredicate.position)
-        (n :+ negatedPredicate, e, s :+ p)
+        (n :+ negatedPredicate, e, l :+ (variable -> negatedLegacyPredicate), s :+ p)
 
       case (acc, _) =>
         acc
@@ -115,7 +146,8 @@ object extractPredicates {
                 PathExpression(
                   NodePathStep(
                     startNode: LogicalVariable,
-                    MultiRelationshipPathStep(rel: LogicalVariable, _, NilPathStep))))))
+                    MultiRelationshipPathStep(rel: LogicalVariable, _, NilPathStep)))),
+              _))
             if fname == "relationships" =>
           Some((startNode.name, rel.name, variable, innerPredicate))
 
@@ -136,7 +168,8 @@ object extractPredicates {
                 PathExpression(
                   NodePathStep(
                     startNode: LogicalVariable,
-                    MultiRelationshipPathStep(rel: LogicalVariable, _, NilPathStep))))))
+                    MultiRelationshipPathStep(rel: LogicalVariable, _, NilPathStep)))),
+              _))
             if fname == "nodes" =>
           Some((startNode.name, rel.name, variable, innerPredicate))
 
@@ -157,7 +190,8 @@ object extractPredicates {
                 PathExpression(
                   NodePathStep(
                     startNode: LogicalVariable,
-                    MultiRelationshipPathStep(rel: LogicalVariable, _, NilPathStep))))))
+                    MultiRelationshipPathStep(rel: LogicalVariable, _, NilPathStep)))),
+              _))
             if fname == "relationships" =>
           Some((startNode.name, rel.name, variable, innerPredicate))
 
@@ -178,7 +212,8 @@ object extractPredicates {
                 PathExpression(
                   NodePathStep(
                     startNode: LogicalVariable,
-                    MultiRelationshipPathStep(rel: LogicalVariable, _, NilPathStep))))))
+                    MultiRelationshipPathStep(rel: LogicalVariable, _, NilPathStep)))),
+              _))
             if fname == "nodes" =>
           Some((startNode.name, rel.name, variable, innerPredicate))
 

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,8 +19,7 @@
  */
 package org.neo4j.kernel;
 
-import java.util.function.Supplier;
-
+import org.neo4j.dbms.database.DatabaseManager;
 import org.neo4j.kernel.configuration.Config;
 import org.neo4j.kernel.extension.KernelExtensionFactory;
 import org.neo4j.kernel.impl.spi.KernelContext;
@@ -35,7 +34,7 @@ public class DummyExtensionFactory extends KernelExtensionFactory<DummyExtension
 
         KernelData getKernel();
 
-        Supplier<NeoStoreDataSource> getNeoStoreDataSource();
+        DatabaseManager getDatabaseManager();
     }
 
     static final String EXTENSION_ID = "dummy";

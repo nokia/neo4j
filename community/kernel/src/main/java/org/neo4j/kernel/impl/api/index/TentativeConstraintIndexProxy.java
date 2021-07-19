@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -27,14 +27,14 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.neo4j.internal.kernel.api.InternalIndexState;
 import org.neo4j.internal.kernel.api.exceptions.schema.ConstraintValidationException;
+import org.neo4j.internal.kernel.api.exceptions.schema.IndexNotFoundKernelException;
 import org.neo4j.internal.kernel.api.schema.SchemaDescriptor;
 import org.neo4j.kernel.api.exceptions.index.IndexEntryConflictException;
-import org.neo4j.kernel.api.exceptions.index.IndexNotFoundKernelException;
 import org.neo4j.kernel.api.exceptions.schema.UniquePropertyValueValidationException;
 import org.neo4j.kernel.api.index.IndexEntryUpdate;
 import org.neo4j.kernel.api.index.IndexUpdater;
-import org.neo4j.kernel.api.index.PropertyAccessor;
-import org.neo4j.kernel.api.schema.constaints.ConstraintDescriptorFactory;
+import org.neo4j.storageengine.api.NodePropertyAccessor;
+import org.neo4j.kernel.api.schema.constraints.ConstraintDescriptorFactory;
 import org.neo4j.kernel.impl.api.index.updater.DelegatingIndexUpdater;
 import org.neo4j.kernel.impl.index.schema.DeferredConflictCheckingIndexUpdater;
 import org.neo4j.storageengine.api.schema.IndexReader;
@@ -64,7 +64,7 @@ public class TentativeConstraintIndexProxy extends AbstractDelegatingIndexProxy
     private final OnlineIndexProxy target;
     private final Collection<IndexEntryConflictException> failures = new CopyOnWriteArrayList<>();
 
-    public TentativeConstraintIndexProxy( FlippableIndexProxy flipper, OnlineIndexProxy target )
+    TentativeConstraintIndexProxy( FlippableIndexProxy flipper, OnlineIndexProxy target )
     {
         this.flipper = flipper;
         this.target = target;
@@ -81,7 +81,6 @@ public class TentativeConstraintIndexProxy extends AbstractDelegatingIndexProxy
                 {
                     @Override
                     public void process( IndexEntryUpdate<?> update )
-                            throws IOException
                     {
                         try
                         {
@@ -94,7 +93,7 @@ public class TentativeConstraintIndexProxy extends AbstractDelegatingIndexProxy
                     }
 
                     @Override
-                    public void close() throws IOException
+                    public void close()
                     {
                         try
                         {
@@ -141,7 +140,7 @@ public class TentativeConstraintIndexProxy extends AbstractDelegatingIndexProxy
     }
 
     @Override
-    public void verifyDeferredConstraints( PropertyAccessor accessor ) throws IndexEntryConflictException, IOException
+    public void verifyDeferredConstraints( NodePropertyAccessor accessor ) throws IndexEntryConflictException, IOException
     {
         // If we've seen constraint violation failures in here when updates came in then fail immediately with those
         if ( !failures.isEmpty() )
@@ -163,7 +162,7 @@ public class TentativeConstraintIndexProxy extends AbstractDelegatingIndexProxy
         {
             SchemaDescriptor descriptor = getDescriptor().schema();
             throw new UniquePropertyValueValidationException(
-                    ConstraintDescriptorFactory.uniqueForLabel( descriptor.keyId(), descriptor.getPropertyIds() ),
+                    ConstraintDescriptorFactory.uniqueForSchema( descriptor ),
                     ConstraintValidationException.Phase.VERIFICATION,
                     new HashSet<>( failures )
                 );

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -33,14 +33,15 @@ import org.neo4j.helpers.collection.Pair;
 import org.neo4j.internal.kernel.api.schema.LabelSchemaSupplier;
 import org.neo4j.internal.kernel.api.schema.SchemaDescriptor;
 import org.neo4j.kernel.api.schema.SchemaDescriptorFactory;
-import org.neo4j.kernel.api.schema.constaints.NodeExistenceConstraintDescriptor;
-import org.neo4j.kernel.api.schema.constaints.NodeKeyConstraintDescriptor;
-import org.neo4j.kernel.api.schema.constaints.RelExistenceConstraintDescriptor;
-import org.neo4j.kernel.api.schema.constaints.UniquenessConstraintDescriptor;
-import org.neo4j.kernel.api.schema.index.SchemaIndexDescriptor;
+import org.neo4j.kernel.api.schema.constraints.NodeExistenceConstraintDescriptor;
+import org.neo4j.kernel.api.schema.constraints.NodeKeyConstraintDescriptor;
+import org.neo4j.kernel.api.schema.constraints.RelExistenceConstraintDescriptor;
+import org.neo4j.kernel.api.schema.constraints.UniquenessConstraintDescriptor;
+import org.neo4j.storageengine.api.EntityType;
+import org.neo4j.storageengine.api.schema.IndexDescriptor;
 
 import static java.lang.String.format;
-import static org.neo4j.kernel.api.schema.index.SchemaIndexDescriptor.Type.UNIQUE;
+import static org.neo4j.storageengine.api.schema.IndexDescriptor.Type.UNIQUE;
 
 public class DbStructureCollector implements DbStructureVisitor
 {
@@ -80,13 +81,13 @@ public class DbStructureCollector implements DbStructureVisitor
             }
 
             @Override
-            public Iterator<Pair<String,String[]>> knownIndices()
+            public Iterator<Pair<String[],String[]>> knownIndices()
             {
                 return regularIndices.iterator();
             }
 
             @Override
-            public Iterator<Pair<String,String[]>> knownUniqueIndices()
+            public Iterator<Pair<String[],String[]>> knownUniqueIndices()
             {
                 return uniqueIndices.iterator();
             }
@@ -142,7 +143,7 @@ public class DbStructureCollector implements DbStructureVisitor
             }
 
             @Override
-            public double indexSelectivity( int labelId, int... propertyKeyIds )
+            public double indexUniqueValueSelectivity( int labelId, int... propertyKeyIds )
             {
                 SchemaDescriptor descriptor = SchemaDescriptorFactory.forLabel( labelId, propertyKeyIds );
                 IndexStatistics result1 = regularIndices.getIndex( descriptor );
@@ -156,7 +157,8 @@ public class DbStructureCollector implements DbStructureVisitor
                 SchemaDescriptor descriptor = SchemaDescriptorFactory.forLabel( labelId, propertyKeyIds );
                 IndexStatistics result1 = regularIndices.getIndex( descriptor );
                 IndexStatistics result2 = result1 == null ? uniqueIndices.getIndex( descriptor ) : result1;
-                return result2 == null ? Double.NaN : result2.size;
+                double indexSize = result2 == null ? Double.NaN : result2.size;
+                return indexSize / nodesWithLabelCardinality( labelId );
             }
 
             private Iterator<Pair<String,String[]>> idsToNames( Iterable<? extends LabelSchemaSupplier> nodeConstraints )
@@ -191,7 +193,7 @@ public class DbStructureCollector implements DbStructureVisitor
     }
 
     @Override
-    public void visitIndex( SchemaIndexDescriptor descriptor, String userDescription,
+    public void visitIndex( IndexDescriptor descriptor, String userDescription,
                             double uniqueValuesPercentage, long size )
     {
         IndexDescriptorMap indices = descriptor.type() == UNIQUE ? uniqueIndices : regularIndices;
@@ -343,7 +345,7 @@ public class DbStructureCollector implements DbStructureVisitor
         }
     }
 
-    private class IndexDescriptorMap implements Iterable<Pair<String,String[]>>
+    private class IndexDescriptorMap implements Iterable<Pair<String[],String[]>>
     {
         private final String indexType;
         private final Map<SchemaDescriptor, IndexStatistics> indexMap = new HashMap<>();
@@ -372,10 +374,10 @@ public class DbStructureCollector implements DbStructureVisitor
         }
 
         @Override
-        public Iterator<Pair<String,String[]>> iterator()
+        public Iterator<Pair<String[],String[]>> iterator()
         {
             final Iterator<SchemaDescriptor> iterator = indexMap.keySet().iterator();
-            return new Iterator<Pair<String,String[]>>()
+            return new Iterator<Pair<String[],String[]>>()
             {
                 @Override
                 public boolean hasNext()
@@ -384,13 +386,25 @@ public class DbStructureCollector implements DbStructureVisitor
                 }
 
                 @Override
-                public Pair<String,String[]> next()
+                public Pair<String[],String[]> next()
                 {
                     //TODO: Add support for composite indexes
                     SchemaDescriptor next = iterator.next();
-                    String label = labels.byIdOrFail( next.keyId() );
+                    EntityType type = next.entityType();
+                    String[] entityTokens;
+                    switch ( type )
+                    {
+                    case NODE:
+                        entityTokens = labels.byIdOrFail( next.getEntityTokenIds() );
+                        break;
+                    case RELATIONSHIP:
+                        entityTokens = relationshipTypes.byIdOrFail( next.getEntityTokenIds() );
+                        break;
+                    default:
+                        throw new IllegalStateException( "Indexing is not supported for EntityType: " + type );
+                    }
                     String[] propertyKeyNames = propertyKeys.byIdOrFail( next.getPropertyIds() );
-                    return Pair.of( label, propertyKeyNames );
+                    return Pair.of( entityTokens, propertyKeyNames );
                 }
 
                 @Override

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -27,15 +27,23 @@ import org.neo4j.server.rest.repr.BadInputException;
 import org.neo4j.server.rest.repr.ExtensionPointRepresentation;
 import org.neo4j.server.rest.repr.Representation;
 
+/**
+ * @deprecated Server plugins are deprecated for removal in the next major release. Please use unmanaged extensions instead.
+ */
+@Deprecated
 public interface PluginInvocator
 {
+    @Deprecated
     <T> Representation invoke( GraphDatabaseAPI graphDb, String name, Class<T> type, String method, T context,
             ParameterList params ) throws PluginLookupException, BadInputException, PluginInvocationFailureException,
             BadPluginInvocationException;
 
+    @Deprecated
     ExtensionPointRepresentation describe( String name, Class<?> type, String method ) throws PluginLookupException;
 
+    @Deprecated
     List<ExtensionPointRepresentation> describeAll( String extensionName ) throws PluginLookupException;
 
+    @Deprecated
     Set<String> extensionNames();
 }

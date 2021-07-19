@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -48,21 +48,4 @@ class LocalMemoryTrackerTest
         memoryTracker.deallocated( 40 );
         assertEquals( 40, memoryTracker.usedDirectMemory() );
     }
-
-    @Test
-    void localMemoryTrackerPropagatesAllocationsToGlobalTracker()
-    {
-        GlobalMemoryTracker globalMemoryTracker = GlobalMemoryTracker.INSTANCE;
-        long initialGlobalUsage = globalMemoryTracker.usedDirectMemory();
-        LocalMemoryTracker memoryTracker = new LocalMemoryTracker();
-
-        memoryTracker.allocated( 100 );
-        assertEquals( 100, memoryTracker.usedDirectMemory() );
-        assertEquals( 100, globalMemoryTracker.usedDirectMemory() - initialGlobalUsage );
-
-        memoryTracker.deallocated( 50 );
-        assertEquals( 50, memoryTracker.usedDirectMemory() );
-        assertEquals( 50, globalMemoryTracker.usedDirectMemory() - initialGlobalUsage );
-    }
-
 }

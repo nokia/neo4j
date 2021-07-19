@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,13 +21,15 @@ package org.neo4j.cypher
 
 import java.util.concurrent.atomic.AtomicLong
 
+import org.neo4j.cypher.internal.QueryCache.ParameterTypeMap
 import org.neo4j.cypher.internal.StringCacheMonitor
+import org.neo4j.helpers.collection.Pair
 
 class PlanCacheMetricsMonitor extends StringCacheMonitor {
   private val counter = new AtomicLong()
   private val waitTime = new AtomicLong()
 
-  override def cacheDiscard(ignored1: String, ignored2: String, secondsSinceReplan: Int): Unit = {
+  override def cacheDiscard(ignored1: Pair[String, ParameterTypeMap], ignored2: String, secondsSinceReplan: Int): Unit = {
     counter.incrementAndGet()
     waitTime.addAndGet(secondsSinceReplan)
   }

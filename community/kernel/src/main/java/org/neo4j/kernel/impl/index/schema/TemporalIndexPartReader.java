@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,22 +20,20 @@
 package org.neo4j.kernel.impl.index.schema;
 
 import org.neo4j.index.internal.gbptree.GBPTree;
-import org.neo4j.index.internal.gbptree.Layout;
 import org.neo4j.internal.kernel.api.IndexOrder;
 import org.neo4j.internal.kernel.api.IndexQuery;
-import org.neo4j.kernel.api.schema.index.SchemaIndexDescriptor;
-import org.neo4j.kernel.impl.api.index.sampling.IndexSamplingConfig;
+import org.neo4j.storageengine.api.schema.IndexDescriptor;
 import org.neo4j.values.storable.Value;
+import org.neo4j.values.storable.ValueGroup;
 import org.neo4j.values.storable.Values;
 
-class TemporalIndexPartReader<KEY extends NativeSchemaKey<KEY>> extends NativeSchemaIndexReader<KEY,NativeSchemaValue>
+class TemporalIndexPartReader<KEY extends NativeIndexSingleValueKey<KEY>> extends NativeIndexReader<KEY,NativeIndexValue>
 {
-    TemporalIndexPartReader( GBPTree<KEY,NativeSchemaValue> tree,
-                             Layout<KEY,NativeSchemaValue> layout,
-                             IndexSamplingConfig samplingConfig,
-                             SchemaIndexDescriptor descriptor )
+    TemporalIndexPartReader( GBPTree<KEY,NativeIndexValue> tree,
+                             IndexLayout<KEY,NativeIndexValue> layout,
+                             IndexDescriptor descriptor )
     {
-        super( tree, layout, samplingConfig, descriptor );
+        super( tree, layout, descriptor );
     }
 
     @Override
@@ -56,14 +54,14 @@ class TemporalIndexPartReader<KEY extends NativeSchemaKey<KEY>> extends NativeSc
         switch ( predicate.type() )
         {
         case exists:
-            treeKeyFrom.initAsLowest();
-            treeKeyTo.initAsHighest();
+            treeKeyFrom.initValueAsLowest( ValueGroup.UNKNOWN );
+            treeKeyTo.initValueAsHighest( ValueGroup.UNKNOWN );
             break;
 
         case exact:
             IndexQuery.ExactPredicate exactPredicate = (IndexQuery.ExactPredicate) predicate;
-            treeKeyFrom.from( Long.MIN_VALUE, exactPredicate.value() );
-            treeKeyTo.from( Long.MAX_VALUE, exactPredicate.value() );
+            treeKeyFrom.from( exactPredicate.value() );
+            treeKeyTo.from( exactPredicate.value() );
             break;
 
         case range:
@@ -83,11 +81,12 @@ class TemporalIndexPartReader<KEY extends NativeSchemaKey<KEY>> extends NativeSc
         Value fromValue = rangePredicate.fromValue();
         if ( fromValue == Values.NO_VALUE )
         {
-            treeKeyFrom.initAsLowest();
+            treeKeyFrom.initValueAsLowest( ValueGroup.UNKNOWN );
         }
         else
         {
-            treeKeyFrom.from( rangePredicate.fromInclusive() ? Long.MIN_VALUE : Long.MAX_VALUE, fromValue );
+            treeKeyFrom.initialize( rangePredicate.fromInclusive() ? Long.MIN_VALUE : Long.MAX_VALUE );
+            treeKeyFrom.from( fromValue );
             treeKeyFrom.setCompareId( true );
         }
     }
@@ -97,11 +96,12 @@ class TemporalIndexPartReader<KEY extends NativeSchemaKey<KEY>> extends NativeSc
         Value toValue = rangePredicate.toValue();
         if ( toValue == Values.NO_VALUE )
         {
-            treeKeyTo.initAsHighest();
+            treeKeyTo.initValueAsHighest( ValueGroup.UNKNOWN );
         }
         else
         {
-            treeKeyTo.from( rangePredicate.toInclusive() ? Long.MAX_VALUE : Long.MIN_VALUE, toValue );
+            treeKeyTo.initialize( rangePredicate.toInclusive() ? Long.MAX_VALUE : Long.MIN_VALUE );
+            treeKeyTo.from( toValue );
             treeKeyTo.setCompareId( true );
         }
     }

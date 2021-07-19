@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,15 +20,15 @@
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.steps
 
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.LogicalPlanningContext
-import org.neo4j.cypher.internal.ir.v3_5.AggregatingQueryProjection
-import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.{Cardinalities, Solveds}
+import org.neo4j.cypher.internal.ir.v3_5.{AggregatingQueryProjection, InterestingOrder}
 import org.neo4j.cypher.internal.v3_5.logical.plans.LogicalPlan
 
 object aggregation {
-  def apply(plan: LogicalPlan, aggregation: AggregatingQueryProjection, context: LogicalPlanningContext, solveds: Solveds, cardinalities: Cardinalities): LogicalPlan = {
+  def apply(plan: LogicalPlan, aggregation: AggregatingQueryProjection, interestingOrder: InterestingOrder, context: LogicalPlanningContext): LogicalPlan = {
 
-    val (step1, groupingExpressions) = PatternExpressionSolver()(plan, aggregation.groupingExpressions, context, solveds, cardinalities)
-    val (rewrittenPlan, aggregations) = PatternExpressionSolver()(step1, aggregation.aggregationExpressions, context, solveds, cardinalities)
+    val expressionSolver = PatternExpressionSolver()
+    val (step1, groupingExpressions) = expressionSolver(plan, aggregation.groupingExpressions, interestingOrder, context)
+    val (rewrittenPlan, aggregations) = expressionSolver(step1, aggregation.aggregationExpressions, interestingOrder, context)
 
     context.logicalPlanProducer.planAggregation(
       rewrittenPlan,

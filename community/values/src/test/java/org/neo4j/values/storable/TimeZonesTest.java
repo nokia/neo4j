@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,7 +20,7 @@
 package org.neo4j.values.storable;
 
 import org.apache.commons.codec.digest.DigestUtils;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -29,15 +29,15 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.ZoneId;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.fail;
 
-public class TimeZonesTest
+class TimeZonesTest
 {
     @Test
-    public void weSupportAllJavaZoneIds()
+    void weSupportAllJavaZoneIds()
     {
         ZoneId.getAvailableZoneIds().forEach( s ->
         {
@@ -56,7 +56,7 @@ public class TimeZonesTest
     }
 
     @Test
-    public void weSupportDeletedZoneIdEastSaskatchewan()
+    void weSupportDeletedZoneIdEastSaskatchewan()
     {
         try
         {
@@ -77,13 +77,13 @@ public class TimeZonesTest
      * If your changes were legit, please change the expected byte[] below.
      */
     @Test
-    public void tzidsOrderMustNotChange() throws URISyntaxException, IOException
+    void tzidsOrderMustNotChange() throws URISyntaxException, IOException
     {
         Path path = Paths.get( TimeZones.class.getResource( "/TZIDS" ).toURI() );
         byte[] timeZonesInfo = Files.readAllBytes( path );
         byte[] timeZonesHash = DigestUtils.sha256( timeZonesInfo );
         assertThat( timeZonesHash, equalTo(
-                new byte[]{-2, 114, 100, -95, -108, -101, 81, -40, -13, 78, 40, -12, -128, -125, 93, -100, 19, 122, -98, -80, -30, 109, 39, 7, 83, 54, -53, 30,
-                        -6, 26, 8, -103} ) );
+                new byte[]{49, -67, -18, -59, -6, -102, -16, -13, 35, 37, -37, 65, 80, 6, 77, -84, -12, -117, -54, -105, 36, 18, -119, -73, 92, 37, -64, 96,
+                        66, -52, 48, 51} ) );
     }
 }

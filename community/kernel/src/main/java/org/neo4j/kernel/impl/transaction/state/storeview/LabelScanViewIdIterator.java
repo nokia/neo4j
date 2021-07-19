@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,23 +19,28 @@
  */
 package org.neo4j.kernel.impl.transaction.state.storeview;
 
-import org.eclipse.collections.api.iterator.LongIterator;
-
 import org.neo4j.collection.PrimitiveLongResourceIterator;
+import org.neo4j.storageengine.api.StorageEntityScanCursor;
 import org.neo4j.storageengine.api.schema.LabelScanReader;
 
 /**
  * Node id iterator used during index population when we go over node ids indexed in label scan store.
  */
-class LabelScanViewIdIterator implements PrimitiveLongResourceIterator
+class LabelScanViewIdIterator<CURSOR extends StorageEntityScanCursor> implements EntityIdIterator
 {
-    private LabelScanReader labelScanReader;
-    private LongIterator idIterator;
+    private final int[] labelIds;
+    private final LabelScanReader labelScanReader;
+    private final CURSOR entityCursor;
 
-    LabelScanViewIdIterator( LabelScanReader labelScanReader, int[] labelIds )
+    private PrimitiveLongResourceIterator idIterator;
+    private long lastReturnedId = -1;
+
+    LabelScanViewIdIterator( LabelScanReader labelScanReader, int[] labelIds, CURSOR entityCursor )
     {
         this.labelScanReader = labelScanReader;
+        this.entityCursor = entityCursor;
         this.idIterator = labelScanReader.nodesWithAnyOfLabels( labelIds );
+        this.labelIds = labelIds;
     }
 
     @Override
@@ -53,6 +58,17 @@ class LabelScanViewIdIterator implements PrimitiveLongResourceIterator
     @Override
     public long next()
     {
-        return idIterator.next();
+        long next = idIterator.next();
+        entityCursor.single( next );
+        entityCursor.next();
+        lastReturnedId = next;
+        return next;
+    }
+
+    @Override
+    public void invalidateCache()
+    {
+        this.idIterator.close();
+        this.idIterator = labelScanReader.nodesWithAnyOfLabels( lastReturnedId, labelIds );
     }
 }

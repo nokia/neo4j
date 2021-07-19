@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,7 +19,8 @@
  */
 package org.neo4j.cypher.internal.v3_5.logical.plans
 
-import org.neo4j.cypher.internal.util.v3_5.attribution.IdGen
+import org.neo4j.cypher.internal.v3_5.expressions.Property
+import org.neo4j.cypher.internal.v3_5.util.attribution.IdGen
 
 /**
   * Produce first the 'left' rows, and then the 'right' rows. This operator does not guarantee row uniqueness.
@@ -30,4 +31,9 @@ case class Union(left: LogicalPlan, right: LogicalPlan)(implicit idGen: IdGen) e
   val rhs = Some(right)
 
   override val availableSymbols: Set[String] = left.availableSymbols intersect right.availableSymbols
+
+  /**
+    * Union cannot guarantee available properties, even if the children can.
+    */
+  override def availableCachedNodeProperties: Map[Property, CachedNodeProperty] = Map.empty
 }

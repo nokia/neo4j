@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -142,7 +142,7 @@ public class XForwardFilterTest
         assertThat( result.getBaseUri().getScheme(), containsString( theProtocol ) );
     }
 
-    //Mocking WebApplication leads to flakyness on ibm-jdk, hence
+    //Mocking WebApplication leads to flakiness on ibm-jdk, hence
     //we use a manual mock instead
     private static final WebApplication WEB_APPLICATION = new WebApplication()
     {
@@ -263,7 +263,7 @@ public class XForwardFilterTest
         }
     };
 
-    //Using mockito to mock arguments to ContainerRequest leads to flakyness
+    //Using mockito to mock arguments to ContainerRequest leads to flakiness
     //on ibm jdk, hence the manual mocks
     private static final InputStream INPUT_STREAM = new InputStream()
     {

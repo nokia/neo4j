@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,12 +19,14 @@
  */
 package org.neo4j.kernel.configuration;
 
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.File;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -49,11 +51,13 @@ import org.neo4j.graphdb.factory.GraphDatabaseSettings;
 import org.neo4j.helpers.AdvertisedSocketAddress;
 import org.neo4j.helpers.HostnamePort;
 import org.neo4j.helpers.ListenSocketAddress;
+import org.neo4j.helpers.Numbers;
 import org.neo4j.helpers.SocketAddressParser;
 import org.neo4j.helpers.TimeUtil;
 import org.neo4j.helpers.collection.CollectorsUtil;
 import org.neo4j.helpers.collection.Iterables;
 import org.neo4j.io.ByteUnit;
+import org.neo4j.values.storable.DateTimeValue;
 
 import static java.lang.Character.isDigit;
 import static java.lang.Long.parseLong;
@@ -532,6 +536,21 @@ public class Settings
         }
     };
 
+    public static final Function<String,ZoneId> TIMEZONE = new Function<String,ZoneId>()
+    {
+        @Override
+        public ZoneId apply( String value )
+        {
+            return DateTimeValue.parseZoneOffsetOrZoneName(value);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "a string describing a timezone, either described by offset (e.g. '+02:00') or by name (e.g. 'Europe/Stockholm')";
+        }
+    };
+
     public static final Function<String, ListenSocketAddress> LISTEN_SOCKET_ADDRESS =
             new Function<String, ListenSocketAddress>()
             {
@@ -757,17 +776,17 @@ public class Settings
         }
     };
 
-    public static <T extends Enum<T>> Function<String, T> options( final Class<T> enumClass )
+    public static <T extends Enum<T>> Function<String, T> optionsObeyCase( final Class<T> enumClass )
     {
         return options( EnumSet.allOf( enumClass ), false );
     }
 
-    public static <T extends Enum<T>> Function<String, T> options( final Class<T> enumClass, boolean ignoreCase )
+    public static <T extends Enum<T>> Function<String, T> optionsIgnoreCase( final Class<T> enumClass )
     {
-        return options( EnumSet.allOf( enumClass ), ignoreCase );
+        return options( EnumSet.allOf( enumClass ), true );
     }
 
-    public static <T> Function<String, T> options( T... optionValues )
+    public static <T> Function<String, T> optionsObeyCase( T... optionValues )
     {
         return options( Iterables.iterable( optionValues ), false );
     }
@@ -924,6 +943,61 @@ public class Settings
             public String toString()
             {
                 return format( MATCHES_PATTERN_MESSAGE, regex );
+            }
+        };
+    }
+
+    public static BiFunction<String,Function<String,String>,String> except( final String... forbiddenValues )
+    {
+        return new BiFunction<String,Function<String,String>,String>()
+        {
+            @Override
+            public String apply( String value, Function<String,String> stringStringFunction )
+            {
+                if ( StringUtils.isNotBlank( value ) )
+                {
+                    if ( ArrayUtils.contains( forbiddenValues, value ) )
+                    {
+                        throw new IllegalArgumentException( format( "not allowed value is: %s", value ) );
+                    }
+                }
+                return value;
+            }
+
+            @Override
+            public String toString()
+            {
+                if ( forbiddenValues.length > 1 )
+                {
+                    return format( "is none of %s", Arrays.toString( forbiddenValues ) );
+                }
+                else if ( forbiddenValues.length == 1 )
+                {
+                    return format( "is not `%s`", forbiddenValues[0] );
+                }
+                return "";
+            }
+        };
+    }
+
+    public static BiFunction<Long,Function<String,String>,Long> powerOf2()
+    {
+        return new BiFunction<Long,Function<String,String>,Long>()
+        {
+            @Override
+            public Long apply( Long value, Function<String,String> settings )
+            {
+                if ( value != null && !Numbers.isPowerOfTwo( value ) )
+                {
+                    throw new IllegalArgumentException( "only power of 2 values allowed" );
+                }
+                return value;
+            }
+
+            @Override
+            public String toString()
+            {
+                return "is power of 2";
             }
         };
     }
@@ -1168,6 +1242,12 @@ public class Settings
             public boolean internal()
             {
                 return newSetting.internal();
+            }
+
+            @Override
+            public boolean secret()
+            {
+                return newSetting.secret();
             }
 
             @Override

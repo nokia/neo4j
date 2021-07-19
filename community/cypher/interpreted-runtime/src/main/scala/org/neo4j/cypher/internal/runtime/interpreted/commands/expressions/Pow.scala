@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,12 +19,14 @@
  */
 package org.neo4j.cypher.internal.runtime.interpreted.commands.expressions
 
-import org.neo4j.values.storable.{NumberValue, Values}
+import org.neo4j.cypher.internal.runtime.interpreted.commands.AstNode
+import org.neo4j.cypher.operations.CypherMath
+import org.neo4j.values.AnyValue
 
 case class Pow(a: Expression, b: Expression) extends Arithmetics(a, b) {
-  def calc(a: NumberValue, b: NumberValue) = Values.doubleValue(math.pow(a.doubleValue(), b.doubleValue()))
+  override def calc(a: AnyValue, b: AnyValue): AnyValue = CypherMath.pow(a, b)
 
-  def rewrite(f: (Expression) => Expression) = f(Pow(a.rewrite(f), b.rewrite(f)))
+  override def rewrite(f: Expression => Expression): Expression = f(Pow(a.rewrite(f), b.rewrite(f)))
 
-  def symbolTableDependencies = a.symbolTableDependencies ++ b.symbolTableDependencies
+  override def children: Seq[AstNode[_]] = Seq(a, b)
 }

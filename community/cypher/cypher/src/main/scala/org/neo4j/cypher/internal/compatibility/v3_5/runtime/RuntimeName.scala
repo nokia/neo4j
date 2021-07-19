@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -48,9 +48,11 @@ object RuntimeName {
 
   def apply(name: String): RuntimeName = name.toUpperCase match {
     case InterpretedRuntimeName.name => InterpretedRuntimeName
+    case SlottedRuntimeName.name => SlottedRuntimeName
+    case MorselRuntimeName.name => MorselRuntimeName
     case CompiledRuntimeName.name => CompiledRuntimeName
+    case ProcedureRuntimeName.name => ProcedureRuntimeName
 
-    case n => throw new IllegalArgumentException(
-      s"$n is not a valid runtime, valid options are ${InterpretedRuntimeName.name} and ${CompiledRuntimeName.name}")
+    case n => throw new IllegalArgumentException(s"$n is not a valid runtime")
   }
 }

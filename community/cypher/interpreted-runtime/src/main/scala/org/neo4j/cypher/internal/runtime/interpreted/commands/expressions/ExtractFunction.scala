@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -37,7 +37,8 @@ case class ExtractFunction(collection: Expression, id: String, expression: Expre
     var i = 0
     while (values.hasNext) {
       val value = values.next()
-      extracted(i) = expression(innerContext.set(id, value), state)
+      innerContext.set(id, value)
+      extracted(i) = expression(innerContext, state)
       i += 1
     }
     VirtualValues.list(extracted:_*)

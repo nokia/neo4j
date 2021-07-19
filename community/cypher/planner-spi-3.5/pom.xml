@@ -3,14 +3,14 @@
   <parent>
     <groupId>org.neo4j</groupId>
     <artifactId>cypher-parent</artifactId>
-    <version>3.5.0-SNAPSHOT</version>
+    <version>3.5.30-SNAPSHOT</version>
     <relativePath>../</relativePath>
   </parent>
 
   <modelVersion>4.0.0</modelVersion>
   <artifactId>neo4j-cypher-planner-spi-3.5</artifactId>
   <packaging>jar</packaging>
-  <version>3.5.0-SNAPSHOT</version>
+  <version>3.5.30-SNAPSHOT</version>
   <name>Neo4j - Cypher Planner SPI</name>
 
   <description>Cypher planner SPI</description>
@@ -23,6 +23,7 @@
   </scm>
 
   <properties>
+    <license-text.header>headers/GPL-3-header.txt</license-text.header>
     <moduleName>org.neo4j.cypher.internal.planner.v3_5.spi</moduleName>
   </properties>
 
@@ -63,7 +64,7 @@
 
     <dependency>
       <groupId>org.neo4j</groupId>
-      <artifactId>neo4j-cypher-util-3.5</artifactId>
+      <artifactId>neo4j-util-3.5</artifactId>
       <version>${project.version}</version>
     </dependency>
 

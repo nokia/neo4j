@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -67,15 +67,6 @@ public class PropertyKeyTokenRecord extends TokenRecord
     @Override
     public PropertyKeyTokenRecord clone()
     {
-        PropertyKeyTokenRecord propertyKeyTokenRecord = new PropertyKeyTokenRecord( getIntId() );
-        propertyKeyTokenRecord.setInUse( inUse() );
-        if ( isCreated() )
-        {
-            propertyKeyTokenRecord.setCreated();
-        }
-        propertyKeyTokenRecord.setNameId( getNameId() );
-        propertyKeyTokenRecord.addNameRecords( getNameRecords() );
-        propertyKeyTokenRecord.setPropertyCount( getPropertyCount() );
-        return propertyKeyTokenRecord;
+        return (PropertyKeyTokenRecord) super.clone();
     }
 }

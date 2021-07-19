@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,15 +19,22 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.ast.convert.plannerQuery
 
-import org.neo4j.cypher.internal.compiler.v3_5.planner.{LogicalPlanningTestSupport, _}
-import org.neo4j.cypher.internal.frontend.v3_5.ast.{Hint, UsingIndexHint}
-import org.neo4j.cypher.internal.frontend.v3_5.helpers.StringHelper._
+import org.neo4j.cypher.internal.compiler.v3_5.planner.LogicalPlanningTestSupport
+import org.neo4j.cypher.internal.compiler.v3_5.planner._
 import org.neo4j.cypher.internal.ir.v3_5._
-import org.neo4j.cypher.internal.util.v3_5.symbols._
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
-import org.neo4j.cypher.internal.v3_5.expressions.SemanticDirection.{BOTH, INCOMING, OUTGOING}
+import org.neo4j.cypher.internal.v3_5.ast.Hint
+import org.neo4j.cypher.internal.v3_5.ast.UsingIndexHint
+import org.neo4j.cypher.internal.v3_5.expressions.SemanticDirection.BOTH
+import org.neo4j.cypher.internal.v3_5.expressions.SemanticDirection.INCOMING
+import org.neo4j.cypher.internal.v3_5.expressions.SemanticDirection.OUTGOING
 import org.neo4j.cypher.internal.v3_5.expressions._
-import org.neo4j.cypher.internal.v3_5.logical.plans.{FieldSignature, ProcedureReadOnlyAccess, ProcedureSignature, QualifiedName}
+import org.neo4j.cypher.internal.v3_5.logical.plans.FieldSignature
+import org.neo4j.cypher.internal.v3_5.logical.plans.ProcedureReadOnlyAccess
+import org.neo4j.cypher.internal.v3_5.logical.plans.ProcedureSignature
+import org.neo4j.cypher.internal.v3_5.logical.plans.QualifiedName
+import org.neo4j.cypher.internal.v3_5.util.helpers.StringHelper._
+import org.neo4j.cypher.internal.v3_5.util.symbols._
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
 
 class StatementConvertersTest extends CypherFunSuite with LogicalPlanningTestSupport {
 
@@ -421,36 +428,28 @@ class StatementConvertersTest extends CypherFunSuite with LogicalPlanningTestSup
     query.queryGraph.patternNodes should equal(Set("a"))
   }
 
-  test("match (n) return n.prop order by n.prop2 DESC") {
-    val query = buildPlannerQuery("match (n) return n.prop order by n.prop2 DESC")
-    val result = query.toString
-
-    val expectation =
-      """RegularPlannerQuery(QueryGraph {Nodes: ['n']},RegularQueryProjection(Map(n -> Variable(n),   FRESHID19 -> Property(Variable(n),PropertyKeyName(prop))),QueryShuffle(List(),None,None)),Some(RegularPlannerQuery(QueryGraph {Arguments: ['  FRESHID19', 'n']},RegularQueryProjection(Map(  FRESHID19 -> Variable(  FRESHID19),   FRESHID35 -> Property(Variable(n),PropertyKeyName(prop2))),QueryShuffle(List(),None,None)),Some(RegularPlannerQuery(QueryGraph {Arguments: ['  FRESHID19', '  FRESHID35']},RegularQueryProjection(Map(  FRESHID19 -> Variable(  FRESHID19),   FRESHID35 -> Variable(  FRESHID35)),QueryShuffle(Vector(DescSortItem(Variable(  FRESHID35))),None,None)),Some(RegularPlannerQuery(QueryGraph {Arguments: ['  FRESHID19', '  FRESHID35']},RegularQueryProjection(Map(n.prop -> Variable(  FRESHID19)),QueryShuffle(List(),None,None)),None)))))))"""
-
-    result should equal(expectation)
-  }
-
-  test("MATCH (a) WITH 1 as b RETURN b") {
-    val query = buildPlannerQuery("MATCH (a) WITH 1 as b RETURN b")
+  test("MATCH (a) WITH 1 AS b RETURN b") {
+    val query = buildPlannerQuery("MATCH (a) WITH 1 AS b RETURN b")
     query.queryGraph.patternNodes should equal(Set("a"))
     query.horizon should equal(RegularQueryProjection(Map("b" -> SignedDecimalIntegerLiteral("1")_)))
-    query.tail should equal(Some(RegularPlannerQuery(QueryGraph(Set.empty, Set.empty, Set("b")), RegularQueryProjection(Map("b" -> Variable("b") _)))))
+    query.tail should equal(Some(RegularPlannerQuery(QueryGraph(Set.empty, Set.empty, Set("b")), InterestingOrder.empty, RegularQueryProjection(Map("b" -> Variable("b") _)))))
   }
 
-  test("WITH 1 as b RETURN b") {
-    val query = buildPlannerQuery("WITH 1 as b RETURN b")
+  test("WITH 1 AS b RETURN b") {
+    val query = buildPlannerQuery("WITH 1 AS b RETURN b")
 
     query.horizon should equal(RegularQueryProjection(Map("b" -> SignedDecimalIntegerLiteral("1")_)))
-    query.tail should equal(Some(RegularPlannerQuery(QueryGraph(Set.empty, Set.empty, Set("b")), RegularQueryProjection(Map("b" -> Variable("b") _)))))
+    query.tail should equal(Some(RegularPlannerQuery(QueryGraph(Set.empty, Set.empty, Set("b")), InterestingOrder.empty, RegularQueryProjection(Map("b" -> Variable("b") _)))))
   }
 
   test("MATCH (a) WITH a WHERE TRUE RETURN a") {
-    val query = buildPlannerQuery("MATCH (a) WITH a WHERE TRUE RETURN a")
-    val result = query.toString
+    val result = buildPlannerQuery("MATCH (a) WITH a WHERE TRUE RETURN a")
 
-    val expectation =
-      """RegularPlannerQuery(QueryGraph {Nodes: ['a']},RegularQueryProjection(Map(a -> Variable(a),   FRESHID23 -> True()),QueryShuffle(List(),None,None)),Some(RegularPlannerQuery(QueryGraph {Arguments: ['  FRESHID23', 'a'], Predicates: ['`  FRESHID23`']},RegularQueryProjection(Map(a -> Variable(a)),QueryShuffle(List(),None,None)),None)))"""
+    val expectation = RegularPlannerQuery(
+      queryGraph = QueryGraph(patternNodes = Set("a"), selections = Selections(Set(Predicate(Set.empty, True()(pos))))),
+      horizon = RegularQueryProjection(projections = Map("a" -> Variable("a")(pos)))
+    )
+
     result should equal(expectation)
   }
 
@@ -689,11 +688,12 @@ class StatementConvertersTest extends CypherFunSuite with LogicalPlanningTestSup
     val query = buildPlannerQuery("MATCH (n) RETURN count(*)")
 
     query.horizon match {
-      case AggregatingQueryProjection(groupingKeys, aggregationExpression, QueryShuffle(sorting, limit, skip)) =>
+      case AggregatingQueryProjection(groupingKeys, aggregationExpression, QueryShuffle(sorting, limit, skip), where) =>
         groupingKeys should be (empty)
         sorting should be (empty)
         limit should be (empty)
         skip should be (empty)
+        where should be (empty)
         aggregationExpression should equal(Map("count(*)" -> CountStar()(pos)))
 
       case x =>
@@ -709,11 +709,12 @@ class StatementConvertersTest extends CypherFunSuite with LogicalPlanningTestSup
     val query = buildPlannerQuery("MATCH (n) RETURN n.prop, count(*)")
 
     query.horizon match {
-      case AggregatingQueryProjection(groupingKeys, aggregationExpression, QueryShuffle(sorting, limit, skip)) =>
+      case AggregatingQueryProjection(groupingKeys, aggregationExpression, QueryShuffle(sorting, limit, skip), where) =>
         groupingKeys should equal(Map("n.prop" -> Property(Variable("n")(pos), PropertyKeyName("prop")(pos))(pos)))
         sorting should be (empty)
         limit should be (empty)
         skip should be (empty)
+        where should be (empty)
         aggregationExpression should equal(Map("count(*)" -> CountStar()(pos)))
 
       case x =>
@@ -799,11 +800,26 @@ class StatementConvertersTest extends CypherFunSuite with LogicalPlanningTestSup
   }
 
   test("MATCH (owner) WITH owner, COUNT(*) AS collected WHERE (owner)--() RETURN owner") {
-    val query = buildPlannerQuery("MATCH (owner) WITH owner, COUNT(*) AS collected WHERE (owner)--() RETURN owner")
-    val result = query.toString
+    val result = buildPlannerQuery("MATCH (owner) WITH owner, COUNT(*) AS collected WHERE (owner)--() RETURN owner")
 
-    val expectation =
-      """RegularPlannerQuery(QueryGraph {Nodes: ['owner']},AggregatingQueryProjection(Map(owner -> Variable(owner)),Map(collected -> CountStar()),QueryShuffle(List(),None,None)),Some(RegularPlannerQuery(QueryGraph {Arguments: ['collected', 'owner']},RegularQueryProjection(Map(owner -> Variable(owner), collected -> Variable(collected),   FRESHID54 -> PatternExpression(RelationshipsPattern(RelationshipChain(NodePattern(Some(Variable(owner)),List(),None),RelationshipPattern(Some(Variable(  REL62)),List(),None,None,BOTH,false),NodePattern(Some(Variable(  NODE64)),List(),None))))),QueryShuffle(List(),None,None)),Some(RegularPlannerQuery(QueryGraph {Arguments: ['  FRESHID54', 'collected', 'owner'], Predicates: ['`  FRESHID54`']},RegularQueryProjection(Map(owner -> Variable(owner)),QueryShuffle(List(),None,None)),None)))))""".stripMargin
+    // (owner)-[`  REL62`]-(`  NODE64`)
+    val patternExpression = PatternExpression(RelationshipsPattern(RelationshipChain(
+      NodePattern(Some(Variable("  owner@20")(pos)), Seq.empty, None)(pos),
+      RelationshipPattern(Some(Variable("  REL62")(pos)), Seq.empty, None, None, SemanticDirection.BOTH)(pos),
+      NodePattern(Some(Variable("  NODE64")(pos)), Seq.empty, None)(pos))(pos))(pos))
+
+    val expectation = RegularPlannerQuery(
+      queryGraph = QueryGraph(patternNodes = Set("  owner@7")),
+      horizon = AggregatingQueryProjection(
+        groupingExpressions = Map("  owner@20" -> Variable("  owner@7")(pos)),
+        aggregationExpressions = Map("collected" -> CountStar()(pos)),
+        selections = Selections(Set(Predicate(Set("  owner@20", "  REL62", "  NODE64"),
+                                              exists(patternExpression))))),
+      tail = Some(RegularPlannerQuery(
+        queryGraph = QueryGraph(argumentIds = Set("collected", "  owner@20")),
+        horizon = RegularQueryProjection(projections = Map("owner" -> Variable("  owner@20")(pos)))
+      ))
+    )
 
     result should equal(expectation)
   }
@@ -820,7 +836,7 @@ class StatementConvertersTest extends CypherFunSuite with LogicalPlanningTestSup
     val result = query.toString
 
     val expectation =
-      """RegularPlannerQuery(QueryGraph {Nodes: ['  candidate@60', '  origin@7', 'c'], Rels: ['(  origin@7)--[r1:KNOWS:WORKS_AT]--(c)', '(c)--[r2:KNOWS:WORKS_AT]--(  candidate@60)'], Predicates: ['not r1 = r2', 'not (`  origin@7`)-[`  REL143`:KNOWS]-(`  candidate@60`)', 'type(r1) = type(r2)', '`  origin@7`.name IN ["Clark Kent"]']},AggregatingQueryProjection(Map(  FRESHID178 -> Property(Variable(  origin@7),PropertyKeyName(name)),   FRESHID204 -> Property(Variable(  candidate@60),PropertyKeyName(name))),Map(  FRESHID223 -> FunctionInvocation(Namespace(List()),FunctionName(SUM),false,Vector(FunctionInvocation(Namespace(List()),FunctionName(ROUND),false,Vector(Add(Property(Variable(r2),PropertyKeyName(weight)),Multiply(FunctionInvocation(Namespace(List()),FunctionName(COALESCE),false,Vector(Property(Variable(r2),PropertyKeyName(activity)), SignedDecimalIntegerLiteral(0))),SignedDecimalIntegerLiteral(2)))))))),QueryShuffle(List(),None,None)),Some(RegularPlannerQuery(QueryGraph {Arguments: ['  FRESHID178', '  FRESHID204', '  FRESHID223']},RegularQueryProjection(Map(  FRESHID178 -> Variable(  FRESHID178),   FRESHID204 -> Variable(  FRESHID204),   FRESHID223 -> Variable(  FRESHID223)),QueryShuffle(List(DescSortItem(Variable(  FRESHID223))),None,Some(SignedDecimalIntegerLiteral(10)))),Some(RegularPlannerQuery(QueryGraph {Arguments: ['  FRESHID178', '  FRESHID204', '  FRESHID223']},RegularQueryProjection(Map(origin -> Variable(  FRESHID178), candidate -> Variable(  FRESHID204), boost -> Variable(  FRESHID223)),QueryShuffle(List(),None,None)),None)))))"""
+      """RegularPlannerQuery(QueryGraph {Nodes: ['  candidate@60', '  origin@7', 'c'], Rels: ['(  origin@7)--[r1:KNOWS:WORKS_AT]--(c)', '(c)--[r2:KNOWS:WORKS_AT]--(  candidate@60)'], Predicates: ['not r1 = r2', 'not EXISTS((`  origin@7`)-[`  REL143`:KNOWS]-(`  candidate@60`))', 'type(r1) = type(r2)', '`  origin@7`.name IN ["Clark Kent"]']},InterestingOrder(List(Desc(boost)),List()),AggregatingQueryProjection(Map(origin -> Property(Variable(  origin@7),PropertyKeyName(name)), candidate -> Property(Variable(  candidate@60),PropertyKeyName(name))),Map(boost -> FunctionInvocation(Namespace(List()),FunctionName(SUM),false,Vector(FunctionInvocation(Namespace(List()),FunctionName(ROUND),false,Vector(Add(Property(Variable(r2),PropertyKeyName(weight)),Multiply(FunctionInvocation(Namespace(List()),FunctionName(COALESCE),false,Vector(Property(Variable(r2),PropertyKeyName(activity)), SignedDecimalIntegerLiteral(0)),false),SignedDecimalIntegerLiteral(2)))),false)),false)),QueryShuffle(List(DescSortItem(Variable(boost))),None,Some(SignedDecimalIntegerLiteral(10))),Selections(Set())),None)"""
 
     result should equal(expectation)
   }
@@ -836,7 +852,7 @@ class StatementConvertersTest extends CypherFunSuite with LogicalPlanningTestSup
     val result = query.toString
 
     val expectation =
-      """RegularPlannerQuery(QueryGraph {Nodes: ['owner']},AggregatingQueryProjection(Map(owner -> Variable(owner)),Map(xyz -> CountStar()),QueryShuffle(List(),None,None)),Some(RegularPlannerQuery(QueryGraph {Arguments: ['owner', 'xyz']},RegularQueryProjection(Map(owner -> Variable(owner), collection -> GreaterThan(Variable(xyz),SignedDecimalIntegerLiteral(0))),QueryShuffle(List(),None,None)),Some(RegularPlannerQuery(QueryGraph {Arguments: ['collection', 'owner']},RegularQueryProjection(Map(owner -> Variable(owner), collection -> Variable(collection),   FRESHID82 -> PatternExpression(RelationshipsPattern(RelationshipChain(NodePattern(Some(Variable(owner)),List(),None),RelationshipPattern(Some(Variable(  REL90)),List(),None,None,BOTH,false),NodePattern(Some(Variable(  NODE92)),List(),None))))),QueryShuffle(List(),None,None)),Some(RegularPlannerQuery(QueryGraph {Arguments: ['  FRESHID82', 'collection', 'owner'], Predicates: ['`  FRESHID82`']},RegularQueryProjection(Map(owner -> Variable(owner)),QueryShuffle(List(),None,None)),None)))))))""".stripMargin
+      """RegularPlannerQuery(QueryGraph {Nodes: ['owner']},InterestingOrder(List(),List()),AggregatingQueryProjection(Map(owner -> Variable(owner)),Map(xyz -> CountStar()),QueryShuffle(List(),None,None),Selections(Set())),Some(RegularPlannerQuery(QueryGraph {Arguments: ['owner', 'xyz']},InterestingOrder(List(),List()),RegularQueryProjection(Map(owner -> Variable(owner), collection -> GreaterThan(Variable(xyz),SignedDecimalIntegerLiteral(0))),QueryShuffle(List(),None,None),Selections(Set(Predicate(Set(owner,   REL90,   NODE92),FunctionInvocation(Namespace(List()),FunctionName(EXISTS),false,Vector(PatternExpression(RelationshipsPattern(RelationshipChain(NodePattern(Some(Variable(owner)),List(),None,None),RelationshipPattern(Some(Variable(  REL90)),List(),None,None,BOTH,false,None),NodePattern(Some(Variable(  NODE92)),List(),None,None))))),false))))),Some(RegularPlannerQuery(QueryGraph {Arguments: ['collection', 'owner']},InterestingOrder(List(),List()),RegularQueryProjection(Map(owner -> Variable(owner)),QueryShuffle(List(),None,None),Selections(Set())),None)))))"""
     result should equal(expectation)
   }
 
@@ -978,7 +994,7 @@ class StatementConvertersTest extends CypherFunSuite with LogicalPlanningTestSup
     val result = query.toString
 
     val expectation =
-      """RegularPlannerQuery(QueryGraph {Nodes: ['a1', 'b1'], Rels: ['(a1)--[r]->-(b1)']},RegularQueryProjection(Map(r -> Variable(r), a1 -> Variable(a1)),QueryShuffle(List(),None,Some(SignedDecimalIntegerLiteral(1)))),Some(RegularPlannerQuery(QueryGraph {Arguments: ['a1', 'r'], Optional Matches: : ['QueryGraph {Nodes: ['a1', 'b2'], Rels: ['(a1)-<-[r]--(b2)'], Arguments: ['a1', 'r']}']},RegularQueryProjection(Map(a1 -> Variable(a1), r -> Variable(r), b2 -> Variable(b2)),QueryShuffle(List(),None,None)),None)))"""
+      """RegularPlannerQuery(QueryGraph {Nodes: ['a1', 'b1'], Rels: ['(a1)--[r]->-(b1)']},InterestingOrder(List(),List()),RegularQueryProjection(Map(r -> Variable(r), a1 -> Variable(a1)),QueryShuffle(List(),None,Some(SignedDecimalIntegerLiteral(1))),Selections(Set())),Some(RegularPlannerQuery(QueryGraph {Arguments: ['a1', 'r'], Optional Matches: : ['QueryGraph {Nodes: ['a1', 'b2'], Rels: ['(a1)-<-[r]--(b2)'], Arguments: ['a1', 'r']}']},InterestingOrder(List(),List()),RegularQueryProjection(Map(a1 -> Variable(a1), r -> Variable(r), b2 -> Variable(b2)),QueryShuffle(List(),None,None),Selections(Set())),None)))"""
 
     result should equal(expectation)
   }
@@ -990,7 +1006,7 @@ class StatementConvertersTest extends CypherFunSuite with LogicalPlanningTestSup
     val result = query.toString
 
     val expectation =
-      """RegularPlannerQuery(QueryGraph {Nodes: ['a1', 'b1'], Rels: ['(a1)--[r]->-(b1)']},RegularQueryProjection(Map(r -> Variable(r), a1 -> Variable(a1)),QueryShuffle(List(),None,Some(SignedDecimalIntegerLiteral(1)))),Some(RegularPlannerQuery(QueryGraph {Arguments: ['a1', 'r'], Optional Matches: : ['QueryGraph {Nodes: ['a2', 'b2'], Rels: ['(a2)-<-[r]--(b2)'], Arguments: ['a1', 'r'], Predicates: ['a1 = a2']}']},RegularQueryProjection(Map(a1 -> Variable(a1), r -> Variable(r), b2 -> Variable(b2), a2 -> Variable(a2)),QueryShuffle(List(),None,None)),None)))"""
+      """RegularPlannerQuery(QueryGraph {Nodes: ['a1', 'b1'], Rels: ['(a1)--[r]->-(b1)']},InterestingOrder(List(),List()),RegularQueryProjection(Map(r -> Variable(r), a1 -> Variable(a1)),QueryShuffle(List(),None,Some(SignedDecimalIntegerLiteral(1))),Selections(Set())),Some(RegularPlannerQuery(QueryGraph {Arguments: ['a1', 'r'], Optional Matches: : ['QueryGraph {Nodes: ['a2', 'b2'], Rels: ['(a2)-<-[r]--(b2)'], Arguments: ['a1', 'r'], Predicates: ['a1 = a2']}']},InterestingOrder(List(),List()),RegularQueryProjection(Map(a1 -> Variable(a1), r -> Variable(r), b2 -> Variable(b2), a2 -> Variable(a2)),QueryShuffle(List(),None,None),Selections(Set())),None)))"""
 
     result should equal(expectation)
   }
@@ -1023,6 +1039,17 @@ class StatementConvertersTest extends CypherFunSuite with LogicalPlanningTestSup
     tail.queryGraph.patternNodes should equal(Set("x", "d"))
 
     tail.queryGraph.optionalMatches should be (empty)
+  }
+
+  test("OPTIONAL MATCH with dependency on shortest path") {
+    val query = buildPlannerQuery("MATCH p=shortestPath( (a)-[r*]-(a0) ) OPTIONAL MATCH (a)--(b) WHERE b <> head(nodes(p)) RETURN p")
+
+    query.queryGraph.patternNodes should equal(Set("a", "a0"))
+    query.queryGraph.patternRelationships should equal(Set.empty)
+
+    val optionalMatch = query.queryGraph.optionalMatches(0)
+
+    optionalMatch.argumentIds should equal(Set("a", "p"))
   }
 
   def relType(name: String): RelTypeName = RelTypeName(name)_

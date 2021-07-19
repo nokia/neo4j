@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,8 +20,8 @@
 package org.neo4j.cypher.internal.compiler.v3_5.spi
 
 import org.neo4j.cypher.internal.planner.v3_5.spi._
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
-import org.neo4j.cypher.internal.util.v3_5._
+import org.neo4j.cypher.internal.v3_5.util._
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
 
 import scala.language.reflectiveCalls
 
@@ -29,7 +29,7 @@ class GraphStatisticsSnapshotTest extends CypherFunSuite {
 
   private val label2 = LabelId(2)
   private val label4 = LabelId(4)
-  private val index = IndexDescriptor(LabelId(0), PropertyKeyId(3))
+  private val index = IndexDescriptor(LabelId(0), Seq(PropertyKeyId(3)))
 
   test("records queries and its observed values") {
     val snapshot = new MutableGraphStatisticsSnapshot()
@@ -43,7 +43,7 @@ class GraphStatisticsSnapshotTest extends CypherFunSuite {
       relCardinality = relationships, labeledNodes = nodesWithLabel)
     val instrumentedStatistics = InstrumentedGraphStatistics(statistics, snapshot)
     instrumentedStatistics.nodesAllCardinality()
-    instrumentedStatistics.indexSelectivity(index)
+    instrumentedStatistics.uniqueValueSelectivity(index)
     instrumentedStatistics.nodesWithLabelCardinality(Some(label4))
     instrumentedStatistics.cardinalityByLabelsAndRelationshipType(Some(label2), None, None)
 
@@ -59,7 +59,7 @@ class GraphStatisticsSnapshotTest extends CypherFunSuite {
     val snapshot = new MutableGraphStatisticsSnapshot()
     val instrumentedStatistics = InstrumentedGraphStatistics(graphStatistics(), snapshot)
     instrumentedStatistics.nodesAllCardinality()
-    instrumentedStatistics.indexSelectivity(index)
+    instrumentedStatistics.uniqueValueSelectivity(index)
     instrumentedStatistics.nodesWithLabelCardinality(Some(label4))
     instrumentedStatistics.cardinalityByLabelsAndRelationshipType(Some(label2), None, None)
     instrumentedStatistics.cardinalityByLabelsAndRelationshipType(None, Some(RelTypeId(1)), Some(label2))
@@ -70,7 +70,7 @@ class GraphStatisticsSnapshotTest extends CypherFunSuite {
     val instrumentedStatistics2 = InstrumentedGraphStatistics(statistics, snapshot2)
     instrumentedStatistics2.cardinalityByLabelsAndRelationshipType(None, Some(RelTypeId(1)), Some(label2))
     instrumentedStatistics2.cardinalityByLabelsAndRelationshipType(Some(label2), None, None)
-    instrumentedStatistics2.indexSelectivity(index)
+    instrumentedStatistics2.uniqueValueSelectivity(index)
     instrumentedStatistics2.nodesAllCardinality()
     instrumentedStatistics2.nodesWithLabelCardinality(Some(label4))
 
@@ -99,7 +99,7 @@ class GraphStatisticsSnapshotTest extends CypherFunSuite {
     val statistics = graphStatistics()
     val instrumentedStatistics1 = InstrumentedGraphStatistics(statistics, snapshot1)
     instrumentedStatistics1.nodesAllCardinality()
-    instrumentedStatistics1.indexSelectivity(index)
+    instrumentedStatistics1.uniqueValueSelectivity(index)
     instrumentedStatistics1.nodesWithLabelCardinality(Some(label4))
 
     val snapshot2 = new MutableGraphStatisticsSnapshot()
@@ -108,7 +108,7 @@ class GraphStatisticsSnapshotTest extends CypherFunSuite {
     instrumentedStatistics2.nodesWithLabelCardinality(Some(label4))
 
     statistics.factor(2)
-    instrumentedStatistics2.indexSelectivity(index)
+    instrumentedStatistics2.uniqueValueSelectivity(index)
 
     val frozen1 = snapshot1.freeze
     val frozen2 = snapshot2.freeze
@@ -119,12 +119,78 @@ class GraphStatisticsSnapshotTest extends CypherFunSuite {
     frozen1.diverges(frozen2, bigNumber) should equal(false)
   }
 
+  test("0 selectivity values should not lead to wrong divergences") {
+    val snapshot1 = new MutableGraphStatisticsSnapshot()
+    val statistics = graphStatistics(idxSelectivity = 0, idxPropertyExistsSelectivity = 0)
+    val instrumentedStatistics1 = InstrumentedGraphStatistics(statistics, snapshot1)
+    instrumentedStatistics1.nodesAllCardinality()
+    instrumentedStatistics1.uniqueValueSelectivity(index)
+    instrumentedStatistics1.nodesWithLabelCardinality(Some(label4))
+
+    val snapshot2 = new MutableGraphStatisticsSnapshot()
+    val instrumentedStatistics2 = InstrumentedGraphStatistics(statistics, snapshot2)
+    statistics.factor(2)
+    instrumentedStatistics2.nodesAllCardinality()
+    instrumentedStatistics2.nodesWithLabelCardinality(Some(label4))
+    instrumentedStatistics2.uniqueValueSelectivity(index)
+
+    val frozen1 = snapshot1.freeze
+    val frozen2 = snapshot2.freeze
+    val smallNumber = 0.1
+
+    frozen1.diverges(frozen2, smallNumber) should equal(true)
+  }
+
+  test("0 label cardinality values should not lead to wrong divergences") {
+    val snapshot1 = new MutableGraphStatisticsSnapshot()
+    val statistics = graphStatistics(labeledNodes = 0)
+    val instrumentedStatistics1 = InstrumentedGraphStatistics(statistics, snapshot1)
+    instrumentedStatistics1.nodesAllCardinality()
+    instrumentedStatistics1.uniqueValueSelectivity(index)
+    instrumentedStatistics1.nodesWithLabelCardinality(Some(label4))
+
+    val snapshot2 = new MutableGraphStatisticsSnapshot()
+    val instrumentedStatistics2 = InstrumentedGraphStatistics(statistics, snapshot2)
+    statistics.factor(2)
+    instrumentedStatistics2.nodesAllCardinality()
+    instrumentedStatistics2.nodesWithLabelCardinality(Some(label4))
+    instrumentedStatistics2.uniqueValueSelectivity(index)
+
+    val frozen1 = snapshot1.freeze
+    val frozen2 = snapshot2.freeze
+    val smallNumber = 0.1
+
+    frozen1.diverges(frozen2, smallNumber) should equal(true)
+  }
+
+  test("0 all nodes cardinality values should not lead to wrong divergences") {
+    val snapshot1 = new MutableGraphStatisticsSnapshot()
+    val statistics = graphStatistics(allNodes = 0)
+    val instrumentedStatistics1 = InstrumentedGraphStatistics(statistics, snapshot1)
+    instrumentedStatistics1.nodesAllCardinality()
+    instrumentedStatistics1.uniqueValueSelectivity(index)
+    instrumentedStatistics1.nodesWithLabelCardinality(Some(label4))
+
+    val snapshot2 = new MutableGraphStatisticsSnapshot()
+    val instrumentedStatistics2 = InstrumentedGraphStatistics(statistics, snapshot2)
+    statistics.factor(2)
+    instrumentedStatistics2.nodesAllCardinality()
+    instrumentedStatistics2.nodesWithLabelCardinality(Some(label4))
+    instrumentedStatistics2.uniqueValueSelectivity(index)
+
+    val frozen1 = snapshot1.freeze
+    val frozen2 = snapshot2.freeze
+    val smallNumber = 0.1
+
+    frozen1.diverges(frozen2, smallNumber) should equal(true)
+  }
+
   test("if threshold is 1.0 nothing diverges") {
     val snapshot1 = new MutableGraphStatisticsSnapshot()
     val statistics = graphStatistics()
     val instrumentedStatistics1 = InstrumentedGraphStatistics(statistics, snapshot1)
     instrumentedStatistics1.nodesAllCardinality()
-    instrumentedStatistics1.indexSelectivity(index)
+    instrumentedStatistics1.uniqueValueSelectivity(index)
     instrumentedStatistics1.nodesWithLabelCardinality(Some(label4))
 
     val snapshot2 = new MutableGraphStatisticsSnapshot()
@@ -133,7 +199,7 @@ class GraphStatisticsSnapshotTest extends CypherFunSuite {
     instrumentedStatistics2.nodesWithLabelCardinality(Some(label4))
 
     statistics.factor(Long.MaxValue)
-    instrumentedStatistics2.indexSelectivity(index)
+    instrumentedStatistics2.uniqueValueSelectivity(index)
 
     val frozen1 = snapshot1.freeze
     val frozen2 = snapshot2.freeze
@@ -156,7 +222,7 @@ class GraphStatisticsSnapshotTest extends CypherFunSuite {
     def cardinalityByLabelsAndRelationshipType(fromLabel: Option[LabelId], relTypeId: Option[RelTypeId], toLabel: Option[LabelId]): Cardinality =
       Cardinality(relCardinality * _factor)
 
-    def indexSelectivity(index: IndexDescriptor): Option[Selectivity] = {
+    def uniqueValueSelectivity(index: IndexDescriptor): Option[Selectivity] = {
       Selectivity.of(idxSelectivity / _factor)
     }
 

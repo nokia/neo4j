@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -43,23 +44,23 @@ import org.neo4j.helpers.ArrayUtil;
 import org.neo4j.helpers.Exceptions;
 import org.neo4j.helpers.Strings;
 import org.neo4j.helpers.collection.IterableWrapper;
-import org.neo4j.helpers.collection.MapUtil;
 import org.neo4j.io.IOUtils;
 import org.neo4j.io.fs.DefaultFileSystemAbstraction;
 import org.neo4j.io.fs.FileSystemAbstraction;
 import org.neo4j.io.fs.FileUtils;
+import org.neo4j.io.layout.DatabaseLayout;
 import org.neo4j.io.os.OsBeanUtil;
 import org.neo4j.kernel.configuration.Config;
 import org.neo4j.kernel.configuration.Settings;
-import org.neo4j.kernel.impl.logging.LogService;
-import org.neo4j.kernel.impl.logging.StoreLogService;
 import org.neo4j.kernel.impl.store.format.RecordFormatSelector;
 import org.neo4j.kernel.impl.util.Converters;
-import org.neo4j.kernel.impl.scheduler.CentralJobScheduler;
 import org.neo4j.kernel.impl.util.Validator;
 import org.neo4j.kernel.impl.util.Validators;
 import org.neo4j.kernel.internal.Version;
 import org.neo4j.kernel.lifecycle.LifeSupport;
+import org.neo4j.logging.internal.LogService;
+import org.neo4j.logging.internal.StoreLogService;
+import org.neo4j.scheduler.JobScheduler;
 import org.neo4j.unsafe.impl.batchimport.BatchImporter;
 import org.neo4j.unsafe.impl.batchimport.BatchImporterFactory;
 import org.neo4j.unsafe.impl.batchimport.cache.idmapping.string.DuplicateInputIdException;
@@ -80,7 +81,6 @@ import org.neo4j.unsafe.impl.batchimport.staging.SpectrumExecutionMonitor;
 import static java.lang.String.format;
 import static java.nio.charset.Charset.defaultCharset;
 import static java.util.Arrays.asList;
-import static org.neo4j.graphdb.factory.GraphDatabaseSettings.logs_directory;
 import static org.neo4j.graphdb.factory.GraphDatabaseSettings.store_internal_log_path;
 import static org.neo4j.helpers.Exceptions.throwIfUnchecked;
 import static org.neo4j.helpers.Format.bytes;
@@ -89,6 +89,7 @@ import static org.neo4j.helpers.TextUtil.tokenizeStringWithQuotes;
 import static org.neo4j.io.ByteUnit.mebiBytes;
 import static org.neo4j.io.fs.FileUtils.readTextFile;
 import static org.neo4j.kernel.configuration.Settings.parseLongWithUnit;
+import static org.neo4j.kernel.impl.scheduler.JobSchedulerFactory.createScheduler;
 import static org.neo4j.kernel.impl.store.PropertyType.EMPTY_BYTE_ARRAY;
 import static org.neo4j.kernel.impl.util.Converters.withDefault;
 import static org.neo4j.unsafe.impl.batchimport.AdditionalInitialIds.EMPTY;
@@ -204,7 +205,7 @@ public class ImportTool
         BAD_TOLERANCE( "bad-tolerance", 1000,
                 "<max number of bad entries, or " + UNLIMITED + " for unlimited>",
                 "Number of bad entries before the import is considered failed. This tolerance threshold is "
-                        + "about relationships refering to missing nodes. Format errors in input data are "
+                        + "about relationships referring to missing nodes. Format errors in input data are "
                         + "still treated as errors" ),
         SKIP_BAD_ENTRIES_LOGGING( "skip-bad-entries-logging", Boolean.FALSE, "<true/false>",
                 "Whether or not to skip logging bad entries detected during import." ),
@@ -214,7 +215,7 @@ public class ImportTool
                         + "start or end node id/group referring to node that wasn't specified by the "
                         + "node input data. "
                         + "Skipped nodes will be logged"
-                        + ", containing at most number of entites specified by " + BAD_TOLERANCE.key() + ", unless "
+                        + ", containing at most number of entities specified by " + BAD_TOLERANCE.key() + ", unless "
                         + "otherwise specified by " + SKIP_BAD_ENTRIES_LOGGING.key() + " option." ),
         SKIP_DUPLICATE_NODES( "skip-duplicate-nodes", Boolean.FALSE,
                 "<true/false>",
@@ -416,7 +417,6 @@ public class ImportTool
         OutputStream badOutput = null;
         IdType idType;
         org.neo4j.unsafe.impl.batchimport.Configuration configuration;
-        File logsDir;
         File badFile = null;
         Long maxMemory;
         Boolean defaultHighIO;
@@ -429,9 +429,6 @@ public class ImportTool
 
             storeDir = args.interpretOption( Options.STORE_DIR.key(), Converters.mandatory(),
                     Converters.toFile(), Validators.DIRECTORY_IS_WRITABLE );
-            Config config = Config.defaults( GraphDatabaseSettings.neo4j_home, storeDir.getAbsolutePath() );
-            logsDir = config.get( GraphDatabaseSettings.logs_directory );
-            fs.mkdirs( logsDir );
 
             skipBadEntriesLogging = args.getBoolean( Options.SKIP_BAD_ENTRIES_LOGGING.key(),
                     (Boolean) Options.SKIP_BAD_ENTRIES_LOGGING.defaultValue(), false);
@@ -469,6 +466,7 @@ public class ImportTool
                     Converters.toFile(), Validators.REGEX_FILE_EXISTS ) );
             dbConfig.augment( loadDbConfig( args.interpretOption( Options.ADDITIONAL_CONFIG.key(), Converters.optional(),
                     Converters.toFile(), Validators.REGEX_FILE_EXISTS ) ) );
+            dbConfig.augment( GraphDatabaseSettings.neo4j_home, storeDir.getCanonicalFile().getParentFile().getAbsolutePath() );
             boolean allowCacheOnHeap = args.getBoolean( Options.CACHE_ON_HEAP.key(),
                     (Boolean) Options.CACHE_ON_HEAP.defaultValue() );
             configuration = importConfiguration(
@@ -476,11 +474,12 @@ public class ImportTool
                     allowCacheOnHeap, defaultHighIO );
             input = new CsvInput( nodeData( inputEncoding, nodesFiles ), defaultFormatNodeFileHeader(),
                     relationshipData( inputEncoding, relationshipsFiles ), defaultFormatRelationshipFileHeader(),
-                    idType, csvConfiguration( args, defaultSettingsSuitableForTests ), badCollector );
+                    idType, csvConfiguration( args, defaultSettingsSuitableForTests ), badCollector,
+                    new CsvInput.PrintingMonitor( out ) );
             in = defaultSettingsSuitableForTests ? new ByteArrayInputStream( EMPTY_BYTE_ARRAY ) : System.in;
             boolean detailedPrinting = args.getBoolean( Options.DETAILED_PROGRESS.key(), (Boolean) Options.DETAILED_PROGRESS.defaultValue() );
 
-            doImport( out, err, in, storeDir, logsDir, badFile, fs, nodesFiles, relationshipsFiles,
+            doImport( out, err, in, DatabaseLayout.of( storeDir ), badFile, fs, nodesFiles, relationshipsFiles,
                     enableStacktrace, input, dbConfig, badOutput, configuration, detailedPrinting );
 
             success = true;
@@ -489,7 +488,7 @@ public class ImportTool
         {
             throw andPrintError( "Input error", e, false, err );
         }
-        catch ( IOException e )
+        catch ( IOException | UncheckedIOException e )
         {
             throw andPrintError( "File error", e, false, err );
         }
@@ -523,7 +522,7 @@ public class ImportTool
     public static String[] parseFileArgumentList( File file ) throws IOException
     {
         List<String> arguments = new ArrayList<>();
-        readTextFile( file, line -> arguments.addAll( asList( tokenizeStringWithQuotes( line, true, true ) ) ) );
+        readTextFile( file, line -> arguments.addAll( asList( tokenizeStringWithQuotes( line, true, true, false ) ) ) );
         return arguments.toArray( new String[arguments.size()] );
     }
 
@@ -549,7 +548,7 @@ public class ImportTool
         return null;
     }
 
-    public static void doImport( PrintStream out, PrintStream err, InputStream in, File storeDir, File logsDir, File badFile,
+    public static void doImport( PrintStream out, PrintStream err, InputStream in, DatabaseLayout databaseLayout, File badFile,
                                  FileSystemAbstraction fs, Collection<Option<File[]>> nodesFiles,
                                  Collection<Option<File[]>> relationshipsFiles, boolean enableStacktrace, Input input,
                                  Config dbConfig, OutputStream badOutput,
@@ -558,16 +557,15 @@ public class ImportTool
         boolean success;
         LifeSupport life = new LifeSupport();
 
-        dbConfig.augment( logs_directory, logsDir.getCanonicalPath() );
         File internalLogFile = dbConfig.get( store_internal_log_path );
         LogService logService = life.add( StoreLogService.withInternalLog( internalLogFile ).build( fs ) );
-        final CentralJobScheduler jobScheduler = life.add( new CentralJobScheduler() );
+        final JobScheduler jobScheduler = life.add( createScheduler() );
 
         life.start();
         ExecutionMonitor executionMonitor = detailedProgress
                         ? new SpectrumExecutionMonitor( 2, TimeUnit.SECONDS, out, SpectrumExecutionMonitor.DEFAULT_WIDTH )
                         : ExecutionMonitors.defaultVisible( in, jobScheduler );
-        BatchImporter importer = BatchImporterFactory.withHighestPriority().instantiate( storeDir,
+        BatchImporter importer = BatchImporterFactory.withHighestPriority().instantiate( databaseLayout,
                 fs,
                 null, // no external page cache
                 configuration,
@@ -575,8 +573,8 @@ public class ImportTool
                 EMPTY,
                 dbConfig,
                 RecordFormatSelector.selectForConfig( dbConfig, logService.getInternalLogProvider() ),
-                new PrintingImportLogicMonitor( out, err ) );
-        printOverview( storeDir, nodesFiles, relationshipsFiles, configuration, out );
+                new PrintingImportLogicMonitor( out, err ), jobScheduler );
+        printOverview( databaseLayout.databaseDirectory(), nodesFiles, relationshipsFiles, configuration, out );
         success = false;
         try
         {
@@ -607,7 +605,7 @@ public class ImportTool
 
             if ( !success )
             {
-                err.println( "WARNING Import failed. The store files in " + storeDir.getAbsolutePath() +
+                err.println( "WARNING Import failed. The store files in " + databaseLayout.databaseDirectory().getAbsolutePath() +
                         " are left as they are, although they are likely in an unusable state. " +
                         "Starting a database on these store files will likely fail or observe inconsistent records so " +
                         "start at your own risk or delete the store manually" );
@@ -619,8 +617,8 @@ public class ImportTool
     {
         return args
                 .interpretOptionsWithMetadata( key, Converters.optional(),
-                        Converters.toFiles( MULTI_FILE_DELIMITER, Converters.regexFiles( true ) ), filesExist(
-                                err ),
+                        Converters.toFiles( MULTI_FILE_DELIMITER, Converters.regexFiles( true ) ),
+                        filesExist( err ),
                         Validators.atLeast( "--" + key, 1 ) );
     }
 
@@ -655,9 +653,9 @@ public class ImportTool
         return UNLIMITED.equals( value ) ? BadCollector.UNLIMITED_TOLERANCE : Long.parseLong( value );
     }
 
-    private static Config loadDbConfig( File file ) throws IOException
+    private static Config loadDbConfig( File file )
     {
-        return file != null && file.exists() ? Config.defaults( MapUtil.load( file ) ) : Config.defaults();
+        return Config.fromFile( file ).build();
     }
 
     static void printOverview( File storeDir, Collection<Option<File[]>> nodesFiles,

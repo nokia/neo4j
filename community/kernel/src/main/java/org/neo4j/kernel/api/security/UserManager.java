@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,6 +20,7 @@
 package org.neo4j.kernel.api.security;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Set;
 
 import org.neo4j.kernel.api.exceptions.InvalidArgumentsException;
@@ -28,8 +29,12 @@ import org.neo4j.kernel.impl.security.User;
 public interface UserManager
 {
     String INITIAL_USER_NAME = "neo4j";
+    String INITIAL_PASSWORD = "neo4j";
 
-    User newUser( String username, String initialPassword, boolean requirePasswordChange )
+    /**
+     * NOTE: The initialPassword byte array will be cleared (overwritten with zeroes)
+     */
+    User newUser( String username, byte[] initialPassword, boolean requirePasswordChange )
             throws IOException, InvalidArgumentsException;
 
     boolean deleteUser( String username ) throws IOException, InvalidArgumentsException;
@@ -38,7 +43,10 @@ public interface UserManager
 
     User silentlyGetUser( String username );
 
-    void setUserPassword( String username, String password, boolean requirePasswordChange )
+    /**
+     * NOTE: The password byte array will be cleared (overwritten with zeroes)
+     */
+    void setUserPassword( String username, byte[] password, boolean requirePasswordChange )
             throws IOException, InvalidArgumentsException;
 
     Set<String> getAllUsernames();
@@ -46,8 +54,12 @@ public interface UserManager
     UserManager NO_AUTH = new UserManager()
     {
         @Override
-        public User newUser( String username, String initialPassword, boolean requirePasswordChange )
+        public User newUser( String username, byte[] initialPassword, boolean requirePasswordChange )
         {
+            if ( initialPassword != null )
+            {
+                Arrays.fill( initialPassword, (byte) 0 );
+            }
             return null;
         }
 
@@ -70,8 +82,12 @@ public interface UserManager
         }
 
         @Override
-        public void setUserPassword( String username, String password, boolean requirePasswordChange )
+        public void setUserPassword( String username, byte[] password, boolean requirePasswordChange )
         {
+            if ( password != null )
+            {
+                Arrays.fill( password, (byte) 0 );
+            }
         }
 
         @Override

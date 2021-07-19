@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,7 +19,7 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.ast.convert.plannerQuery
 
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
 import org.neo4j.cypher.internal.compiler.v3_5.planner._
 import org.neo4j.cypher.internal.ir.v3_5._
 import org.neo4j.cypher.internal.v3_5.expressions.SemanticDirection.OUTGOING
@@ -86,9 +86,9 @@ class MutatingStatementConvertersTest extends CypherFunSuite with LogicalPlannin
     ))
 
     query.queryGraph.mutatingPatterns should equal(Seq(
-      CreateNodePattern("a", Seq.empty, None),
-      CreateNodePattern("b", Seq.empty, None),
-      CreateRelationshipPattern("r", "a", RelTypeName("X")(pos), "b", None, SemanticDirection.OUTGOING)
+      CreatePattern(
+        nodes("a", "b"),
+        relationship("r", "a", "X", "b"))
     ))
 
     query.queryGraph.containsReads should be (false)
@@ -101,7 +101,7 @@ class MutatingStatementConvertersTest extends CypherFunSuite with LogicalPlannin
     ))
 
     query.queryGraph.patternNodes should equal(Set("n"))
-    query.queryGraph.mutatingPatterns should equal(Seq(CreateNodePattern("m", Seq.empty, None)))
+    query.queryGraph.mutatingPatterns should equal(Seq(CreatePattern(nodes("m"), Nil)))
 
     val next = query.tail.get
 
@@ -117,7 +117,7 @@ class MutatingStatementConvertersTest extends CypherFunSuite with LogicalPlannin
     val second = query.tail.get
 
     second.queryGraph.patternNodes should equal(Set("n"))
-    second.queryGraph.mutatingPatterns should equal(IndexedSeq(CreateNodePattern("m", Seq.empty, None)))
+    second.queryGraph.mutatingPatterns should equal(IndexedSeq(CreatePattern(nodes("m"), Nil)))
 
     val third = second.tail.get
 
@@ -131,11 +131,20 @@ class MutatingStatementConvertersTest extends CypherFunSuite with LogicalPlannin
     val second = query.tail.get
     second.queryGraph.mutatingPatterns should equal(
       Seq(ForeachPattern("i",
-          ListLiteral(Seq(SignedDecimalIntegerLiteral("1")(pos)))(pos),
-          RegularPlannerQuery(QueryGraph(Set.empty, Set.empty, Set("i"),
-                                         Selections(Set.empty), Vector.empty, Seq.empty, Set.empty,
-                                         IndexedSeq(CreateNodePattern("a", Seq.empty, None))),
-                              RegularQueryProjection(Map("i" -> Variable("i")(pos))), None)))
+        ListLiteral(Seq(SignedDecimalIntegerLiteral("1")(pos)))(pos),
+        RegularPlannerQuery(QueryGraph(Set.empty, Set.empty, Set("i"),
+          Selections(Set.empty), Vector.empty, Seq.empty, Set.empty,
+          IndexedSeq(CreatePattern(nodes("a"), Nil))),
+          InterestingOrder.empty,
+          RegularQueryProjection(Map("i" -> Variable("i")(pos))), None)))
     )
+  }
+
+  private def nodes(names: String*) = {
+    names.map(name => CreateNode(name, Seq.empty, None))
+  }
+
+  private def relationship(name: String, startNode: String, relType:String, endNode: String) = {
+    List(CreateRelationship(name, startNode, RelTypeName(relType)(pos), endNode, SemanticDirection.OUTGOING, None))
   }
 }

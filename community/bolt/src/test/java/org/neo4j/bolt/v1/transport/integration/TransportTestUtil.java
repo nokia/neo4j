@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,6 +19,7 @@
  */
 package org.neo4j.bolt.v1.transport.integration;
 
+import org.eclipse.jetty.websocket.api.WebSocketException;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
@@ -30,9 +31,9 @@ import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 
-import org.neo4j.bolt.v1.messaging.Neo4jPack;
-import org.neo4j.bolt.v1.messaging.message.RequestMessage;
-import org.neo4j.bolt.v1.messaging.message.ResponseMessage;
+import org.neo4j.bolt.messaging.Neo4jPack;
+import org.neo4j.bolt.messaging.RequestMessage;
+import org.neo4j.bolt.messaging.ResponseMessage;
 import org.neo4j.bolt.v1.transport.socket.client.TransportConnection;
 import org.neo4j.function.Predicates;
 
@@ -43,11 +44,18 @@ import static org.neo4j.bolt.v1.messaging.util.MessageMatchers.serialize;
 
 public class TransportTestUtil
 {
-    private final Neo4jPack neo4jPack;
+    protected final Neo4jPack neo4jPack;
+    private final MessageEncoder messageEncoder;
 
     public TransportTestUtil( Neo4jPack neo4jPack )
     {
+        this( neo4jPack, new MessageEncoderV1() );
+    }
+
+    public TransportTestUtil( Neo4jPack neo4jPack, MessageEncoder messageEncoder )
+    {
         this.neo4jPack = neo4jPack;
+        this.messageEncoder = messageEncoder;
     }
 
     public Neo4jPack getNeo4jPack()
@@ -70,7 +78,7 @@ public class TransportTestUtil
         byte[][] serializedMessages = new byte[messages.length][];
         for ( int i = 0; i < messages.length; i++ )
         {
-            serializedMessages[i] = serialize( neo4jPack, messages[i] );
+            serializedMessages[i] = messageEncoder.encode( neo4jPack, messages[i] );
         }
         return chunk( chunkSize, serializedMessages );
     }
@@ -247,8 +255,8 @@ public class TransportTestUtil
                     }
                     catch ( Exception e )
                     {
-                        // take an IOException on send/receive as evidence of disconnection
-                        return e instanceof IOException;
+                        // take an IOException or jetty WebSocketException on send/receive as evidence of disconnection
+                        return e instanceof IOException || e instanceof WebSocketException;
                     }
                     return false;
                 };
@@ -269,5 +277,53 @@ public class TransportTestUtil
                 description.appendText( "Eventually Disconnects" );
             }
         };
+    }
+
+    public static Matcher<TransportConnection> serverImmediatelyDisconnects()
+    {
+        return new TypeSafeMatcher<TransportConnection>()
+        {
+            @Override
+            protected boolean matchesSafely( TransportConnection connection )
+            {
+                try
+                {
+                    connection.recv( 1 );
+                }
+                catch ( Exception e )
+                {
+                    // take an IOException on send/receive as evidence of disconnection
+                    return e instanceof IOException;
+                }
+                return false;
+            }
+
+            @Override
+            public void describeTo( Description description )
+            {
+                description.appendText( "Eventually Disconnects" );
+            }
+        };
+    }
+
+    public interface MessageEncoder
+    {
+        byte[] encode( Neo4jPack neo4jPack, RequestMessage... messages ) throws IOException;
+        byte[] encode( Neo4jPack neo4jPack, ResponseMessage... messages ) throws IOException;
+    }
+
+    private static class MessageEncoderV1 implements MessageEncoder
+    {
+        @Override
+        public byte[] encode( Neo4jPack neo4jPack, RequestMessage... messages ) throws IOException
+        {
+            return serialize( neo4jPack, messages );
+        }
+
+        @Override
+        public byte[] encode( Neo4jPack neo4jPack, ResponseMessage... messages ) throws IOException
+        {
+            return serialize( neo4jPack, messages );
+        }
     }
 }

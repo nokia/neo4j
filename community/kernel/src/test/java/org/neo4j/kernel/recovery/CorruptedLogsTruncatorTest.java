@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -59,29 +59,29 @@ public class CorruptedLogsTruncatorTest
     public final FileSystemRule fileSystemRule = new DefaultFileSystemRule();
     @Rule
     public final LifeRule life = new LifeRule();
-    private File storeDir;
+    private File databaseDirectory;
     private LogFiles logFiles;
     private CorruptedLogsTruncator logPruner;
 
     @Before
     public void setUp() throws Exception
     {
-        storeDir = testDirectory.graphDbDir();
+        databaseDirectory = testDirectory.databaseDir();
         SimpleLogVersionRepository logVersionRepository = new SimpleLogVersionRepository();
         SimpleTransactionIdStore transactionIdStore = new SimpleTransactionIdStore();
-        logFiles = LogFilesBuilder.logFilesBasedOnlyBuilder( storeDir, fileSystemRule )
+        logFiles = LogFilesBuilder.logFilesBasedOnlyBuilder( databaseDirectory, fileSystemRule )
                 .withRotationThreshold( LogHeader.LOG_HEADER_SIZE + 9L )
                 .withLogVersionRepository( logVersionRepository )
                 .withTransactionIdStore( transactionIdStore ).build();
         life.add( logFiles );
-        logPruner = new CorruptedLogsTruncator( storeDir, logFiles, fileSystemRule );
+        logPruner = new CorruptedLogsTruncator( databaseDirectory, logFiles, fileSystemRule );
     }
 
     @Test
     public void doNotPruneEmptyLogs() throws IOException
     {
         logPruner.truncate( LogPosition.start( 0 ) );
-        assertTrue( FileUtils.isEmptyDirectory( storeDir ) );
+        assertTrue( FileUtils.isEmptyDirectory( databaseDirectory ) );
     }
 
     @Test
@@ -99,7 +99,7 @@ public class CorruptedLogsTruncatorTest
 
         assertEquals( TOTAL_NUMBER_OF_LOG_FILES, logFiles.logFiles().length );
         assertEquals( fileSizeBeforePrune, logFiles.getHighestLogFile().length() );
-        assertTrue( ArrayUtil.isEmpty( storeDir.listFiles( File::isDirectory ) ) );
+        assertTrue( ArrayUtil.isEmpty( databaseDirectory.listFiles( File::isDirectory ) ) );
     }
 
     @Test
@@ -120,7 +120,7 @@ public class CorruptedLogsTruncatorTest
         assertEquals( TOTAL_NUMBER_OF_LOG_FILES, logFiles.logFiles().length );
         assertEquals( byteOffset, highestLogFile.length() );
 
-        File corruptedLogsDirectory = new File( storeDir, CorruptedLogsTruncator.CORRUPTED_TX_LOGS_BASE_NAME );
+        File corruptedLogsDirectory = new File( databaseDirectory, CorruptedLogsTruncator.CORRUPTED_TX_LOGS_BASE_NAME );
         assertTrue( corruptedLogsDirectory.exists() );
         File[] files = corruptedLogsDirectory.listFiles();
         assertEquals( 1, files.length );
@@ -154,7 +154,7 @@ public class CorruptedLogsTruncatorTest
         assertEquals( 6, logFiles.logFiles().length );
         assertEquals( byteOffset, highestCorrectLogFile.length() );
 
-        File corruptedLogsDirectory = new File( storeDir, CorruptedLogsTruncator.CORRUPTED_TX_LOGS_BASE_NAME );
+        File corruptedLogsDirectory = new File( databaseDirectory, CorruptedLogsTruncator.CORRUPTED_TX_LOGS_BASE_NAME );
         assertTrue( corruptedLogsDirectory.exists() );
         File[] files = corruptedLogsDirectory.listFiles();
         assertEquals( 1, files.length );

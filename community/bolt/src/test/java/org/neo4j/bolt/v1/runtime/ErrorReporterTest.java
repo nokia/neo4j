@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -23,6 +23,7 @@ import org.junit.Test;
 
 import java.util.UUID;
 
+import org.neo4j.bolt.runtime.Neo4jError;
 import org.neo4j.kernel.api.exceptions.Status;
 import org.neo4j.logging.AssertableLogProvider;
 import org.neo4j.logging.LogProvider;
@@ -68,12 +69,12 @@ public class ErrorReporterTest
         reporter.report( error );
 
         // then
-        userLog.assertContainsLogCallContaining( "Client triggered an unexpected error" );
-        userLog.assertContainsLogCallContaining( reference.toString() );
-        userLog.assertContainsLogCallContaining( "Database error" );
+        userLog.rawMessageMatcher().assertContains( "Client triggered an unexpected error" );
+        userLog.rawMessageMatcher().assertContains( reference.toString() );
+        userLog.rawMessageMatcher().assertContains( "Database error" );
 
-        internalLog.assertContainsLogCallContaining( reference.toString() );
-        internalLog.assertContainsLogCallContaining( "Database error" );
+        internalLog.rawMessageMatcher().assertContains( reference.toString() );
+        internalLog.rawMessageMatcher().assertContains( "Database error" );
     }
 
     private static ErrorReporter newErrorReporter( LogProvider userLog, LogProvider internalLog )

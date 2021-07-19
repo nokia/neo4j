@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -17,7 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 package org.neo4j.kernel.monitoring;
 
 import org.junit.Before;
@@ -27,8 +26,9 @@ import java.util.function.Consumer;
 
 import org.neo4j.kernel.monitoring.VmPauseMonitor.VmPauseInfo;
 import org.neo4j.logging.NullLog;
+import org.neo4j.scheduler.Group;
 import org.neo4j.scheduler.JobScheduler;
-import org.neo4j.scheduler.JobScheduler.JobHandle;
+import org.neo4j.scheduler.JobHandle;
 
 import static java.time.Duration.ofMillis;
 import static java.time.Duration.ofSeconds;
@@ -53,7 +53,7 @@ public class VmPauseMonitorTest
     @Before
     public void setUp()
     {
-        doReturn( jobHandle ).when( jobScheduler ).schedule( any( JobScheduler.Group.class ), any( Runnable.class ) );
+        doReturn( jobHandle ).when( jobScheduler ).schedule( any( Group.class ), any( Runnable.class ) );
     }
 
     @Test
@@ -79,7 +79,7 @@ public class VmPauseMonitorTest
         monitor.start();
         monitor.stop();
 
-        verify( jobScheduler ).schedule( any( JobScheduler.Group.class ), any( Runnable.class ) );
+        verify( jobScheduler ).schedule( any( Group.class ), any( Runnable.class ) );
         verify( jobHandle ).cancel( eq( true ) );
     }
 
@@ -90,7 +90,7 @@ public class VmPauseMonitorTest
         monitor.stop();
         monitor.start();
 
-        verify( jobScheduler, times( 2 ) ).schedule( any( JobScheduler.Group.class ), any( Runnable.class ) );
+        verify( jobScheduler, times( 2 ) ).schedule( any( Group.class ), any( Runnable.class ) );
         verify( jobHandle ).cancel( eq( true ) );
     }
 

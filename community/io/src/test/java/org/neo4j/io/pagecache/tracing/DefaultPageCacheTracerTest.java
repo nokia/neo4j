@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,8 +19,8 @@
  */
 package org.neo4j.io.pagecache.tracing;
 
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.IOException;
@@ -28,16 +28,17 @@ import java.io.IOException;
 import org.neo4j.io.ByteUnit;
 import org.neo4j.io.pagecache.PageSwapper;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertThat;
 
+@SuppressWarnings( "WeakerAccess" ) // This test is accessed in neo4j-jfr.
 public class DefaultPageCacheTracerTest
 {
     private PageCacheTracer tracer;
     private PageSwapper swapper;
 
-    @Before
+    @BeforeEach
     public void setUp()
     {
         tracer = new DefaultPageCacheTracer();
@@ -45,7 +46,7 @@ public class DefaultPageCacheTracerTest
     }
 
     @Test
-    public void mustCountEvictions()
+    void mustCountEvictions()
     {
         try ( EvictionRunEvent evictionRunEvent = tracer.beginPageEvictions( 2 ) )
         {
@@ -79,7 +80,7 @@ public class DefaultPageCacheTracerTest
     }
 
     @Test
-    public void mustCountFileMappingAndUnmapping()
+    void mustCountFileMappingAndUnmapping()
     {
         tracer.mappedFile( new File( "a" ) );
 
@@ -91,7 +92,7 @@ public class DefaultPageCacheTracerTest
     }
 
     @Test
-    public void mustCountFlushes()
+    void mustCountFlushes()
     {
         try ( MajorFlushEvent cacheFlush = tracer.beginCacheFlush() )
         {
@@ -113,7 +114,7 @@ public class DefaultPageCacheTracerTest
     }
 
     @Test
-    public void shouldCalculateHitRatio()
+    void shouldCalculateHitRatio()
     {
         assertThat( "hitRation", tracer.hitRatio(), closeTo( 0d, 0.0001 ) );
         tracer.hits( 3 );
@@ -122,9 +123,9 @@ public class DefaultPageCacheTracerTest
     }
 
     @Test
-    public void usageRatio()
+    void usageRatio()
     {
-        assertThat( tracer.usageRatio(), is( Double.NaN ) );
+        assertThat( tracer.usageRatio(), closeTo( 0d, 0.0001 ) );
         tracer.maxPages( 10 );
         assertThat( tracer.usageRatio(), closeTo( 0d, 0.0001 ) );
         tracer.faults( 5 );
@@ -134,6 +135,9 @@ public class DefaultPageCacheTracerTest
         assertThat( tracer.usageRatio(), closeTo( 0.5, 0.0001 ) );
         tracer.faults( 5 );
         assertThat( tracer.usageRatio(), closeTo( 1d, 0.0001 ) );
+
+        tracer.evictions( 500 );
+        assertThat( tracer.usageRatio(), closeTo( 0d, 0.0001 ) );
     }
 
     private void assertCounts( long pins, long unpins, long hits, long faults, long evictions, long evictionExceptions,

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,16 +20,15 @@
 package org.neo4j.kernel.builtinprocs;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Spliterator;
-import java.util.Spliterators;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongFunction;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import org.neo4j.collection.PrimitiveLongResourceIterator;
 import org.neo4j.graphdb.DependencyResolver;
@@ -40,39 +39,47 @@ import org.neo4j.graphdb.RelationshipType;
 import org.neo4j.graphdb.index.Index;
 import org.neo4j.graphdb.index.IndexManager;
 import org.neo4j.graphdb.index.RelationshipIndex;
+import org.neo4j.helpers.collection.Iterators;
 import org.neo4j.helpers.collection.MapUtil;
 import org.neo4j.helpers.collection.PrefetchingResourceIterator;
-import org.neo4j.internal.kernel.api.CapableIndexReference;
 import org.neo4j.internal.kernel.api.IndexReference;
+import org.neo4j.internal.kernel.api.InternalIndexState;
 import org.neo4j.internal.kernel.api.NodeExplicitIndexCursor;
 import org.neo4j.internal.kernel.api.RelationshipExplicitIndexCursor;
-import org.neo4j.internal.kernel.api.SchemaRead;
+import org.neo4j.internal.kernel.api.SchemaReadCore;
 import org.neo4j.internal.kernel.api.TokenNameLookup;
 import org.neo4j.internal.kernel.api.TokenRead;
 import org.neo4j.internal.kernel.api.exceptions.KernelException;
-import org.neo4j.internal.kernel.api.exceptions.LabelNotFoundKernelException;
 import org.neo4j.internal.kernel.api.exceptions.ProcedureException;
+import org.neo4j.internal.kernel.api.exceptions.schema.IndexNotFoundKernelException;
+import org.neo4j.internal.kernel.api.schema.SchemaDescriptor;
 import org.neo4j.kernel.api.KernelTransaction;
 import org.neo4j.kernel.api.SilentTokenNameLookup;
 import org.neo4j.kernel.api.Statement;
 import org.neo4j.kernel.api.exceptions.Status;
-import org.neo4j.kernel.api.exceptions.index.IndexNotFoundKernelException;
-import org.neo4j.kernel.api.schema.SchemaDescriptorFactory;
 import org.neo4j.kernel.impl.api.TokenAccess;
 import org.neo4j.kernel.impl.api.index.IndexingService;
 import org.neo4j.kernel.internal.GraphDatabaseAPI;
 import org.neo4j.procedure.Context;
 import org.neo4j.procedure.Description;
+import org.neo4j.procedure.Mode;
 import org.neo4j.procedure.Name;
 import org.neo4j.procedure.Procedure;
+import org.neo4j.storageengine.api.EntityType;
+import org.neo4j.storageengine.api.schema.PopulationProgress;
 
 import static org.neo4j.helpers.collection.Iterators.asList;
 import static org.neo4j.procedure.Mode.READ;
+import static org.neo4j.procedure.Mode.SCHEMA;
 import static org.neo4j.procedure.Mode.WRITE;
 
 @SuppressWarnings( {"unused", "WeakerAccess"} )
 public class BuiltInProcedures
 {
+    private static final int NOT_EXISTING_INDEX_ID = -1;
+    public static final String EXPLICIT_INDEX_DEPRECATION = "This procedure is deprecated by the schema and full-text indexes, and will be removed in 4.0.";
+    public static final String DB_SCHEMA_DEPRECATION = "This procedure is deprecated by the db.schema.visualization procedure, and will be removed in 4.0.";
+
     @Context
     public KernelTransaction tx;
 
@@ -116,48 +123,64 @@ public class BuiltInProcedures
         {
             TokenRead tokenRead = tx.tokenRead();
             TokenNameLookup tokens = new SilentTokenNameLookup( tokenRead );
+            IndexingService indexingService = resolver.resolveDependency( IndexingService.class );
 
-            SchemaRead schemaRead = tx.schemaRead();
+            SchemaReadCore schemaRead = tx.schemaRead().snapshot();
             List<IndexReference> indexes = asList( schemaRead.indexesGetAll() );
             indexes.sort( Comparator.comparing( a -> a.userDescription( tokens ) ) );
 
             ArrayList<IndexResult> result = new ArrayList<>();
             for ( IndexReference index : indexes )
             {
-                try
-                {
-                    String type;
-                    if ( index.isUnique() )
-                    {
-                        type = IndexType.NODE_UNIQUE_PROPERTY.typeName();
-                    }
-                    else
-                    {
-                        type = IndexType.NODE_LABEL_PROPERTY.typeName();
-                    }
+                IndexType type = IndexType.getIndexTypeOf( index );
 
-                    String label = tokenRead.nodeLabelName( index.label() );
-                    List<String> propertyNames = propertyNames( tokens, index );
-                    result.add( new IndexResult( "INDEX ON " +
-                                                 SchemaDescriptorFactory.forLabel( index.label(), index.properties() )
-                                                         .userDescription( tokens ), label,
-                            propertyNames,
-                            schemaRead.indexGetState( index ).toString(), type,
-                            indexProviderDescriptorMap( schemaRead.index( index.label(), index.properties() ) ) ) );
-                }
-                catch ( IndexNotFoundKernelException e )
-                {
-                    throw new ProcedureException( Status.Schema.IndexNotFound, e,
-                            "No index on ", index.userDescription( tokens ) );
-                }
-                catch ( LabelNotFoundKernelException e )
-                {
-                    throw new ProcedureException( Status.General.InvalidArguments, e,
-                            "Label not found " );
-                }
+                SchemaDescriptor schema = index.schema();
+                long indexId = getIndexId( indexingService, schema );
+                List<String> tokenNames = Arrays.asList( tokens.entityTokensGetNames( schema.entityType(), schema.getEntityTokenIds() ) );
+                List<String> propertyNames = propertyNames( tokens, index );
+                String description = "INDEX ON " + schema.userDescription( tokens );
+                IndexStatus status = getIndexStatus( schemaRead, index );
+                Map<String,String> providerDescriptorMap = indexProviderDescriptorMap( schemaRead.index( schema ) );
+                result.add( new IndexResult( indexId,
+                        description,
+                        index.name(),
+                        tokenNames,
+                        propertyNames,
+                        status.state,
+                        type.typeName(),
+                        status.populationProgress,
+                        providerDescriptorMap,
+                        status.failureMessage ) );
             }
             return result.stream();
         }
+    }
+
+    private static IndexStatus getIndexStatus( SchemaReadCore schemaRead, IndexReference index )
+    {
+        IndexStatus status = new IndexStatus();
+        try
+        {
+            InternalIndexState internalIndexState = schemaRead.indexGetState( index );
+            status.state = internalIndexState.toString();
+            PopulationProgress progress = schemaRead.indexGetPopulationProgress( index );
+            status.populationProgress = progress.toIndexPopulationProgress().getCompletedPercentage();
+            status.failureMessage = internalIndexState == InternalIndexState.FAILED ? schemaRead.indexGetFailure( index ) : "";
+        }
+        catch ( IndexNotFoundKernelException e )
+        {
+            status.state = "NOT FOUND";
+            status.populationProgress = 0;
+            status.failureMessage = "Index not found. It might have been concurrently dropped.";
+        }
+        return status;
+    }
+
+    private static class IndexStatus
+    {
+        String state;
+        String failureMessage;
+        float populationProgress;
     }
 
     @Description( "Wait for an index to come online (for example: CALL db.awaitIndex(\":Person(name)\"))." )
@@ -168,7 +191,7 @@ public class BuiltInProcedures
     {
         try ( IndexProcedures indexProcedures = indexProcedures() )
         {
-            indexProcedures.awaitIndex( index, timeout, TimeUnit.SECONDS );
+            indexProcedures.awaitIndexByPattern( index, timeout, TimeUnit.SECONDS );
         }
     }
 
@@ -199,9 +222,31 @@ public class BuiltInProcedures
         }
     }
 
+    @Procedure( name = "db.schema.nodeTypeProperties", mode = Mode.READ )
+    @Description( "Show the derived property schema of the nodes in tabular form." )
+    public Stream<NodePropertySchemaInfoResult> nodePropertySchema()
+    {
+        return new SchemaCalculator( tx ).calculateTabularResultStreamForNodes();
+    }
+
+    @Procedure( name = "db.schema.relTypeProperties", mode = Mode.READ )
+    @Description( "Show the derived property schema of the relationships in tabular form." )
+    public Stream<RelationshipPropertySchemaInfoResult> relationshipPropertySchema()
+    {
+        return new SchemaCalculator( tx ).calculateTabularResultStreamForRels();
+    }
+
+    @Deprecated
     @Description( "Show the schema of the data." )
-    @Procedure( name = "db.schema", mode = READ )
-    public Stream<SchemaProcedure.GraphResult> metaGraph()
+    @Procedure( name = "db.schema", mode = READ, deprecatedBy = DB_SCHEMA_DEPRECATION )
+    public Stream<SchemaProcedure.GraphResult> schema()
+    {
+        return schemaVisualization();
+    }
+
+    @Description( "Visualize the schema of the data. Replaces db.schema." )
+    @Procedure( name = "db.schema.visualization", mode = READ )
+    public Stream<SchemaProcedure.GraphResult> schemaVisualization()
     {
         return Stream.of( new SchemaProcedure( graphDatabaseAPI, tx ).buildSchemaGraph() );
     }
@@ -211,7 +256,7 @@ public class BuiltInProcedures
     public Stream<ConstraintResult> listConstraints()
     {
 
-        SchemaRead schemaRead = tx.schemaRead();
+        SchemaReadCore schemaRead = tx.schemaRead().snapshot();
         TokenNameLookup tokens = new SilentTokenNameLookup( tx.tokenRead() );
 
         return asList( schemaRead.constraintsGetAll() )
@@ -221,8 +266,38 @@ public class BuiltInProcedures
                 .map( ConstraintResult::new );
     }
 
+    @Description( "Create a schema index with specified index provider (for example: CALL db.createIndex(\":Person(name)\", \"lucene+native-2.0\")) - " +
+            "YIELD index, providerName, status" )
+    @Procedure( name = "db.createIndex", mode = SCHEMA )
+    public Stream<SchemaIndexInfo> createIndex(
+            @Name( "index" ) String index,
+            @Name( "providerName" ) String providerName )
+            throws ProcedureException
+    {
+        try ( IndexProcedures indexProcedures = indexProcedures() )
+        {
+            return indexProcedures.createIndex( index, providerName );
+        }
+    }
+
+    @Description( "Create a unique property constraint with index backed by specified index provider " +
+            "(for example: CALL db.createUniquePropertyConstraint(\":Person(name)\", \"lucene+native-2.0\")) - " +
+            "YIELD index, providerName, status" )
+    @Procedure( name = "db.createUniquePropertyConstraint", mode = SCHEMA )
+    public Stream<BuiltInProcedures.SchemaIndexInfo> createUniquePropertyConstraint(
+            @Name( "index" ) String index,
+            @Name( "providerName" ) String providerName )
+            throws ProcedureException
+    {
+        try ( IndexProcedures indexProcedures = indexProcedures() )
+        {
+            return indexProcedures.createUniquePropertyConstraint( index, providerName );
+        }
+    }
+
+    @Deprecated
     @Description( "Get node from explicit index. Replaces `START n=node:nodes(key = 'A')`" )
-    @Procedure( name = "db.index.explicit.seekNodes", mode = READ )
+    @Procedure( name = "db.index.explicit.seekNodes", mode = READ, deprecatedBy = EXPLICIT_INDEX_DEPRECATION )
     public Stream<NodeResult> nodeManualIndexSeek( @Name( "indexName" ) String explicitIndexName,
             @Name( "key" ) String key,
             @Name( "value" ) Object value )
@@ -243,8 +318,9 @@ public class BuiltInProcedures
 
     }
 
+    @Deprecated
     @Description( "Search nodes in explicit index. Replaces `START n=node:nodes('key:foo*')`" )
-    @Procedure( name = "db.index.explicit.searchNodes", mode = READ )
+    @Procedure( name = "db.index.explicit.searchNodes", mode = READ, deprecatedBy = EXPLICIT_INDEX_DEPRECATION )
     public Stream<WeightedNodeResult> nodeManualIndexSearch( @Name( "indexName" ) String manualIndexName,
             @Name( "query" ) Object query )
             throws ProcedureException
@@ -262,8 +338,9 @@ public class BuiltInProcedures
         }
     }
 
+    @Deprecated
     @Description( "Get relationship from explicit index. Replaces `START r=relationship:relIndex(key = 'A')`" )
-    @Procedure( name = "db.index.explicit.seekRelationships", mode = READ )
+    @Procedure( name = "db.index.explicit.seekRelationships", mode = READ, deprecatedBy = EXPLICIT_INDEX_DEPRECATION )
     public Stream<RelationshipResult> relationshipManualIndexSeek( @Name( "indexName" ) String manualIndexName,
             @Name( "key" ) String key,
             @Name( "value" ) Object value )
@@ -283,8 +360,9 @@ public class BuiltInProcedures
         }
     }
 
+    @Deprecated
     @Description( "Search relationship in explicit index. Replaces `START r=relationship:relIndex('key:foo*')`" )
-    @Procedure( name = "db.index.explicit.searchRelationships", mode = READ )
+    @Procedure( name = "db.index.explicit.searchRelationships", mode = READ, deprecatedBy = EXPLICIT_INDEX_DEPRECATION )
     public Stream<WeightedRelationshipResult> relationshipManualIndexSearch(
             @Name( "indexName" ) String manualIndexName,
             @Name( "query" ) Object query )
@@ -303,8 +381,9 @@ public class BuiltInProcedures
         }
     }
 
+    @Deprecated
     @Description( "Search relationship in explicit index, starting at the node 'in'." )
-    @Procedure( name = "db.index.explicit.searchRelationshipsIn", mode = READ )
+    @Procedure( name = "db.index.explicit.searchRelationshipsIn", mode = READ, deprecatedBy = EXPLICIT_INDEX_DEPRECATION )
     public Stream<WeightedRelationshipResult> relationshipManualIndexSearchWithBoundStartNode(
             @Name( "indexName" ) String indexName,
             @Name( "in" ) Node in,
@@ -325,8 +404,9 @@ public class BuiltInProcedures
         }
     }
 
+    @Deprecated
     @Description( "Search relationship in explicit index, ending at the node 'out'." )
-    @Procedure( name = "db.index.explicit.searchRelationshipsOut", mode = READ )
+    @Procedure( name = "db.index.explicit.searchRelationshipsOut", mode = READ, deprecatedBy = EXPLICIT_INDEX_DEPRECATION )
     public Stream<WeightedRelationshipResult> relationshipManualIndexSearchWithBoundEndNode(
             @Name( "indexName" ) String indexName,
             @Name( "out" ) Node out,
@@ -346,8 +426,9 @@ public class BuiltInProcedures
         }
     }
 
+    @Deprecated
     @Description( "Search relationship in explicit index, starting at the node 'in' and ending at 'out'." )
-    @Procedure( name = "db.index.explicit.searchRelationshipsBetween", mode = READ )
+    @Procedure( name = "db.index.explicit.searchRelationshipsBetween", mode = READ, deprecatedBy = EXPLICIT_INDEX_DEPRECATION )
     public Stream<WeightedRelationshipResult> relationshipManualIndexSearchWithBoundNodes(
             @Name( "indexName" ) String indexName,
             @Name( "in" ) Node in,
@@ -369,8 +450,9 @@ public class BuiltInProcedures
         }
     }
 
+    @Deprecated
     @Description( "Get node from explicit automatic index. Replaces `START n=node:node_auto_index(key = 'A')`" )
-    @Procedure( name = "db.index.explicit.auto.seekNodes", mode = READ )
+    @Procedure( name = "db.index.explicit.auto.seekNodes", mode = READ, deprecatedBy = EXPLICIT_INDEX_DEPRECATION )
     public Stream<NodeResult> nodeAutoIndexSeek( @Name( "key" ) String key, @Name( "value" ) Object value )
     {
         try ( Statement ignore = tx.acquireStatement() )
@@ -386,8 +468,9 @@ public class BuiltInProcedures
         }
     }
 
+    @Deprecated
     @Description( "Search nodes in explicit automatic index. Replaces `START n=node:node_auto_index('key:foo*')`" )
-    @Procedure( name = "db.index.explicit.auto.searchNodes", mode = READ )
+    @Procedure( name = "db.index.explicit.auto.searchNodes", mode = READ, deprecatedBy = EXPLICIT_INDEX_DEPRECATION )
     public Stream<WeightedNodeResult> nodeAutoIndexSearch( @Name( "query" ) Object query )
     {
         try ( Statement ignore = tx.acquireStatement() )
@@ -404,9 +487,10 @@ public class BuiltInProcedures
         }
     }
 
+    @Deprecated
     @Description( "Get relationship from explicit automatic index. Replaces `START r=relationship:relationship_auto_index(key " +
                   "= 'A')`" )
-    @Procedure( name = "db.index.explicit.auto.seekRelationships", mode = READ )
+    @Procedure( name = "db.index.explicit.auto.seekRelationships", mode = READ, deprecatedBy = EXPLICIT_INDEX_DEPRECATION )
     public Stream<RelationshipResult> relationshipAutoIndexSeek( @Name( "key" ) String key,
             @Name( "value" ) Object value )
     {
@@ -424,10 +508,11 @@ public class BuiltInProcedures
         }
     }
 
+    @Deprecated
     @Description(
             "Search relationship in explicit automatic index. Replaces `START r=relationship:relationship_auto_index" +
             "('key:foo*')`" )
-    @Procedure( name = "db.index.explicit.auto.searchRelationships", mode = READ )
+    @Procedure( name = "db.index.explicit.auto.searchRelationships", mode = READ, deprecatedBy = EXPLICIT_INDEX_DEPRECATION )
     public Stream<WeightedRelationshipResult> relationshipAutoIndexSearch( @Name( "query" ) Object query )
     {
         try ( Statement ignore = tx.acquireStatement() )
@@ -443,14 +528,15 @@ public class BuiltInProcedures
         }
     }
 
+    @Deprecated
     @Description( "Get or create a node explicit index - YIELD type,name,config" )
-    @Procedure( name = "db.index.explicit.forNodes", mode = WRITE )
+    @Procedure( name = "db.index.explicit.forNodes", mode = WRITE, deprecatedBy = EXPLICIT_INDEX_DEPRECATION )
     public Stream<ExplicitIndexInfo> nodeManualIndex( @Name( "indexName" ) String explicitIndexName,
             @Name( value = "config", defaultValue = "" ) Map<String,String> config )
     {
         IndexManager mgr = graphDatabaseAPI.index();
         Index<Node> index;
-        if ( config.isEmpty() )
+        if ( config == null || config.isEmpty() )
         {
             index = mgr.forNodes( explicitIndexName );
         }
@@ -461,14 +547,15 @@ public class BuiltInProcedures
         return Stream.of( new ExplicitIndexInfo( "NODE", explicitIndexName, mgr.getConfiguration( index ) ) );
     }
 
+    @Deprecated
     @Description( "Get or create a relationship explicit index - YIELD type,name,config" )
-    @Procedure( name = "db.index.explicit.forRelationships", mode = WRITE )
+    @Procedure( name = "db.index.explicit.forRelationships", mode = WRITE, deprecatedBy = EXPLICIT_INDEX_DEPRECATION )
     public Stream<ExplicitIndexInfo> relationshipManualIndex( @Name( "indexName" ) String explicitIndexName,
             @Name( value = "config", defaultValue = "" ) Map<String,String> config )
     {
         IndexManager mgr = graphDatabaseAPI.index();
         Index<Relationship> index;
-        if ( config.isEmpty() )
+        if ( config == null || config.isEmpty() )
         {
             index = mgr.forRelationships( explicitIndexName );
         }
@@ -479,22 +566,25 @@ public class BuiltInProcedures
         return Stream.of( new ExplicitIndexInfo( "RELATIONSHIP", explicitIndexName, mgr.getConfiguration( index ) ) );
     }
 
+    @Deprecated
     @Description( "Check if a node explicit index exists" )
-    @Procedure( name = "db.index.explicit.existsForNodes", mode = READ )
+    @Procedure( name = "db.index.explicit.existsForNodes", mode = READ, deprecatedBy = EXPLICIT_INDEX_DEPRECATION )
     public Stream<BooleanResult> nodeManualIndexExists( @Name( "indexName" ) String explicitIndexName )
     {
         return Stream.of( new BooleanResult( graphDatabaseAPI.index().existsForNodes( explicitIndexName ) ) );
     }
 
+    @Deprecated
     @Description( "Check if a relationship explicit index exists" )
-    @Procedure( "db.index.explicit.existsForRelationships" )
+    @Procedure( name = "db.index.explicit.existsForRelationships", mode = READ, deprecatedBy = EXPLICIT_INDEX_DEPRECATION )
     public Stream<BooleanResult> relationshipManualIndexExists( @Name( "indexName" ) String explicitIndexName )
     {
         return Stream.of( new BooleanResult( graphDatabaseAPI.index().existsForRelationships( explicitIndexName ) ) );
     }
 
+    @Deprecated
     @Description( "List all explicit indexes - YIELD type,name,config" )
-    @Procedure( name = "db.index.explicit.list", mode = READ )
+    @Procedure( name = "db.index.explicit.list", mode = READ, deprecatedBy = EXPLICIT_INDEX_DEPRECATION )
     public Stream<ExplicitIndexInfo> list()
     {
         IndexManager mgr = graphDatabaseAPI.index();
@@ -512,8 +602,9 @@ public class BuiltInProcedures
         return indexInfos.stream();
     }
 
+    @Deprecated
     @Description( "Remove an explicit index - YIELD type,name,config" )
-    @Procedure( name = "db.index.explicit.drop", mode = WRITE )
+    @Procedure( name = "db.index.explicit.drop", mode = WRITE, deprecatedBy = EXPLICIT_INDEX_DEPRECATION )
     public Stream<ExplicitIndexInfo> manualIndexDrop( @Name( "indexName" ) String explicitIndexName )
     {
         IndexManager mgr = graphDatabaseAPI.index();
@@ -533,8 +624,9 @@ public class BuiltInProcedures
         return results.stream();
     }
 
+    @Deprecated
     @Description( "Add a node to an explicit index based on a specified key and value" )
-    @Procedure( name = "db.index.explicit.addNode", mode = WRITE )
+    @Procedure( name = "db.index.explicit.addNode", mode = WRITE, deprecatedBy = EXPLICIT_INDEX_DEPRECATION )
     public Stream<BooleanResult> nodeManualIndexAdd( @Name( "indexName" ) String explicitIndexName,
             @Name( "node" ) Node node, @Name( "key" ) String key,
             @Name( "value" ) Object value )
@@ -544,8 +636,9 @@ public class BuiltInProcedures
         return Stream.of( new BooleanResult( Boolean.TRUE ) );
     }
 
+    @Deprecated
     @Description( "Add a relationship to an explicit index based on a specified key and value" )
-    @Procedure( name = "db.index.explicit.addRelationship", mode = WRITE )
+    @Procedure( name = "db.index.explicit.addRelationship", mode = WRITE, deprecatedBy = EXPLICIT_INDEX_DEPRECATION )
     public Stream<BooleanResult> relationshipManualIndexAdd( @Name( "indexName" ) String explicitIndexName,
             @Name( "relationship" ) Relationship relationship,
             @Name( "key" ) String key, @Name( "value" ) Object value )
@@ -557,8 +650,9 @@ public class BuiltInProcedures
 
     private static final String DEFAULT_KEY = " <[9895b15e-8693-4a21-a58b-4b7b87e09b8e]> ";
 
+    @Deprecated
     @Description( "Remove a node from an explicit index with an optional key" )
-    @Procedure( name = "db.index.explicit.removeNode", mode = WRITE )
+    @Procedure( name = "db.index.explicit.removeNode", mode = WRITE, deprecatedBy = EXPLICIT_INDEX_DEPRECATION )
     public Stream<BooleanResult> nodeManualIndexRemove( @Name( "indexName" ) String explicitIndexName,
             @Name( "node" ) Node node, @Name( value = "key", defaultValue = DEFAULT_KEY ) String key )
     {
@@ -574,8 +668,9 @@ public class BuiltInProcedures
         return Stream.of( new BooleanResult( Boolean.TRUE ) );
     }
 
+    @Deprecated
     @Description( "Remove a relationship from an explicit index with an optional key" )
-    @Procedure( name = "db.index.explicit.removeRelationship", mode = WRITE )
+    @Procedure( name = "db.index.explicit.removeRelationship", mode = WRITE, deprecatedBy = EXPLICIT_INDEX_DEPRECATION )
     public Stream<BooleanResult> relationshipManualIndexRemove( @Name( "indexName" ) String explicitIndexName,
             @Name( "relationship" ) Relationship relationship,
             @Name( value = "key", defaultValue = DEFAULT_KEY ) String key )
@@ -592,14 +687,26 @@ public class BuiltInProcedures
         return Stream.of( new BooleanResult( Boolean.TRUE ) );
     }
 
-    private Map<String,String> indexProviderDescriptorMap( CapableIndexReference indexReference )
+    private static long getIndexId( IndexingService indexingService, SchemaDescriptor schema )
+    {
+        try
+        {
+            return indexingService.getIndexId( schema );
+        }
+        catch ( IndexNotFoundKernelException e )
+        {
+            return NOT_EXISTING_INDEX_ID;
+        }
+    }
+
+    private static Map<String,String> indexProviderDescriptorMap( IndexReference indexReference )
     {
         return MapUtil.stringMap(
                 "key", indexReference.providerKey(),
                 "version", indexReference.providerVersion() );
     }
 
-    private List<String> propertyNames( TokenNameLookup tokens, IndexReference index )
+    private static List<String> propertyNames( TokenNameLookup tokens, IndexReference index )
     {
         int[] propertyIds = index.properties();
         List<String> propertyNames = new ArrayList<>( propertyIds.length );
@@ -610,7 +717,7 @@ public class BuiltInProcedures
         return propertyNames;
     }
 
-    private <T> Stream<T> toStream( NodeExplicitIndexCursor cursor, LongFunction<T> mapper )
+    private static <T> Stream<T> toStream( NodeExplicitIndexCursor cursor, LongFunction<T> mapper )
     {
         PrefetchingResourceIterator<T> it = new PrefetchingResourceIterator<T>()
         {
@@ -634,13 +741,10 @@ public class BuiltInProcedures
                 cursor.close();
             }
         };
-
-        Stream<T> stream =
-                StreamSupport.stream( Spliterators.spliteratorUnknownSize( it, Spliterator.ORDERED ), false );
-        return stream.onClose( cursor::close );
+        return Iterators.stream( it, Spliterator.ORDERED );
     }
 
-    private <T> Stream<T> toStream( RelationshipExplicitIndexCursor cursor, LongFunction<T> mapper )
+    private static <T> Stream<T> toStream( RelationshipExplicitIndexCursor cursor, LongFunction<T> mapper )
     {
         PrefetchingResourceIterator<T> it = new PrefetchingResourceIterator<T>()
         {
@@ -664,13 +768,10 @@ public class BuiltInProcedures
                 cursor.close();
             }
         };
-
-        Stream<T> stream =
-                StreamSupport.stream( Spliterators.spliteratorUnknownSize( it, Spliterator.ORDERED ), false );
-        return stream.onClose( cursor::close );
+        return Iterators.stream( it, Spliterator.ORDERED );
     }
 
-    private <T> Stream<T> toStream( PrimitiveLongResourceIterator iterator, LongFunction<T> mapper )
+    private static <T> Stream<T> toStream( PrimitiveLongResourceIterator iterator, LongFunction<T> mapper )
     {
         Iterator<T> it = new Iterator<T>()
         {
@@ -687,15 +788,7 @@ public class BuiltInProcedures
             }
         };
 
-        Stream<T> stream =
-                StreamSupport.stream( Spliterators.spliteratorUnknownSize( it, Spliterator.ORDERED ), false );
-        return stream.onClose( () ->
-        {
-            if ( iterator != null )
-            {
-                iterator.close();
-            }
-        } );
+        return Iterators.stream( it, Spliterator.ORDERED );
     }
 
     private Stream<WeightedNodeResult> toWeightedNodeResultStream( NodeExplicitIndexCursor cursor )
@@ -724,9 +817,7 @@ public class BuiltInProcedures
             }
         };
 
-        Stream<WeightedNodeResult> stream =
-                StreamSupport.stream( Spliterators.spliteratorUnknownSize( it, Spliterator.ORDERED ), false );
-        return stream.onClose( cursor::close );
+        return Iterators.stream( it, Spliterator.ORDERED );
     }
 
     private Stream<WeightedRelationshipResult> toWeightedRelationshipResultStream(
@@ -755,10 +846,7 @@ public class BuiltInProcedures
                 }
             }
         };
-
-        Stream<WeightedRelationshipResult> stream =
-                StreamSupport.stream( Spliterators.spliteratorUnknownSize( it, Spliterator.ORDERED ), false );
-        return stream.onClose( cursor::close );
+        return Iterators.stream( it, Spliterator.ORDERED );
     }
 
     private IndexProcedures indexProcedures()
@@ -809,21 +897,51 @@ public class BuiltInProcedures
     public static class IndexResult
     {
         public final String description;
-        public final String label;
+        public final String indexName;
+        public final List<String> tokenNames;
         public final List<String> properties;
         public final String state;
         public final String type;
+        public final Double progress;
         public final Map<String,String> provider;
+        public final long id;
+        public final String failureMessage;
 
-        private IndexResult( String description, String label, List<String> properties, String state, String type,
-                Map<String,String> provider )
+        private IndexResult( long id,
+                             String description,
+                             String indexName,
+                             List<String> tokenNames,
+                             List<String> properties,
+                             String state,
+                             String type,
+                             Float progress,
+                             Map<String,String> provider,
+                             String failureMessage )
         {
+            this.id = id;
             this.description = description;
-            this.label = label;
+            this.indexName = indexName;
+            this.tokenNames = tokenNames;
             this.properties = properties;
             this.state = state;
             this.type = type;
+            this.progress = progress.doubleValue();
             this.provider = provider;
+            this.failureMessage = failureMessage;
+        }
+    }
+
+    public static class SchemaIndexInfo
+    {
+        public final String index;
+        public final String providerName;
+        public final String status;
+
+        public SchemaIndexInfo( String index, String providerName, String status )
+        {
+            this.index = index;
+            this.providerName = providerName;
+            this.status = status;
         }
     }
 
@@ -900,13 +1018,49 @@ public class BuiltInProcedures
     private enum IndexType
     {
         NODE_LABEL_PROPERTY( "node_label_property" ),
-        NODE_UNIQUE_PROPERTY( "node_unique_property" );
+        NODE_UNIQUE_PROPERTY( "node_unique_property" ),
+        REL_TYPE_PROPERTY( "relationship_type_property" ),
+        NODE_FULLTEXT( "node_fulltext" ),
+        RELATIONSHIP_FULLTEXT( "relationship_fulltext" );
 
         private final String typeName;
 
         IndexType( String typeName )
         {
             this.typeName = typeName;
+        }
+
+        private static IndexType getIndexTypeOf( IndexReference index )
+        {
+            if ( index.isFulltextIndex() )
+            {
+                if ( index.schema().entityType() == EntityType.NODE )
+                {
+                    return IndexType.NODE_FULLTEXT;
+                }
+                else
+                {
+                    return IndexType.RELATIONSHIP_FULLTEXT;
+                }
+            }
+            else
+            {
+                if ( index.isUnique() )
+                {
+                    return IndexType.NODE_UNIQUE_PROPERTY;
+                }
+                else
+                {
+                    if ( index.schema().entityType() == EntityType.NODE )
+                    {
+                        return IndexType.NODE_LABEL_PROPERTY;
+                    }
+                    else
+                    {
+                        return IndexType.REL_TYPE_PROPERTY;
+                    }
+                }
+            }
         }
 
         public String typeName()

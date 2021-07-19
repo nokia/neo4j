@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -27,7 +27,7 @@ import org.neo4j.index.internal.gbptree.Hit;
 import org.neo4j.internal.kernel.api.IndexQuery;
 import org.neo4j.values.storable.Value;
 
-class FilteringNativeHitIndexProgressor<KEY extends NativeSchemaKey<KEY>, VALUE extends NativeSchemaValue> extends NativeHitIndexProgressor<KEY,VALUE>
+class FilteringNativeHitIndexProgressor<KEY extends NativeIndexKey<KEY>, VALUE extends NativeIndexValue> extends NativeHitIndexProgressor<KEY,VALUE>
 {
     private final IndexQuery[] filter;
 
@@ -49,5 +49,12 @@ class FilteringNativeHitIndexProgressor<KEY extends NativeSchemaKey<KEY>, VALUE 
             }
         }
         return true;
+    }
+
+    // We need to make sure to always deserialize, even if the client doesn't need the value, to be able to filter
+    @Override
+    Value[] extractValues( KEY key )
+    {
+        return key.asValues();
     }
 }

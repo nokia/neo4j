@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,18 +20,18 @@
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.cardinality
 
 import org.neo4j.cypher.internal.compiler.v3_5.helpers.MapSupport._
-import org.neo4j.cypher.internal.compiler.v3_5.helpers.SemanticTableHelper
 import org.neo4j.cypher.internal.compiler.v3_5.planner.LogicalPlanningTestSupport
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.QueryGraphProducer
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
-import org.neo4j.cypher.internal.frontend.v3_5.semantics.SemanticTable
-import org.neo4j.cypher.internal.util.v3_5.Cardinality.NumericCardinality
 import org.neo4j.cypher.internal.ir.v3_5._
-import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.{Cardinalities, Solveds}
-import org.neo4j.cypher.internal.planner.v3_5.spi.{GraphStatistics, IndexDescriptor}
-import org.neo4j.cypher.internal.util.v3_5._
+import org.neo4j.cypher.internal.planner.v3_5.spi.GraphStatistics
+import org.neo4j.cypher.internal.planner.v3_5.spi.IndexDescriptor
+import org.neo4j.cypher.internal.v3_5.ast.semantics.SemanticTable
 import org.neo4j.cypher.internal.v3_5.expressions.Variable
-import org.scalatest.matchers.{MatchResult, Matcher}
+import org.neo4j.cypher.internal.v3_5.util.Cardinality.NumericCardinality
+import org.neo4j.cypher.internal.v3_5.util._
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
+import org.scalatest.matchers.MatchResult
+import org.scalatest.matchers.Matcher
 
 import scala.collection.mutable
 
@@ -148,7 +148,7 @@ trait CardinalityTestHelper extends QueryGraphProducer with CardinalityCustomMat
             ).getOrElse(nodesCardinality)
           })
 
-        def indexSelectivity(index: IndexDescriptor): Option[Selectivity] = {
+        def uniqueValueSelectivity(index: IndexDescriptor): Option[Selectivity] = {
           val labelName: Option[String] = getLabelName(index.label)
           val propertyName: Option[String] = getPropertyName(index.property)
           //TODO: Refactor for composite indexes
@@ -262,5 +262,16 @@ trait CardinalityCustomMatchers {
 
   def equalWithTolerance[T](expected: Map[T, Cardinality], tolerance: Double): Matcher[Map[T, Cardinality]] = {
     new MapEqualityWithDouble[T](expected, tolerance)(NumericCardinality)
+  }
+}
+
+object SemanticTableHelper {
+  implicit class RichSemanticTable(table: SemanticTable) {
+    def transplantResolutionOnto(target: SemanticTable): SemanticTable =
+      target.copy(
+        resolvedLabelIds = table.resolvedLabelNames,
+        resolvedPropertyKeyNames = table.resolvedPropertyKeyNames,
+        resolvedRelTypeNames = table.resolvedRelTypeNames
+      )
   }
 }

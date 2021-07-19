@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,18 +19,28 @@
  */
 package org.neo4j.cypher.internal.v3_5.logical.plans
 
-import org.neo4j.cypher.internal.util.v3_5.attribution.IdGen
-import org.neo4j.cypher.internal.v3_5.expressions.{LabelToken, PropertyKeyToken}
+import org.neo4j.cypher.internal.v3_5.expressions._
+import org.neo4j.cypher.internal.v3_5.util.attribution.{IdGen, SameId}
 
 /**
   * This operator does a full scan of an index, producing one row per entry.
   */
 case class NodeIndexScan(idName: String,
                          label: LabelToken,
-                         propertyKey: PropertyKeyToken,
-                         argumentIds: Set[String])
+                         property: IndexedProperty,
+                         argumentIds: Set[String],
+                         indexOrder: IndexOrder)
                         (implicit idGen: IdGen)
-  extends NodeLogicalLeafPlan(idGen) {
+  extends IndexLeafPlan(idGen) {
+
+  override def properties: Seq[IndexedProperty] = Seq(property)
+
+  override def cachedNodeProperties: Traversable[CachedNodeProperty] = property.maybeCachedNodeProperty(idName)
 
   override val availableSymbols: Set[String] = argumentIds + idName
+
+  override def availableCachedNodeProperties: Map[Property, CachedNodeProperty] = property.asAvailablePropertyMap(idName)
+
+  override def copyWithoutGettingValues: NodeIndexScan =
+    NodeIndexScan(idName, label, IndexedProperty(property.propertyKeyToken, DoNotGetValue), argumentIds, indexOrder)(SameId(this.id))
 }

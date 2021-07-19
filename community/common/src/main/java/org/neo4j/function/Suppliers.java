@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -63,7 +63,7 @@ public final class Suppliers
             @Override
             public T get()
             {
-                if ( instance != null )
+                if ( isInitialised() )
                 {
                     return instance;
                 }
@@ -76,6 +76,12 @@ public final class Suppliers
                     }
                 }
                 return instance;
+            }
+
+            @Override
+            public boolean isInitialised()
+            {
+                return instance != null;
             }
         };
     }
@@ -168,5 +174,6 @@ public final class Suppliers
 
     public interface Lazy<T> extends Supplier<T>
     {
+        boolean isInitialised();
     }
 }

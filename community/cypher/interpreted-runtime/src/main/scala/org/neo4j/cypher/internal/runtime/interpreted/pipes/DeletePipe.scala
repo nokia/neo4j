@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,11 +19,11 @@
  */
 package org.neo4j.cypher.internal.runtime.interpreted.pipes
 
-import org.neo4j.cypher.internal.util.v3_5.CypherTypeException
+import org.neo4j.cypher.internal.v3_5.util.CypherTypeException
 import org.neo4j.cypher.internal.runtime.interpreted.ExecutionContext
 import org.neo4j.cypher.internal.runtime.interpreted.commands.expressions.Expression
 import org.neo4j.cypher.internal.runtime.interpreted.GraphElementPropertyFunctions
-import org.neo4j.cypher.internal.util.v3_5.attribution.Id
+import org.neo4j.cypher.internal.v3_5.util.attribution.Id
 import org.neo4j.values.storable.Values
 import org.neo4j.values.virtual.{RelationshipValue, NodeValue, PathValue}
 
@@ -32,6 +32,8 @@ import scala.collection.JavaConverters._
 case class DeletePipe(src: Pipe, expression: Expression, forced: Boolean)
                      (val id: Id = Id.INVALID_ID)
   extends PipeWithSource(src) with GraphElementPropertyFunctions {
+
+  expression.registerOwningPipe(this)
 
 
   override protected def internalCreateResults(input: Iterator[ExecutionContext],

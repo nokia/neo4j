@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,7 +21,7 @@ package org.neo4j.kernel.impl.store.format;
 
 import org.neo4j.kernel.impl.store.record.AbstractBaseRecord;
 
-interface RecordKey<RECORD extends AbstractBaseRecord>
+public interface RecordKey<RECORD extends AbstractBaseRecord>
 {
     void assertRecordsEquals( RECORD written, RECORD read );
 }

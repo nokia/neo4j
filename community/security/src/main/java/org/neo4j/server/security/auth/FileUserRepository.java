@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,6 +21,7 @@ package org.neo4j.server.security.auth;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,7 +38,7 @@ import static org.neo4j.server.security.auth.ListSnapshot.FROM_PERSISTED;
  * Stores user auth data. In memory, but backed by persistent storage so changes to this repository will survive
  * JVM restarts and crashes.
  */
-public class FileUserRepository extends AbstractUserRepository
+public class FileUserRepository extends AbstractUserRepository implements FileRepository
 {
     private final File authFile;
     private final FileSystemAbstraction fileSystem;
@@ -59,6 +60,9 @@ public class FileUserRepository extends AbstractUserRepository
     public void start() throws Throwable
     {
         clear();
+
+        FileRepository.assertNotMigrated( authFile, fileSystem, log );
+
         ListSnapshot<User> onDiskUsers = readPersistedUsers();
         if ( onDiskUsers != null )
         {
@@ -107,5 +111,27 @@ public class FileUserRepository extends AbstractUserRepository
         {
             return new ListSnapshot<>( lastLoaded.get(), new ArrayList<>( users ), FROM_MEMORY );
         }
+    }
+
+    @Override
+    public void purge() throws IOException
+    {
+        super.purge(); // Clears all cached data
+
+        // Delete the file
+        if ( !fileSystem.deleteFile( authFile ) )
+        {
+            throw new IOException( "Failed to delete file '" + authFile.getAbsolutePath() + "'" );
+        }
+    }
+
+    @Override
+    public void markAsMigrated() throws IOException
+    {
+        super.markAsMigrated(); // Clears all cached data
+
+        // Rename the file
+        File destinationFile = FileRepository.getMigratedFile( authFile );
+        fileSystem.renameFile( authFile, destinationFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES );
     }
 }

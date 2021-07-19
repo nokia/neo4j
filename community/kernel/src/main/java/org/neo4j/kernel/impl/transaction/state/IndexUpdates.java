@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,14 +19,10 @@
  */
 package org.neo4j.kernel.impl.transaction.state;
 
-import org.eclipse.collections.api.map.primitive.LongObjectMap;
-
-import java.util.List;
-
 import org.neo4j.internal.kernel.api.schema.SchemaDescriptor;
 import org.neo4j.kernel.api.index.IndexEntryUpdate;
-import org.neo4j.kernel.impl.transaction.command.Command.NodeCommand;
-import org.neo4j.kernel.impl.transaction.command.Command.PropertyCommand;
+import org.neo4j.kernel.impl.api.index.EntityCommandGrouper;
+import org.neo4j.kernel.impl.transaction.command.Command;
 
 /**
  * Set of updates ({@link IndexEntryUpdate}) to apply to indexes.
@@ -35,11 +31,10 @@ public interface IndexUpdates extends Iterable<IndexEntryUpdate<SchemaDescriptor
 {
     /**
      * Feeds updates raw material in the form of node/property commands, to create updates from.
-     *
-     * @param propCommands {@link PropertyCommand} grouped by node id.
-     * @param nodeCommands {@link NodeCommand} by node id.
+     * @param nodeCommands node data
+     * @param relationshipCommands relationship data
      */
-    void feed( LongObjectMap<List<PropertyCommand>> propCommands, LongObjectMap<NodeCommand> nodeCommands );
+    void feed( EntityCommandGrouper<Command.NodeCommand>.Cursor nodeCommands, EntityCommandGrouper<Command.RelationshipCommand>.Cursor relationshipCommands );
 
     boolean hasUpdates();
 }

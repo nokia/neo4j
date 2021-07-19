@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -25,13 +25,13 @@ import org.junit.rules.RuleChain;
 
 import java.io.File;
 
+import org.neo4j.io.layout.DatabaseLayout;
 import org.neo4j.io.pagecache.tracing.cursor.context.EmptyVersionContextSupplier;
 import org.neo4j.kernel.configuration.Config;
 import org.neo4j.kernel.impl.store.id.DefaultIdGeneratorFactory;
 import org.neo4j.kernel.impl.store.id.IdGeneratorImpl;
 import org.neo4j.kernel.impl.store.id.IdType;
 import org.neo4j.kernel.impl.store.record.NodeRecord;
-import org.neo4j.kernel.impl.storemigration.StoreFileType;
 import org.neo4j.logging.NullLogProvider;
 import org.neo4j.test.rule.PageCacheRule;
 import org.neo4j.test.rule.TestDirectory;
@@ -54,8 +54,8 @@ public class FreeIdsAfterRecoveryTest
     public void shouldCompletelyRebuildIdGeneratorsAfterCrash()
     {
         // GIVEN
-        StoreFactory storeFactory = new StoreFactory(
-                directory.directory(), Config.defaults(), new DefaultIdGeneratorFactory( fileSystemRule.get() ),
+        DatabaseLayout databaseLayout = directory.databaseLayout();
+        StoreFactory storeFactory = new StoreFactory( databaseLayout, Config.defaults(), new DefaultIdGeneratorFactory( fileSystemRule.get() ),
                 pageCacheRule.getPageCache( fileSystemRule.get() ), fileSystemRule.get(),
                 NullLogProvider.getInstance(), EmptyVersionContextSupplier.EMPTY );
         long highId;
@@ -69,7 +69,7 @@ public class FreeIdsAfterRecoveryTest
         }
 
         // populating its .id file with a bunch of ids
-        File nodeIdFile = new File( directory.directory(), StoreFile.NODE_STORE.fileName( StoreFileType.ID ) );
+        File nodeIdFile = databaseLayout.idNodeStore();
         try ( IdGeneratorImpl idGenerator = new IdGeneratorImpl( fileSystemRule.get(), nodeIdFile, 10, 10_000, false, IdType.NODE, () -> highId ) )
         {
             for ( long id = 0; id < 15; id++ )
@@ -94,7 +94,7 @@ public class FreeIdsAfterRecoveryTest
         }
     }
 
-    private NodeRecord node( long nextId )
+    private static NodeRecord node( long nextId )
     {
         NodeRecord node = new NodeRecord( nextId );
         node.setInUse( true );

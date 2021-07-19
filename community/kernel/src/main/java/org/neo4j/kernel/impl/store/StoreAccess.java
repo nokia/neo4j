@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,9 +19,8 @@
  */
 package org.neo4j.kernel.impl.store;
 
-import java.io.File;
-
 import org.neo4j.io.fs.FileSystemAbstraction;
+import org.neo4j.io.layout.DatabaseLayout;
 import org.neo4j.io.pagecache.PageCache;
 import org.neo4j.io.pagecache.tracing.cursor.context.EmptyVersionContextSupplier;
 import org.neo4j.kernel.configuration.Config;
@@ -73,9 +72,9 @@ public class StoreAccess
         this.counts = store.getCounts();
     }
 
-    public StoreAccess( FileSystemAbstraction fileSystem, PageCache pageCache, File storeDir, Config config )
+    public StoreAccess( FileSystemAbstraction fileSystem, PageCache pageCache, DatabaseLayout directoryStructure, Config config )
     {
-        this( new StoreFactory( storeDir, config, new DefaultIdGeneratorFactory( fileSystem ), pageCache,
+        this( new StoreFactory( directoryStructure, config, new DefaultIdGeneratorFactory( fileSystem ), pageCache,
                 fileSystem, NullLogProvider.getInstance(), EmptyVersionContextSupplier.EMPTY ).openAllNeoStores() );
         this.closeable = true;
     }

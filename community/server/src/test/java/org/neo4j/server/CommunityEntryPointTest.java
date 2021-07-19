@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,44 +19,29 @@
  */
 package org.neo4j.server;
 
-import java.io.PrintStream;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.neo4j.test.extension.Inject;
+import org.neo4j.test.extension.SuppressOutputExtension;
+import org.neo4j.test.rule.SuppressOutput;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.neo4j.commandline.Util.neo4jVersion;
 
-public class CommunityEntryPointTest
+@ExtendWith( SuppressOutputExtension.class )
+class CommunityEntryPointTest
 {
-    private PrintStream realSystemOut;
-    private PrintStream fakeSystemOut;
-
-    @Before
-    public void setup()
-    {
-        realSystemOut = System.out;
-        fakeSystemOut = mock( PrintStream.class );
-        System.setOut( fakeSystemOut );
-    }
-
-    @After
-    public void teardown()
-    {
-        System.setOut( realSystemOut );
-    }
+    @Inject
+    private SuppressOutput suppressOutput;
 
     @Test
-    public void mainPrintsVersion()
+    void mainPrintsVersion()
     {
         // when
         CommunityEntryPoint.main( new String[]{ "--version" } );
 
         // then
-        verify( fakeSystemOut ).println( "neo4j " + neo4jVersion() );
-        verifyNoMoreInteractions( fakeSystemOut );
+        assertTrue( suppressOutput.getOutputVoice().containsMessage( "neo4j " + neo4jVersion() ) );
     }
 }

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -31,8 +31,8 @@ import org.neo4j.kernel.impl.locking.SimpleStatementLocks;
 import org.neo4j.kernel.impl.locking.SimpleStatementLocksFactory;
 import org.neo4j.kernel.impl.locking.StatementLocks;
 import org.neo4j.kernel.impl.locking.StatementLocksFactory;
-import org.neo4j.kernel.impl.logging.LogService;
-import org.neo4j.kernel.impl.logging.NullLogService;
+import org.neo4j.logging.internal.LogService;
+import org.neo4j.logging.internal.NullLogService;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertSame;

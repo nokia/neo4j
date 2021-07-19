@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -30,7 +30,7 @@ import org.neo4j.commandline.admin.OutsideWorld;
 import org.neo4j.commandline.arguments.Arguments;
 import org.neo4j.io.fs.FileSystemAbstraction;
 import org.neo4j.kernel.configuration.Config;
-import org.neo4j.kernel.impl.security.Credential;
+import org.neo4j.server.security.auth.LegacyCredential;
 import org.neo4j.kernel.impl.security.User;
 import org.neo4j.logging.NullLogProvider;
 import org.neo4j.server.security.auth.CommunitySecurityModule;
@@ -116,7 +116,7 @@ public class SetDefaultAdminCommand implements AdminCommand
         UserRepository admins = new FileUserRepository( fileSystem, adminIniFile, NullLogProvider.getInstance() );
         admins.init();
         admins.start();
-        admins.create( new User.Builder( username, Credential.INACCESSIBLE ).build() );
+        admins.create( new User.Builder( username, LegacyCredential.INACCESSIBLE ).build() );
         admins.stop();
         admins.shutdown();
 
@@ -127,6 +127,8 @@ public class SetDefaultAdminCommand implements AdminCommand
     {
         return Config.fromFile( configDir.resolve( Config.DEFAULT_CONFIG_FILE_NAME ) )
                 .withHome( homeDir )
-                .withConnectorsDisabled().build();
+                .withConnectorsDisabled()
+                .withNoThrowOnFileLoadFailure()
+                .build();
     }
 }

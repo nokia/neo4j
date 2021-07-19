@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -23,8 +23,9 @@ import org.eclipse.collections.api.iterator.LongIterator;
 
 import org.neo4j.collection.PrimitiveLongCollections;
 import org.neo4j.collection.PrimitiveLongResourceIterator;
+import org.neo4j.internal.kernel.api.IndexOrder;
 import org.neo4j.internal.kernel.api.IndexQuery;
-import org.neo4j.kernel.api.schema.index.SchemaIndexDescriptor;
+import org.neo4j.storageengine.api.schema.IndexDescriptor;
 import org.neo4j.storageengine.api.schema.IndexProgressor;
 import org.neo4j.values.storable.Value;
 
@@ -51,7 +52,11 @@ public class NodeValueIterator extends PrimitiveLongCollections.PrimitiveLongBas
     }
 
     @Override
-    public void initialize( SchemaIndexDescriptor descriptor, IndexProgressor progressor, IndexQuery[] query )
+    public void initialize( IndexDescriptor descriptor,
+                            IndexProgressor progressor,
+                            IndexQuery[] query,
+                            IndexOrder indexOrder,
+                            boolean needsValues )
     {
         this.progressor = progressor;
     }

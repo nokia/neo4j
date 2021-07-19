@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,12 +19,10 @@
  */
 package org.neo4j.kernel.impl.locking;
 
-import java.time.Clock;
 import java.util.stream.Stream;
 
-import org.neo4j.helpers.Service;
-import org.neo4j.kernel.configuration.Config;
 import org.neo4j.storageengine.api.lock.AcquireLockTimeoutException;
+import org.neo4j.storageengine.api.lock.LockTracer;
 import org.neo4j.storageengine.api.lock.ResourceLocker;
 import org.neo4j.storageengine.api.lock.ResourceType;
 import org.neo4j.storageengine.api.lock.WaitStrategy;
@@ -50,15 +48,6 @@ import org.neo4j.storageengine.api.lock.WaitStrategy;
  */
 public interface Locks
 {
-    abstract class Factory extends Service
-    {
-        public Factory( String key, String... altKeys )
-        {
-            super( key, altKeys );
-        }
-
-        public abstract Locks newInstance( Config config, Clock clocks, ResourceType[] resourceTypes );
-    }
 
     /** For introspection and debugging. */
     interface Visitor

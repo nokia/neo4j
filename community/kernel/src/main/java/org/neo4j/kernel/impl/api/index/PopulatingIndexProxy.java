@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,17 +20,16 @@
 package org.neo4j.kernel.impl.api.index;
 
 import java.io.File;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import org.neo4j.graphdb.ResourceIterator;
-import org.neo4j.internal.kernel.api.IndexCapability;
 import org.neo4j.internal.kernel.api.InternalIndexState;
-import org.neo4j.internal.kernel.api.schema.SchemaDescriptor;
+import org.neo4j.internal.kernel.api.exceptions.schema.IndexNotFoundKernelException;
 import org.neo4j.io.pagecache.IOLimiter;
-import org.neo4j.kernel.api.exceptions.index.IndexNotFoundKernelException;
 import org.neo4j.kernel.api.index.IndexEntryUpdate;
 import org.neo4j.kernel.api.index.IndexUpdater;
-import org.neo4j.kernel.api.index.IndexProvider;
-import org.neo4j.kernel.api.schema.index.SchemaIndexDescriptor;
+import org.neo4j.storageengine.api.schema.CapableIndexDescriptor;
 import org.neo4j.storageengine.api.schema.IndexReader;
 import org.neo4j.storageengine.api.schema.PopulationProgress;
 import org.neo4j.values.storable.Value;
@@ -39,13 +38,13 @@ import static org.neo4j.helpers.collection.Iterators.emptyResourceIterator;
 
 public class PopulatingIndexProxy implements IndexProxy
 {
-    private final IndexMeta indexMeta;
+    private final CapableIndexDescriptor capableIndexDescriptor;
     private final IndexPopulationJob job;
     private final MultipleIndexPopulator.IndexPopulation indexPopulation;
 
-    PopulatingIndexProxy( IndexMeta indexMeta, IndexPopulationJob job, MultipleIndexPopulator.IndexPopulation indexPopulation )
+    PopulatingIndexProxy( CapableIndexDescriptor capableIndexDescriptor, IndexPopulationJob job, MultipleIndexPopulator.IndexPopulation indexPopulation )
     {
-        this.indexMeta = indexMeta;
+        this.capableIndexDescriptor = capableIndexDescriptor;
         this.job = job;
         this.indexPopulation = indexPopulation;
     }
@@ -85,37 +84,19 @@ public class PopulatingIndexProxy implements IndexProxy
     @Override
     public void drop()
     {
-        job.cancelPopulation( indexPopulation );
+        job.dropPopulation( indexPopulation );
     }
 
     @Override
-    public SchemaIndexDescriptor getDescriptor()
+    public CapableIndexDescriptor getDescriptor()
     {
-        return indexMeta.indexDescriptor();
-    }
-
-    @Override
-    public SchemaDescriptor schema()
-    {
-        return indexMeta.indexDescriptor().schema();
-    }
-
-    @Override
-    public IndexProvider.Descriptor getProviderDescriptor()
-    {
-        return indexMeta.providerDescriptor();
+        return capableIndexDescriptor;
     }
 
     @Override
     public InternalIndexState getState()
     {
         return InternalIndexState.POPULATING;
-    }
-
-    @Override
-    public IndexCapability getIndexCapability()
-    {
-        return indexMeta.indexCapability();
     }
 
     @Override
@@ -143,10 +124,9 @@ public class PopulatingIndexProxy implements IndexProxy
     }
 
     @Override
-    public boolean awaitStoreScanCompleted() throws InterruptedException
+    public boolean awaitStoreScanCompleted( long time, TimeUnit unit ) throws InterruptedException
     {
-        job.awaitCompletion();
-        return true;
+        return job.awaitCompletion( time, unit );
     }
 
     @Override
@@ -168,15 +148,15 @@ public class PopulatingIndexProxy implements IndexProxy
     }
 
     @Override
-    public long getIndexId()
-    {
-        return indexMeta.getIndexId();
-    }
-
-    @Override
     public ResourceIterator<File> snapshotFiles()
     {
         return emptyResourceIterator();
+    }
+
+    @Override
+    public Map<String,Value> indexConfig()
+    {
+        return indexPopulation.populator.indexConfig();
     }
 
     @Override
@@ -188,7 +168,7 @@ public class PopulatingIndexProxy implements IndexProxy
     @Override
     public PopulationProgress getIndexPopulationProgress()
     {
-        return job.getPopulationProgress();
+        return job.getPopulationProgress( indexPopulation );
     }
 
     @Override

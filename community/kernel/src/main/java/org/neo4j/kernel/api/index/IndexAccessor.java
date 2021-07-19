@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,16 +21,19 @@ package org.neo4j.kernel.api.index;
 
 import java.io.Closeable;
 import java.io.File;
-import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Iterator;
+import java.util.Map;
 
 import org.neo4j.graphdb.ResourceIterator;
 import org.neo4j.helpers.collection.BoundedIterable;
 import org.neo4j.io.pagecache.IOLimiter;
 import org.neo4j.kernel.api.exceptions.index.IndexEntryConflictException;
+import org.neo4j.kernel.impl.annotations.ReporterFactory;
 import org.neo4j.kernel.impl.api.index.IndexUpdateMode;
 import org.neo4j.kernel.impl.api.index.updater.SwallowingIndexUpdater;
-import org.neo4j.kernel.impl.util.Validator;
+import org.neo4j.kernel.impl.index.schema.ConsistencyCheckable;
+import org.neo4j.storageengine.api.NodePropertyAccessor;
 import org.neo4j.storageengine.api.schema.IndexReader;
 import org.neo4j.values.storable.Value;
 
@@ -40,7 +43,7 @@ import static org.neo4j.helpers.collection.Iterators.emptyResourceIterator;
 /**
  * Used for online operation of an index.
  */
-public interface IndexAccessor extends Closeable
+public interface IndexAccessor extends Closeable, IndexConfigProvider, ConsistencyCheckable
 {
     IndexAccessor EMPTY = new Adapter();
 
@@ -48,9 +51,9 @@ public interface IndexAccessor extends Closeable
      * Deletes this index as well as closes all used external resources.
      * There will not be any interactions after this call.
      *
-     * @throws IOException if unable to drop index.
+     * @throws UncheckedIOException if unable to drop index.
      */
-    void drop() throws IOException;
+    void drop();
 
     /**
      * Return an updater for applying a set of changes to this index.
@@ -68,9 +71,9 @@ public interface IndexAccessor extends Closeable
      * hasn't been forced to disk.
      *
      * @param ioLimiter The {@link IOLimiter} to use for implementations living on top of {@link org.neo4j.io.pagecache.PageCache}.
-     * @throws IOException if there was a problem forcing the state to persistent storage.
+     * @throws UncheckedIOException if there was a problem forcing the state to persistent storage.
      */
-    void force( IOLimiter ioLimiter ) throws IOException;
+    void force( IOLimiter ioLimiter );
 
     /**
      * Refreshes this index, so that {@link #newReader() readers} created after completion of this call
@@ -78,18 +81,18 @@ public interface IndexAccessor extends Closeable
      * w/ {@link IndexUpdateMode#ONLINE}, but not guaranteed for {@link IndexUpdateMode#RECOVERY}.
      * Therefore this call is complementary for updates that has taken place with {@link IndexUpdateMode#RECOVERY}.
      *
-     * @throws IOException if there was a problem refreshing the index.
+     * @throws UncheckedIOException if there was a problem refreshing the index.
      */
-    void refresh() throws IOException;
+    void refresh();
 
     /**
      * Closes this index accessor. There will not be any interactions after this call.
      * After completion of this call there cannot be any essential state that hasn't been forced to disk.
      *
-     * @throws IOException if unable to close index.
+     * @throws UncheckedIOException if unable to close index.
      */
     @Override
-    void close() throws IOException;
+    void close();
 
     /**
      * @return a new {@link IndexReader} responsible for looking up results in the index. The returned
@@ -104,18 +107,18 @@ public interface IndexAccessor extends Closeable
      * need to remain available until the resource iterator returned here is closed. This is used to duplicate created
      * indexes across clusters, among other things.
      */
-    ResourceIterator<File> snapshotFiles() throws IOException;
+    ResourceIterator<File> snapshotFiles();
 
     /**
      * Verifies that each value in this index is unique.
      * Index is guaranteed to not change while this call executes.
      *
-     * @param propertyAccessor {@link PropertyAccessor} for accessing properties from database storage
+     * @param nodePropertyAccessor {@link NodePropertyAccessor} for accessing properties from database storage
      * in the event of conflicting values.
      * @throws IndexEntryConflictException for first detected uniqueness conflict, if any.
-     * @throws IOException on error reading from source files.
+     * @throws UncheckedIOException on error reading from source files.
      */
-    void verifyDeferredConstraints( PropertyAccessor propertyAccessor ) throws IndexEntryConflictException, IOException;
+    void verifyDeferredConstraints( NodePropertyAccessor nodePropertyAccessor ) throws IndexEntryConflictException;
 
     /**
      * @return true if index was not shutdown properly and its internal state is dirty, false otherwise
@@ -195,7 +198,7 @@ public interface IndexAccessor extends Closeable
         }
 
         @Override
-        public void verifyDeferredConstraints( PropertyAccessor propertyAccessor )
+        public void verifyDeferredConstraints( NodePropertyAccessor nodePropertyAccessor )
         {
         }
 
@@ -203,6 +206,12 @@ public interface IndexAccessor extends Closeable
         public boolean isDirty()
         {
             return false;
+        }
+
+        @Override
+        public boolean consistencyCheck( ReporterFactory reporterFactory )
+        {
+            return true;
         }
     }
 
@@ -216,7 +225,7 @@ public interface IndexAccessor extends Closeable
         }
 
         @Override
-        public void drop() throws IOException
+        public void drop()
         {
             delegate.drop();
         }
@@ -228,19 +237,19 @@ public interface IndexAccessor extends Closeable
         }
 
         @Override
-        public void force( IOLimiter ioLimiter ) throws IOException
+        public void force( IOLimiter ioLimiter )
         {
             delegate.force( ioLimiter );
         }
 
         @Override
-        public void refresh() throws IOException
+        public void refresh()
         {
             delegate.refresh();
         }
 
         @Override
-        public void close() throws IOException
+        public void close()
         {
             delegate.close();
         }
@@ -258,9 +267,15 @@ public interface IndexAccessor extends Closeable
         }
 
         @Override
-        public ResourceIterator<File> snapshotFiles() throws IOException
+        public ResourceIterator<File> snapshotFiles()
         {
             return delegate.snapshotFiles();
+        }
+
+        @Override
+        public Map<String,Value> indexConfig()
+        {
+            return delegate.indexConfig();
         }
 
         @Override
@@ -270,10 +285,9 @@ public interface IndexAccessor extends Closeable
         }
 
         @Override
-        public void verifyDeferredConstraints( PropertyAccessor propertyAccessor )
-                throws IndexEntryConflictException, IOException
+        public void verifyDeferredConstraints( NodePropertyAccessor nodePropertyAccessor ) throws IndexEntryConflictException
         {
-            delegate.verifyDeferredConstraints( propertyAccessor );
+            delegate.verifyDeferredConstraints( nodePropertyAccessor );
         }
 
         @Override
@@ -286,6 +300,12 @@ public interface IndexAccessor extends Closeable
         public void validateBeforeCommit( Value[] tuple )
         {
             delegate.validateBeforeCommit( tuple );
+        }
+
+        @Override
+        public boolean consistencyCheck( ReporterFactory reporterFactory )
+        {
+            return delegate.consistencyCheck( reporterFactory );
         }
     }
 }

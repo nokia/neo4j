@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,10 +19,11 @@
  */
 package org.neo4j.bolt.v1.runtime;
 
-import org.neo4j.kernel.impl.logging.LogService;
-import org.neo4j.kernel.impl.logging.StoreLogService;
+import org.neo4j.bolt.runtime.Neo4jError;
 import org.neo4j.logging.DuplicatingLogProvider;
 import org.neo4j.logging.Log;
+import org.neo4j.logging.internal.LogService;
+import org.neo4j.logging.internal.StoreLogService;
 
 import static java.lang.String.format;
 import static org.neo4j.kernel.api.exceptions.Status.Classification.DatabaseError;
@@ -61,7 +62,7 @@ class ErrorReporter
         if ( error.status().code().classification() == DatabaseError )
         {
             String message = format( "Client triggered an unexpected error [%s]: %s, reference %s.",
-                    error.status(), error.message(), error.reference() );
+                    error.status().code().serialize(), error.message(), error.reference() );
 
             // Writing to user log gets duplicated to the internal log
             userLog.error( message );

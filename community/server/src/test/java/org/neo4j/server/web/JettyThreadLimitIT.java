@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -26,9 +26,9 @@ import org.junit.Test;
 import java.util.concurrent.CountDownLatch;
 
 import org.neo4j.helpers.ListenSocketAddress;
+import org.neo4j.kernel.api.net.NetworkConnectionTracker;
 import org.neo4j.kernel.configuration.Config;
 import org.neo4j.logging.NullLogProvider;
-import org.neo4j.ports.allocation.PortAuthority;
 import org.neo4j.test.rule.SuppressOutput;
 
 import static org.junit.Assert.assertEquals;
@@ -37,19 +37,19 @@ import static org.neo4j.test.rule.SuppressOutput.suppressAll;
 public class JettyThreadLimitIT
 {
     @Rule
-    public SuppressOutput suppressOutput = suppressAll();
+    public final SuppressOutput suppressOutput = suppressAll();
 
     @Test
     public void shouldHaveConfigurableJettyThreadPoolSize() throws Exception
     {
-        Jetty9WebServer server = new Jetty9WebServer( NullLogProvider.getInstance(), Config.defaults() );
+        Jetty9WebServer server = new Jetty9WebServer( NullLogProvider.getInstance(), Config.defaults(), NetworkConnectionTracker.NO_OP );
         int numCores = 1;
         int configuredMaxThreads = 12; // 12 is the new min max Threads value, for one core
         int acceptorThreads = 1; // In this configuration, 1 thread will become an acceptor...
         int selectorThreads = 1; // ... and 1 thread will become a selector...
         int jobThreads = configuredMaxThreads - acceptorThreads - selectorThreads; // ... and the rest are job threads
         server.setMaxThreads( numCores );
-        server.setAddress( new ListenSocketAddress( "localhost", PortAuthority.allocatePort() ) );
+        server.setHttpAddress( new ListenSocketAddress( "localhost", 0 ) );
         try
         {
             server.start();
@@ -68,9 +68,7 @@ public class JettyThreadLimitIT
         }
     }
 
-    private CountDownLatch loadThreadPool( QueuedThreadPool threadPool,
-                                           int tasksToSubmit,
-                                           final CountDownLatch startLatch )
+    private static CountDownLatch loadThreadPool( QueuedThreadPool threadPool, int tasksToSubmit, final CountDownLatch startLatch )
     {
         CountDownLatch endLatch = new CountDownLatch( 1 );
         for ( int i = 0; i < tasksToSubmit; i++ )

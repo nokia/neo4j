@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,16 +19,17 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.plans.rewriter
 
-import org.neo4j.cypher.internal.util.v3_5.attribution.SameId
+import org.neo4j.cypher.internal.v3_5.util.attribution.SameId
 import org.neo4j.cypher.internal.v3_5.logical.plans.Selection
-import org.neo4j.cypher.internal.util.v3_5.{Rewriter, bottomUp}
+import org.neo4j.cypher.internal.v3_5.expressions.Ands
+import org.neo4j.cypher.internal.v3_5.util.{Rewriter, bottomUp}
 
 case object fuseSelections extends Rewriter {
 
   override def apply(input: AnyRef) = instance.apply(input)
 
   private val instance: Rewriter = bottomUp(Rewriter.lift {
-    case topSelection@Selection(predicates1, Selection(predicates2, lhs)) =>
-      Selection(predicates1 ++ predicates2, lhs)(SameId(topSelection.id))
+    case topSelection@Selection(Ands(predicates1), Selection(Ands(predicates2), lhs)) =>
+      Selection(Ands(predicates1 ++ predicates2)(predicates1.head.position), lhs)(SameId(topSelection.id))
   })
 }

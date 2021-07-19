@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Copyright (c) 2002-2018 "Neo Technology,"
-# Network Engine for Objects in Lund AB [http://neotechnology.com]
+# Copyright (c) "Neo4j"
+# Neo4j Sweden AB [http://neo4j.com]
 #
 # This file is part of Neo4j.
 #
@@ -17,6 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
+
 # Callers may provide the following environment variables to customize this script:
 #  * JAVA_HOME
 #  * JAVA_CMD
@@ -104,50 +105,31 @@ check_limits() {
 }
 
 setup_java_opts() {
-  JAVA_OPTS=("-server")
-
-  if [[ -n "${dbms_memory_heap_initial_size:-}" ]]; then
-    local mem="${dbms_memory_heap_initial_size}"
-    if ! [[ ${mem} =~ .*[gGmMkK] ]]; then
-      mem="${mem}m"
-      cat >&2 <<EOF
-WARNING: dbms.memory.heap.initial_size will require a unit suffix in a
-         future version of Neo4j. Please add a unit suffix to your
-         configuration. Example:
-
-         dbms.memory.heap.initial_size=512m
-                                          ^
-EOF
-    fi
-    JAVA_MEMORY_OPTS+=("-Xms${mem}")
-  fi
-  if [[ -n "${dbms_memory_heap_max_size:-}" ]]; then
-    local mem="${dbms_memory_heap_max_size}"
-    if ! [[ ${mem} =~ .*[gGmMkK] ]]; then
-      mem="${mem}m"
-      cat >&2 <<EOF
-WARNING: dbms.memory.heap.max_size will require a unit suffix in a
-         future version of Neo4j. Please add a unit suffix to your
-         configuration. Example:
-
-         dbms.memory.heap.max_size=512m
-                                      ^
-EOF
-    fi
-    JAVA_MEMORY_OPTS+=("-Xmx${mem}")
-  fi
-  [[ -n "${JAVA_MEMORY_OPTS:-}" ]] && JAVA_OPTS+=("${JAVA_MEMORY_OPTS[@]}")
+  JAVA_OPTS=("-server" ${JAVA_MEMORY_OPTS_XMS-} ${JAVA_MEMORY_OPTS_XMX-})
 
   if [[ "${dbms_logs_gc_enabled:-}" = "true" ]]; then
-    JAVA_OPTS+=("-Xloggc:${NEO4J_LOGS}/gc.log" \
-                "-XX:+UseGCLogFileRotation" \
-                "-XX:NumberOfGCLogFiles=${dbms_logs_gc_rotation_keep_number:-5}" \
-                "-XX:GCLogFileSize=${dbms_logs_gc_rotation_size:-20m}")
-    if [[ -n "${dbms_logs_gc_options:-}" ]]; then
-      JAVA_OPTS+=(${dbms_logs_gc_options}) # unquoted to split on spaces
+    if [[ "${JAVA_VERSION}" = "1.8"* ]]; then
+      # JAVA 8 GC logging setup
+      JAVA_OPTS+=("-Xloggc:${NEO4J_LOGS}/gc.log" \
+                  "-XX:+UseGCLogFileRotation" \
+                  "-XX:NumberOfGCLogFiles=${dbms_logs_gc_rotation_keep_number:-5}" \
+                  "-XX:GCLogFileSize=${dbms_logs_gc_rotation_size:-20m}")
+      if [[ -n "${dbms_logs_gc_options:-}" ]]; then
+        JAVA_OPTS+=(${dbms_logs_gc_options}) # unquoted to split on spaces
+      else
+        JAVA_OPTS+=("-XX:+PrintGCDetails" "-XX:+PrintGCDateStamps" "-XX:+PrintGCApplicationStoppedTime" \
+                    "-XX:+PrintPromotionFailure" "-XX:+PrintTenuringDistribution")
+      fi
     else
-      JAVA_OPTS+=("-XX:+PrintGCDetails" "-XX:+PrintGCDateStamps" "-XX:+PrintGCApplicationStoppedTime" \
-                  "-XX:+PrintPromotionFailure" "-XX:+PrintTenuringDistribution")
+      # JAVA 9 and newer GC logging setup
+      local gc_options
+      if [[ -n "${dbms_logs_gc_options:-}" ]]; then
+        gc_options="${dbms_logs_gc_options}"
+      else
+        gc_options="-Xlog:gc*,safepoint,age*=trace"
+      fi
+      gc_options+=":file=${NEO4J_LOGS}/gc.log::filecount=${dbms_logs_gc_rotation_keep_number:-5},filesize=${dbms_logs_gc_rotation_size:-20m}"
+      JAVA_OPTS+=(${gc_options})
     fi
   fi
 
@@ -183,6 +165,10 @@ do_start() {
   if [[ "${NEO4J_PID:-}" ]] ; then
     echo "Neo4j is already running (pid ${NEO4J_PID})."
     exit 0
+  fi
+  # check dir for pidfile exists
+  if [[ ! -d $(dirname "${NEO4J_PIDFILE}") ]]; then
+    mkdir -p $(dirname "${NEO4J_PIDFILE}")
   fi
 
   echo "Starting Neo4j."
@@ -269,34 +255,40 @@ do_version() {
   exec "${command_line[@]}"
 }
 
+setup_java () {
+  check_java
+  setup_java_opts
+  setup_arbiter_options
+}
+
 main() {
   setup_environment
   CONSOLE_LOG="${NEO4J_LOGS}/neo4j.log"
   NEO4J_PIDFILE="${NEO4J_RUN}/neo4j.pid"
   readonly CONSOLE_LOG NEO4J_PIDFILE
 
-  setup_java_opts
-  check_java
-  setup_arbiter_options
-
   case "${1:-}" in
     console)
+      setup_java
       print_active_database
       print_configurable_paths
       do_console
       ;;
 
     start)
+      setup_java
       print_active_database
       print_configurable_paths
       do_start
       ;;
 
     stop)
+      setup_arbiter_options
       do_stop
       ;;
 
     restart)
+      setup_java
       do_stop
       do_start
       ;;
@@ -306,6 +298,7 @@ main() {
       ;;
 
     --version|version)
+      setup_java
       do_version
       ;;
 

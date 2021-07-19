@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -22,10 +22,10 @@ package org.neo4j.kernel.impl.transaction.command;
 import java.util.List;
 import java.util.function.Supplier;
 
-import org.neo4j.concurrent.Work;
 import org.neo4j.kernel.api.labelscan.LabelScanWriter;
 import org.neo4j.kernel.api.labelscan.NodeLabelUpdate;
 import org.neo4j.kernel.impl.store.UnderlyingStorageException;
+import org.neo4j.util.concurrent.Work;
 
 import static org.neo4j.kernel.api.labelscan.NodeLabelUpdate.SORT_BY_NODE_ID;
 

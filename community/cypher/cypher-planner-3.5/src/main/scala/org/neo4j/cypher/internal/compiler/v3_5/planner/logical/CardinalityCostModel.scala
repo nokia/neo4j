@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,16 +19,19 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical
 
-import org.neo4j.cypher.internal.compiler.v3_5.CypherCompilerConfiguration
+import org.neo4j.cypher.internal.compiler.v3_5.CypherPlannerConfiguration
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.Metrics._
 import org.neo4j.cypher.internal.ir.v3_5._
 import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.Cardinalities
-import org.neo4j.cypher.internal.util.v3_5.{Cardinality, Cost, CostPerRow, Multiplier}
-import org.neo4j.cypher.internal.v3_5.expressions.{HasLabels, Property}
 import org.neo4j.cypher.internal.v3_5.logical.plans._
+import org.neo4j.cypher.internal.v3_5.expressions.HasLabels
+import org.neo4j.cypher.internal.v3_5.expressions.Property
+import org.neo4j.cypher.internal.v3_5.util.Cardinality
+import org.neo4j.cypher.internal.v3_5.util.Cost
+import org.neo4j.cypher.internal.v3_5.util.CostPerRow
+import org.neo4j.cypher.internal.v3_5.util.Multiplier
 
-case class CardinalityCostModel(config: CypherCompilerConfiguration) extends CostModel {
-  def VERBOSE = java.lang.Boolean.getBoolean("CardinalityCostModel.VERBOSE")
+case class CardinalityCostModel(config: CypherPlannerConfiguration) extends CostModel {
 
   private val DEFAULT_COST_PER_ROW: CostPerRow = 0.1
   private val PROBE_BUILD_COST: CostPerRow = 3.1
@@ -47,8 +50,8 @@ case class CardinalityCostModel(config: CypherCompilerConfiguration) extends Cos
     => 1.0
 
     // Filtering on labels and properties
-    case Selection(predicates, _) =>
-      val noOfStoreAccesses = predicates.treeCount {
+    case Selection(predicate, _) =>
+      val noOfStoreAccesses = predicate.exprs.treeCount {
         case _: Property | _: HasLabels => true
         case _ => false
       }

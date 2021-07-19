@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -200,7 +200,7 @@ public class RagManager
         if ( resource != null )
         {
             graphStack.push( resource );
-            // if the resource doesn't exist in resorceMap that means all the
+            // if the resource doesn't exist in resourceMap that means all the
             // locks on the resource has been released
             // it is possible when this tx was in RWLock.acquire and
             // saw it had to wait for the lock the scheduler changes to some

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,11 +20,24 @@
 package org.neo4j.bolt.testing;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.embedded.EmbeddedChannel;
+
+import org.neo4j.bolt.BoltChannel;
 
 import static org.junit.Assert.assertEquals;
 
 public class BoltTestUtil
 {
+    public static BoltChannel newTestBoltChannel()
+    {
+        return newTestBoltChannel( "bolt-1" );
+    }
+
+    public static BoltChannel newTestBoltChannel( String id )
+    {
+        return new BoltChannel( id, "bolt", new EmbeddedChannel() );
+    }
+
     public static void assertByteBufEquals( ByteBuf expected, ByteBuf actual )
     {
         try

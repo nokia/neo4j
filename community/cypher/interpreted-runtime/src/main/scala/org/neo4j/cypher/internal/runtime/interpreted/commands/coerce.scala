@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,8 +21,8 @@ package org.neo4j.cypher.internal.runtime.interpreted.commands
 
 import org.neo4j.cypher.internal.runtime.QueryContext
 import org.neo4j.cypher.internal.runtime.interpreted.{IsList, IsMap}
-import org.neo4j.cypher.internal.util.v3_5.CypherTypeException
-import org.neo4j.cypher.internal.util.v3_5.symbols._
+import org.neo4j.cypher.internal.v3_5.util.CypherTypeException
+import org.neo4j.cypher.internal.v3_5.util.symbols._
 import org.neo4j.values._
 import org.neo4j.values.storable._
 import org.neo4j.values.virtual._
@@ -57,6 +57,12 @@ object coerce {
         case CTNumber => value.asInstanceOf[NumberValue]
         case CTPoint => value.asInstanceOf[PointValue]
         case CTGeometry => value.asInstanceOf[PointValue]
+        case CTDate => value.asInstanceOf[DateValue]
+        case CTLocalTime => value.asInstanceOf[LocalTimeValue]
+        case CTTime => value.asInstanceOf[TimeValue]
+        case CTLocalDateTime => value.asInstanceOf[LocalDateTimeValue]
+        case CTDateTime => value.asInstanceOf[DateTimeValue]
+        case CTDuration => value.asInstanceOf[DurationValue]
         case _ => throw cantCoerce(value, typ)
       }
     }
@@ -67,5 +73,5 @@ object coerce {
   }
 
   private def cantCoerce(value: Any, typ: CypherType, cause: Option[Throwable] = None) =
-    new CypherTypeException(s"Can't coerce `$value` to $typ", cause.orNull)
+    new CypherTypeException(s"Wrong argument type: Can't coerce `$value` to $typ", cause.orNull)
 }

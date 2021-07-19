@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -23,8 +23,6 @@ import org.apache.commons.lang3.SystemUtils;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.RuleChain;
-
-import java.io.File;
 
 import org.neo4j.io.ByteUnit;
 import org.neo4j.io.fs.FileSystemAbstraction;
@@ -65,12 +63,11 @@ public class TestGrowingFileMemoryMapping
         // given
         final int NUMBER_OF_RECORDS = 1000000;
 
-        File storeDir = testDirectory.graphDbDir();
         Config config = Config.defaults( pagecache_memory, mmapSize( NUMBER_OF_RECORDS, NodeRecordFormat.RECORD_SIZE ) );
         FileSystemAbstraction fileSystemAbstraction = fileSystemRule.get();
         DefaultIdGeneratorFactory idGeneratorFactory = new DefaultIdGeneratorFactory( fileSystemAbstraction );
         PageCache pageCache = pageCacheRule.getPageCache( fileSystemAbstraction, config );
-        StoreFactory storeFactory = new StoreFactory( storeDir, config, idGeneratorFactory, pageCache,
+        StoreFactory storeFactory = new StoreFactory( testDirectory.databaseLayout(), config, idGeneratorFactory, pageCache,
                 fileSystemAbstraction, NullLogProvider.getInstance(), EmptyVersionContextSupplier.EMPTY );
 
         NeoStores neoStores = storeFactory.openAllNeoStores( true );
@@ -102,7 +99,7 @@ public class TestGrowingFileMemoryMapping
         neoStores.close();
     }
 
-    private String mmapSize( int numberOfRecords, int recordSize )
+    private static String mmapSize( int numberOfRecords, int recordSize )
     {
         int bytes = numberOfRecords * recordSize;
         long mebiByte = ByteUnit.mebiBytes( 1 );

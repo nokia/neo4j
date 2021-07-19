@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -22,17 +22,17 @@ package org.neo4j.cypher.internal.runtime.planDescription
 import java.util
 
 import org.neo4j.cypher.exceptionHandler
+import org.neo4j.cypher.internal.ir.v3_5.ProvidedOrder
 import org.neo4j.cypher.internal.runtime.planDescription.InternalPlanDescription.Arguments._
-import org.neo4j.cypher.internal.util.v3_5.InternalException
-import org.neo4j.cypher.internal.util.v3_5.attribution.Id
-import org.neo4j.cypher.internal.util.v3_5.symbols.CypherType
-import org.neo4j.cypher.internal.v3_5.expressions.SemanticDirection
 import org.neo4j.cypher.internal.v3_5.logical.plans.{QualifiedName, SeekableArgs}
-import org.neo4j.cypher.internal.v3_5.{expressions => ast}
 import org.neo4j.graphdb.ExecutionPlanDescription
 import org.neo4j.graphdb.ExecutionPlanDescription.ProfilerStatistics
+import org.neo4j.cypher.internal.v3_5.expressions.SemanticDirection
+import org.neo4j.cypher.internal.v3_5.util.InternalException
+import org.neo4j.cypher.internal.v3_5.util.attribution.Id
+import org.neo4j.cypher.internal.v3_5.util.symbols.CypherType
+import org.neo4j.cypher.internal.v3_5.{expressions => ast}
 
-import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
@@ -140,6 +140,8 @@ object InternalPlanDescription {
 
     case class DbHits(value: Long) extends Argument
 
+    case class Order(order: ProvidedOrder) extends Argument
+
     case class PageCacheHits(value: Long) extends Argument
 
     case class PageCacheMisses(value: Long) extends Argument
@@ -237,6 +239,8 @@ object InternalPlanDescription {
 
   }
 
+  def error(msg: String): InternalPlanDescription =
+    new PlanDescriptionImpl(Id.INVALID_ID, msg, NoChildren, Nil, Set.empty)
 }
 
 sealed trait Children {
@@ -339,7 +343,7 @@ final case class CompactedPlanDescription(similar: Seq[InternalPlanDescription])
 
   override def name: String = s"${similar.head.name}(${similar.size})"
 
-  override def variables: Set[String] = similar.foldLeft(Set.empty[String]) { (acc, plan) =>
+  override lazy val variables: Set[String] = similar.foldLeft(Set.empty[String]) { (acc, plan) =>
     acc ++ plan.variables
   }
 

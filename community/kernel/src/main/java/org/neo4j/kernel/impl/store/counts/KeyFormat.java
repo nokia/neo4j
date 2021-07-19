@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,6 +19,7 @@
  */
 package org.neo4j.kernel.impl.store.counts;
 
+import org.neo4j.kernel.impl.api.CountsAccessor;
 import org.neo4j.kernel.impl.api.CountsVisitor;
 import org.neo4j.kernel.impl.store.counts.keys.CountsKey;
 import org.neo4j.kernel.impl.store.counts.keys.CountsKeyFactory;
@@ -51,7 +52,7 @@ class KeyFormat implements CountsVisitor
      *  t - entry type - "{@link #NODE_COUNT}"
      *  l - label id
      * </pre>
-     * For value format, see {@link org.neo4j.kernel.impl.store.counts.CountsUpdater#incrementNodeCount(int, long)}.
+     * For value format, see {@link CountsAccessor.Updater#incrementNodeCount(long, long)}.
      */
     @Override
     public void visitNodeCount( int labelId, long count )
@@ -70,7 +71,7 @@ class KeyFormat implements CountsVisitor
      *  r - relationship type id
      *  e - end label id
      * </pre>
-     * For value format, see {@link org.neo4j.kernel.impl.store.counts.CountsUpdater#incrementRelationshipCount(int, int, int, long)}
+     * For value format, see {@link CountsAccessor.Updater#incrementRelationshipCount(long, int, long, long)}
      */
     @Override
     public void visitRelationshipCount( int startLabelId, int typeId, int endLabelId, long count )
@@ -104,7 +105,7 @@ class KeyFormat implements CountsVisitor
      *  0 1 2 3 4 5 6 7   8 9 A B C D E F
      * [t,0,0,0,i,i,i,i ; 0,0,0,0,0,0,0,k]
      *  t - index entry marker - "{@link #INDEX}"
-     *  k - entry (sub)type - "{@link #INDEX_STATS}"
+     *  k - entry (sub)type - "{@link #INDEX_SAMPLE}"
      *  i - index id
      * </pre>
      * For value format, see {@link org.neo4j.kernel.impl.store.counts.CountsUpdater#replaceIndexSample(long , long, long)}.

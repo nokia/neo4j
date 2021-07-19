@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -30,6 +30,10 @@ import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Relationship;
 import org.neo4j.helpers.collection.NestingIterable;
 
+/**
+ * @deprecated Server plugins are deprecated for removal in the next major release. Please use unmanaged extensions instead.
+ */
+@Deprecated
 public final class ServerExtender
 {
     @SuppressWarnings( "unchecked" )
@@ -94,16 +98,19 @@ public final class ServerExtender
         add( ext, plugin );
     }
 
+    @Deprecated
     public void addGraphDatabaseExtensions( PluginPoint plugin )
     {
         add( targetToPluginMap.get( GraphDatabaseService.class ), plugin );
     }
 
+    @Deprecated
     public void addNodeExtensions( PluginPoint plugin )
     {
         add( targetToPluginMap.get( Node.class ), plugin );
     }
 
+    @Deprecated
     public void addRelationshipExtensions( PluginPoint plugin )
     {
         add( targetToPluginMap.get( Relationship.class ), plugin );
@@ -120,6 +127,7 @@ public final class ServerExtender
         extensions.put( plugin.name(), plugin );
     }
 
+    @Deprecated
     public PluginPointFactory getPluginPointFactory()
     {
         return pluginPointFactory;

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,8 +19,8 @@
  */
 package org.neo4j.cypher.internal.planner.v3_5.spi
 
-import org.neo4j.cypher.internal.frontend.v3_5.phases.InternalNotificationLogger
 import org.neo4j.cypher.internal.v3_5.logical.plans.{ProcedureSignature, QualifiedName, UserFunctionSignature}
+import org.neo4j.cypher.internal.v3_5.frontend.phases.InternalNotificationLogger
 
 /**
  * PlanContext is an internal access layer to the graph that is solely used during plan building
@@ -31,15 +31,30 @@ import org.neo4j.cypher.internal.v3_5.logical.plans.{ProcedureSignature, Qualifi
  */
 trait PlanContext extends TokenContext with ProcedureSignatureResolver {
 
+  /**
+    * Return all indexes (general and unique) for a given label
+    */
   def indexesGetForLabel(labelId: Int): Iterator[IndexDescriptor]
 
-  def indexGet(labelName: String, propertyKeys: Seq[String]): Option[IndexDescriptor]
-
-  def indexExistsForLabel(labelName: String): Boolean
-
+  /**
+    * Return all unique indexes for a given label
+    */
   def uniqueIndexesGetForLabel(labelId: Int): Iterator[IndexDescriptor]
 
-  def uniqueIndexGet(labelName: String, propertyKey: Seq[String]): Option[IndexDescriptor]
+  /**
+    * Checks if an index exists (general or unique) for a given label
+    */
+  def indexExistsForLabel(labelId: Int): Boolean
+
+  /**
+    * Gets an index index if it exists (general or unique) for a given label and properties
+    */
+  def indexGetForLabelAndProperties(labelName: String, propertyKeys: Seq[String]): Option[IndexDescriptor]
+
+  /**
+    * Checks if an index exists (general or unique) for a given label and properties
+    */
+  def indexExistsForLabelAndProperties(labelName: String, propertyKey: Seq[String]): Boolean
 
   def hasPropertyExistenceConstraint(labelName: String, propertyKey: String): Boolean
 
@@ -47,15 +62,11 @@ trait PlanContext extends TokenContext with ProcedureSignatureResolver {
 
   def checkRelIndex(idxName: String)
 
-  def getOrCreateFromSchemaState[T](key: Any, f: => T): T
-
   def txIdProvider: () => Long
 
-  def statistics: GraphStatistics
+  def statistics: InstrumentedGraphStatistics
 
   def notificationLogger(): InternalNotificationLogger
-
-  def twoLayerTransactionState(): Boolean
 }
 
 trait ProcedureSignatureResolver {

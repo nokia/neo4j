@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,15 +19,15 @@
  */
 package org.neo4j.values.virtual;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import static org.neo4j.values.utils.AnyValueTestUtil.assertEqual;
 import static org.neo4j.values.virtual.VirtualValueTestUtil.map;
 
-public class MapTest
+class MapTest
 {
     @Test
-    public void shouldBeEqualToItself()
+    void shouldBeEqualToItself()
     {
         assertEqual(
                 map( "1", false, "20", new short[]{4} ),
@@ -39,7 +39,7 @@ public class MapTest
     }
 
     @Test
-    public void shouldCoerce()
+    void shouldCoerce()
     {
         assertEqual(
                 map( "1", 1, "20", 'a' ),
@@ -55,7 +55,7 @@ public class MapTest
     }
 
     @Test
-    public void shouldRecurse()
+    void shouldRecurse()
     {
         assertEqual(
                 map( "1", map( "2", map( "3", "hi" ) ) ),
@@ -63,7 +63,7 @@ public class MapTest
     }
 
     @Test
-    public void shouldRecurseAndCoerce()
+    void shouldRecurseAndCoerce()
     {
         assertEqual(
                 map( "1", map( "2", map( "3", "x" ) ) ),

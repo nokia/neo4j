@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,12 +19,14 @@
  */
 package org.neo4j.io.pagecache.impl.muninn;
 
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import org.neo4j.io.pagecache.stress.Condition;
 import org.neo4j.io.pagecache.stress.PageCacheStressTest;
 import org.neo4j.io.pagecache.tracing.DefaultPageCacheTracer;
+import org.neo4j.test.extension.Inject;
+import org.neo4j.test.extension.TestDirectoryExtension;
 import org.neo4j.test.rule.TestDirectory;
 
 import static org.neo4j.io.pagecache.stress.Conditions.numberOfEvictions;
@@ -36,13 +38,14 @@ import static org.neo4j.io.pagecache.stress.Conditions.numberOfEvictions;
  *
  * Configured to run until it sees a million evictions, which should take few minutes.
  */
-public class MuninnPageCacheStressIT
+@ExtendWith( TestDirectoryExtension.class )
+class MuninnPageCacheStressIT
 {
-    @Rule
-    public TestDirectory testDirectory = TestDirectory.testDirectory();
+    @Inject
+    TestDirectory testDirectory;
 
     @Test
-    public void shouldHandleTheStressOfManyManyEvictions() throws Exception
+    void shouldHandleTheStressOfManyManyEvictions() throws Exception
     {
         DefaultPageCacheTracer monitor = new DefaultPageCacheTracer();
         Condition condition = numberOfEvictions( monitor, 100_000 );

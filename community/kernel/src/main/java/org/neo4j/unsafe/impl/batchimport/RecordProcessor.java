@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -26,7 +26,7 @@ import org.neo4j.kernel.impl.store.record.AbstractBaseRecord;
  *
  * @param <T>
  */
-public interface RecordProcessor<T extends AbstractBaseRecord>
+public interface RecordProcessor<T extends AbstractBaseRecord> extends AutoCloseable
 {
     /**
      * Processes an item.
@@ -37,34 +37,6 @@ public interface RecordProcessor<T extends AbstractBaseRecord>
 
     void done();
 
-    class Multiple<T extends AbstractBaseRecord> implements RecordProcessor<T>
-    {
-        private final RecordProcessor<T>[] processors;
-
-        @SafeVarargs
-        public Multiple( RecordProcessor<T>... processors )
-        {
-            this.processors = processors;
-        }
-
-        @Override
-        public boolean process( T item )
-        {
-            boolean result = false;
-            for ( RecordProcessor<T> processor : processors )
-            {
-                result |= processor.process( item );
-            }
-            return result;
-        }
-
-        @Override
-        public void done()
-        {
-            for ( RecordProcessor<T> processor : processors )
-            {
-                processor.done();
-            }
-        }
-    }
+    @Override
+    void close();
 }

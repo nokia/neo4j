@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,6 +19,8 @@
  */
 package org.neo4j.kernel.api.schema;
 
+import org.apache.commons.lang3.ArrayUtils;
+
 import java.util.Arrays;
 
 import org.neo4j.internal.kernel.api.TokenNameLookup;
@@ -27,6 +29,7 @@ import org.neo4j.internal.kernel.api.schema.SchemaDescriptor;
 import org.neo4j.internal.kernel.api.schema.SchemaProcessor;
 import org.neo4j.internal.kernel.api.schema.SchemaUtil;
 import org.neo4j.kernel.impl.locking.ResourceTypes;
+import org.neo4j.storageengine.api.EntityType;
 import org.neo4j.storageengine.api.lock.ResourceType;
 
 public class RelationTypeSchemaDescriptor implements org.neo4j.internal.kernel.api.schema.RelationTypeSchemaDescriptor
@@ -38,6 +41,12 @@ public class RelationTypeSchemaDescriptor implements org.neo4j.internal.kernel.a
     {
         this.relTypeId = relTypeId;
         this.propertyIds = propertyIds;
+    }
+
+    @Override
+    public boolean isAffected( long[] entityTokenIds )
+    {
+        return ArrayUtils.contains( entityTokenIds, relTypeId );
     }
 
     @Override
@@ -60,12 +69,6 @@ public class RelationTypeSchemaDescriptor implements org.neo4j.internal.kernel.a
     }
 
     @Override
-    public String keyName( TokenNameLookup tokenNameLookup )
-    {
-        return tokenNameLookup.relationshipTypeGetName( relTypeId );
-    }
-
-    @Override
     public int getRelTypeId()
     {
         return relTypeId;
@@ -78,6 +81,12 @@ public class RelationTypeSchemaDescriptor implements org.neo4j.internal.kernel.a
     }
 
     @Override
+    public int[] getEntityTokenIds()
+    {
+        return new int[]{relTypeId};
+    }
+
+    @Override
     public int keyId()
     {
         return getRelTypeId();
@@ -87,6 +96,18 @@ public class RelationTypeSchemaDescriptor implements org.neo4j.internal.kernel.a
     public ResourceType keyType()
     {
         return ResourceTypes.RELATIONSHIP_TYPE;
+    }
+
+    @Override
+    public EntityType entityType()
+    {
+        return EntityType.RELATIONSHIP;
+    }
+
+    @Override
+    public PropertySchemaType propertySchemaType()
+    {
+        return PropertySchemaType.COMPLETE_ALL_TOKENS;
     }
 
     @Override

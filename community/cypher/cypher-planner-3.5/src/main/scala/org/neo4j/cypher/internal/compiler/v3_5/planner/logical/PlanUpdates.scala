@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,30 +19,29 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical
 
-import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.steps.{LogicalPlanProducer, mergeUniqueIndexSeekLeafPlanner}
+import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.steps.{LogicalPlanProducer, PatternExpressionSolver, mergeUniqueIndexSeekLeafPlanner}
 import org.neo4j.cypher.internal.ir.v3_5._
-import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.{Cardinalities, Solveds}
-import org.neo4j.cypher.internal.util.v3_5.InternalException
-import org.neo4j.cypher.internal.v3_5.expressions.{ContainerIndex, PathExpression, Variable}
 import org.neo4j.cypher.internal.v3_5.logical.plans.LogicalPlan
+import org.neo4j.cypher.internal.v3_5.expressions.{ContainerIndex, PathExpression, Variable}
+import org.neo4j.cypher.internal.v3_5.util.InternalException
 
 /*
  * This coordinates PlannerQuery planning of updates.
  */
-case object PlanUpdates
-  extends ((PlannerQuery, LogicalPlan, Boolean, LogicalPlanningContext, Solveds, Cardinalities) => (LogicalPlan, LogicalPlanningContext)) {
+case object PlanUpdates extends UpdatesPlanner {
 
-  private def computePlan(plan: LogicalPlan, query: PlannerQuery, firstPlannerQuery: Boolean, context: LogicalPlanningContext, solveds: Solveds, cardinalities: Cardinalities) = {
+  private val patternExpressionSolver = PatternExpressionSolver()
+
+  private def computePlan(plan: LogicalPlan, query: PlannerQuery, firstPlannerQuery: Boolean, context: LogicalPlanningContext) = {
     var updatePlan = plan
-    var ctx = context
     val iterator = query.queryGraph.mutatingPatterns.iterator
     while(iterator.hasNext) {
-      updatePlan = planUpdate(updatePlan, iterator.next(), firstPlannerQuery, ctx, solveds, cardinalities)
+      updatePlan = planUpdate(updatePlan, iterator.next(), firstPlannerQuery, query.interestingOrder, context)
     }
-    (updatePlan, ctx)
+    (updatePlan, context)
   }
 
-  override def apply(query: PlannerQuery, in: LogicalPlan, firstPlannerQuery: Boolean, context: LogicalPlanningContext, solveds: Solveds, cardinalities: Cardinalities): (LogicalPlan, LogicalPlanningContext) = {
+  override def apply(query: PlannerQuery, in: LogicalPlan, firstPlannerQuery: Boolean, context: LogicalPlanningContext): (LogicalPlan, LogicalPlanningContext) = {
     // Eagerness pass 1 -- does previously planned reads conflict with future writes?
     val plan = if (firstPlannerQuery)
       Eagerness.headReadWriteEagerize(in, query, context)
@@ -50,7 +49,7 @@ case object PlanUpdates
     //// NOTE: tailReadWriteEagerizeRecursive is done after updates, below
       Eagerness.tailReadWriteEagerizeNonRecursive(in, query, context)
 
-    val (updatePlan, finalContext) = computePlan(plan, query, firstPlannerQuery, context, solveds, cardinalities)
+    val (updatePlan, finalContext) = computePlan(plan, query, firstPlannerQuery, context)
 
     val lp = if (firstPlannerQuery)
       Eagerness.headWriteReadEagerize(updatePlan, query, context)
@@ -60,12 +59,12 @@ case object PlanUpdates
     (lp, context)
   }
 
-  private def planUpdate(source: LogicalPlan, pattern: MutatingPattern, first: Boolean, context: LogicalPlanningContext, solveds: Solveds, cardinalities: Cardinalities): LogicalPlan = {
+  private def planUpdate(source: LogicalPlan, pattern: MutatingPattern, first: Boolean, interestingOrder: InterestingOrder, context: LogicalPlanningContext) = {
 
     def planAllUpdatesRecursively(query: PlannerQuery, plan: LogicalPlan): LogicalPlan = {
       query.allPlannerQueries.foldLeft((plan, true, context)) {
         case ((accPlan, innerFirst, accCtx), plannerQuery) =>
-          val (newPlan,newCtx) = this.apply(plannerQuery, accPlan, innerFirst, context, solveds, cardinalities)
+          val (newPlan,newCtx) = this.apply(plannerQuery, accPlan, innerFirst, context)
           (newPlan, false, newCtx)
       }._1
     }
@@ -73,49 +72,64 @@ case object PlanUpdates
     pattern match {
       //FOREACH
       case foreach: ForeachPattern =>
+        val (updatedSource, newExpression) = patternExpressionSolver.apply(source, foreach.expression, interestingOrder, context)
+
         val innerLeaf = context.logicalPlanProducer
-          .planArgument(Set.empty, Set.empty, source.availableSymbols + foreach.variable, context)
+          .planArgument(Set.empty, Set.empty, updatedSource.availableSymbols + foreach.variable, context)
         val innerUpdatePlan = planAllUpdatesRecursively(foreach.innerUpdates, innerLeaf)
-        context.logicalPlanProducer.planForeachApply(source, innerUpdatePlan, foreach, context)
+        context.logicalPlanProducer.planForeachApply(updatedSource, innerUpdatePlan, foreach, context, newExpression)
 
       //CREATE ()
-      case p: CreateNodePattern => context.logicalPlanProducer.planCreateNode(source, p, context)
-
       //CREATE (a)-[:R]->(b)
-      case p: CreateRelationshipPattern => context.logicalPlanProducer.planCreateRelationship(source, p, context)
+      //CREATE (), (a)-[:R]->(b), (x)-[:X]->(y)-[:Y]->(z {prop:2})
+      case p: CreatePattern => context.logicalPlanProducer.planCreate(source, p, context)
 
       //MERGE ()
       case p: MergeNodePattern =>
-        planMerge(source, p.matchGraph, Seq(p.createNodePattern), Seq.empty, p.onCreate,
-          p.onMatch, first, context, solveds, cardinalities, p)
+        planMerge(source, p.matchGraph, Seq(p.createNode), Seq.empty, p.onCreate, p.onMatch, first, interestingOrder, context, p)
 
       //MERGE (a)-[:T]->(b)
       case p: MergeRelationshipPattern =>
-        planMerge(source, p.matchGraph, p.createNodePatterns, p.createRelPatterns, p.onCreate,
-          p.onMatch, first, context, solveds, cardinalities, p)
+        planMerge(source, p.matchGraph, p.createNodes, p.createRelationships, p.onCreate, p.onMatch, first, interestingOrder, context, p)
 
       //SET n:Foo:Bar
       case pattern: SetLabelPattern => context.logicalPlanProducer.planSetLabel(source, pattern, context)
 
       //SET n.prop = 42
-      case pattern: SetNodePropertyPattern =>
-        context.logicalPlanProducer.planSetNodeProperty(source, pattern, context)
+      case pattern@SetNodePropertyPattern(_, _, expression) =>
+        val (updatedSource, newExpression) = patternExpressionSolver.apply(source, expression, interestingOrder, context)
+        val updatedPattern = pattern.copy(expression = newExpression)
+        context.logicalPlanProducer.planSetNodeProperty(updatedSource, updatedPattern, pattern, context)
 
       //SET r.prop = 42
-      case pattern: SetRelationshipPropertyPattern =>
-        context.logicalPlanProducer.planSetRelationshipProperty(source, pattern, context)
+      case pattern@SetRelationshipPropertyPattern(_, _ , expression) =>
+        val (updatedSource, newExpression) = patternExpressionSolver.apply(source, expression, interestingOrder, context)
+        val updatedPattern = pattern.copy(expression = newExpression)
+        context.logicalPlanProducer.planSetRelationshipProperty(updatedSource, updatedPattern, pattern, context)
 
       //SET x.prop = 42
-      case pattern: SetPropertyPattern =>
-        context.logicalPlanProducer.planSetProperty(source, pattern, context)
+      case pattern@SetPropertyPattern(_, _, expression) =>
+        val (updatedSource, newExpression) = patternExpressionSolver.apply(source, expression, interestingOrder, context)
+        val updatedPattern = pattern.copy(expression = newExpression)
+        context.logicalPlanProducer.planSetProperty(updatedSource, updatedPattern, pattern, context)
 
-      //SET n.prop += {}
-      case pattern: SetNodePropertiesFromMapPattern =>
-        context.logicalPlanProducer.planSetNodePropertiesFromMap(source, pattern, context)
+      //SET n += {p1: ..., p2: ...}
+      case pattern@SetNodePropertiesFromMapPattern(_, expression, _) =>
+        val (updatedSource, newExpression) = patternExpressionSolver.apply(source, expression, interestingOrder, context)
+        val updatedPattern = pattern.copy(expression = newExpression)
+        context.logicalPlanProducer.planSetNodePropertiesFromMap(updatedSource, updatedPattern, pattern, context)
 
-      //SET r.prop += {}
-      case pattern: SetRelationshipPropertiesFromMapPattern =>
-        context.logicalPlanProducer.planSetRelationshipPropertiesFromMap(source, pattern, context)
+      //SET r += {p1: ..., p2: ...}
+      case pattern@SetRelationshipPropertiesFromMapPattern(_, expression, _) =>
+        val (updatedSource, newExpression) = patternExpressionSolver.apply(source, expression, interestingOrder, context)
+        val updatedPattern = pattern.copy(expression = newExpression)
+        context.logicalPlanProducer.planSetRelationshipPropertiesFromMap(updatedSource, updatedPattern, pattern, context)
+
+      //SET x += {p1: ..., p2: ...}
+      case pattern@SetPropertiesFromMapPattern(_, expression, _) =>
+        val (updatedSource, newExpression) = patternExpressionSolver.apply(source, expression, interestingOrder, context)
+        val updatedPattern = pattern.copy(expression = newExpression)
+        context.logicalPlanProducer.planSetPropertiesFromMap(updatedSource, updatedPattern, pattern, context)
 
       //REMOVE n:Foo:Bar
       case pattern: RemoveLabelPattern => context.logicalPlanProducer.planRemoveLabel(source, pattern, context)
@@ -172,9 +186,15 @@ case object PlanUpdates
    * Note also that merge uses a special leaf planner to enforce the correct behavior
    * when having uniqueness constraints, and unnestApply will remove a lot of the extra Applies
    */
-  def planMerge(source: LogicalPlan, matchGraph: QueryGraph, createNodePatterns: Seq[CreateNodePattern],
-                createRelationshipPatterns: Seq[CreateRelationshipPattern], onCreatePatterns: Seq[SetMutatingPattern],
-                onMatchPatterns: Seq[SetMutatingPattern], first: Boolean, context: LogicalPlanningContext, solveds: Solveds, cardinalities: Cardinalities,
+  def planMerge(source: LogicalPlan,
+                matchGraph: QueryGraph,
+                createNodePatterns: Seq[CreateNode],
+                createRelationshipPatterns: Seq[CreateRelationship],
+                onCreatePatterns: Seq[SetMutatingPattern],
+                onMatchPatterns: Seq[SetMutatingPattern],
+                first: Boolean,
+                interestingOrder: InterestingOrder,
+                context: LogicalPlanningContext,
                 solvedMutatingPattern: MutatingPattern): LogicalPlan = {
 
     val producer: LogicalPlanProducer = context.logicalPlanProducer
@@ -184,11 +204,11 @@ case object PlanUpdates
     val leafPlanners = PriorityLeafPlannerList(leafPlannerList, context.config.leafPlanners)
 
     val innerContext: LogicalPlanningContext =
-      context.withUpdatedCardinalityInformation(source, solveds, cardinalities).copy(config = context.config.withLeafPlanners(leafPlanners))
+      context.withUpdatedCardinalityInformation(source).copy(config = context.config.withLeafPlanners(leafPlanners))
 
-    val ids: Seq[String] = createNodePatterns.map(_.nodeName) ++ createRelationshipPatterns.map(_.relName)
+    val ids: Seq[String] = createNodePatterns.map(_.idName) ++ createRelationshipPatterns.map(_.idName)
 
-    val mergeMatch = mergeMatchPart(source, matchGraph, producer, createNodePatterns, createRelationshipPatterns, innerContext, solveds, cardinalities, ids)
+    val mergeMatch = mergeMatchPart(source, matchGraph, producer, createNodePatterns, createRelationshipPatterns, interestingOrder, innerContext, ids)
 
     //            condApply
     //             /   \
@@ -196,7 +216,7 @@ case object PlanUpdates
     val condApply = if (onMatchPatterns.nonEmpty) {
       val qgWithAllNeededArguments = matchGraph.addArgumentIds(matchGraph.allCoveredIds.toIndexedSeq)
       val onMatch = onMatchPatterns.foldLeft[LogicalPlan](producer.planQueryArgument(qgWithAllNeededArguments, context)) {
-        case (src, current) => planUpdate(src, current, first, context, solveds, cardinalities)
+        case (src, current) => planUpdate(src, current, first, interestingOrder, context)
       }
       producer.planConditionalApply(mergeMatch, onMatch, ids, innerContext)
     } else mergeMatch
@@ -215,10 +235,10 @@ case object PlanUpdates
     }
 
     val onCreate = onCreatePatterns.foldLeft(mergeCreatePart) {
-      case (src, current) => planUpdate(src, current, first, context, solveds, cardinalities)
+      case (src, current) => planUpdate(src, current, first, interestingOrder, context)
     }
 
-    val solved = solveds.get(source.id).amendQueryGraph(u => u.addMutatingPatterns(solvedMutatingPattern))
+    val solved = context.planningAttributes.solveds.get(source.id).amendQueryGraph(u => u.addMutatingPatterns(solvedMutatingPattern))
     val antiCondApply = producer.planAntiConditionalApply(condApply, onCreate, ids, innerContext, Some(solved))
 
     antiCondApply
@@ -227,16 +247,14 @@ case object PlanUpdates
   private def mergeMatchPart(source: LogicalPlan,
                              matchGraph: QueryGraph,
                              producer: LogicalPlanProducer,
-                             createNodePatterns: Seq[CreateNodePattern],
-                             createRelationshipPatterns: Seq[CreateRelationshipPattern],
-                             context: LogicalPlanningContext,
-                             solveds: Solveds,
-                             cardinalities: Cardinalities,
-                             ids: Seq[String]): LogicalPlan = {
+                             createNodePatterns: Seq[CreateNode],
+                             createRelationshipPatterns: Seq[CreateRelationship],
+                             interestingOrder: InterestingOrder,
+                             context: LogicalPlanningContext, ids: Seq[String]) = {
     def mergeRead(ctx: LogicalPlanningContext) = {
-      val mergeReadPart = ctx.strategy.plan(matchGraph, ctx, solveds, cardinalities)
-      if (solveds.get(mergeReadPart.id).queryGraph != matchGraph)
-        throw new InternalException(s"The planner was unable to successfully plan the MERGE read:\n${solveds.get(mergeReadPart.id).queryGraph}\n not equal to \n$matchGraph")
+      val mergeReadPart = ctx.strategy.plan(matchGraph, interestingOrder, ctx)
+      if (context.planningAttributes.solveds.get(mergeReadPart.id).queryGraph != matchGraph)
+        throw new InternalException(s"The planner was unable to successfully plan the MERGE read:\n${context.planningAttributes.solveds.get(mergeReadPart.id).queryGraph}\n not equal to \n$matchGraph")
       val activeReadPart = producer.planActiveRead(mergeReadPart, ctx)
       producer.planOptional(activeReadPart, matchGraph.argumentIds, ctx)
     }
@@ -254,16 +272,7 @@ case object PlanUpdates
     val nodesToLock = matchGraph.patternNodes intersect matchGraph.argumentIds
 
     if (nodesToLock.nonEmpty) {
-
-      def addLockToPlan(plan: LogicalPlan): LogicalPlan = {
-        val lockThese = nodesToLock intersect plan.availableSymbols
-        if (lockThese.nonEmpty)
-          producer.planLock(plan, lockThese, context)
-        else
-          plan
-      }
-
-      val lockingContext = context.copy(leafPlanUpdater = addLockToPlan)
+      val lockingContext = context.withAddedLeafPlanUpdater(AddLockToPlan(nodesToLock, producer, context))
 
       //        antiCondApply
       //        /   \
@@ -278,5 +287,15 @@ case object PlanUpdates
       producer.planAntiConditionalApply(matchOrNull, ifMissingLockAndMatchAgain, ids, context)
     } else
       matchOrNull
+  }
+
+  case class AddLockToPlan(nodesToLock: Set[String], producer: LogicalPlanProducer, context: LogicalPlanningContext) extends LeafPlanUpdater {
+    override def apply(plan: LogicalPlan): LogicalPlan = {
+      val lockThese = nodesToLock intersect plan.availableSymbols
+      if (lockThese.nonEmpty)
+        producer.planLock(plan, lockThese, context)
+      else
+        plan
+    }
   }
 }

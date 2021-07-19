@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.neo4j.io.fs.FileSystemAbstraction;
+import org.neo4j.io.layout.StoreLayout;
 import org.neo4j.kernel.StoreLockException;
 
 /**
@@ -49,9 +50,9 @@ public class GlobalStoreLocker extends StoreLocker
 {
     private static final Set<File> lockedFiles = Collections.newSetFromMap( new ConcurrentHashMap<>() );
 
-    public GlobalStoreLocker( FileSystemAbstraction fileSystemAbstraction, File storeDirectory )
+    public GlobalStoreLocker( FileSystemAbstraction fileSystemAbstraction, StoreLayout storeLayout )
     {
-        super( fileSystemAbstraction, storeDirectory );
+        super( fileSystemAbstraction, storeLayout );
     }
 
     @Override

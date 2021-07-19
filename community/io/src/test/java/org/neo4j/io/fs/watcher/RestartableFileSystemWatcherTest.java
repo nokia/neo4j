@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,7 +19,7 @@
  */
 package org.neo4j.io.fs.watcher;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,14 +31,14 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class RestartableFileSystemWatcherTest
+class RestartableFileSystemWatcherTest
 {
 
     private FileWatcher delegate = mock( FileWatcher.class );
     private RestartableFileSystemWatcher watcher = new RestartableFileSystemWatcher( delegate );
 
     @Test
-    public void delegateListenersCallToRealWatcher()
+    void delegateListenersCallToRealWatcher()
     {
         FileWatchEventListener listener = mock( FileWatchEventListener.class );
 
@@ -50,14 +50,14 @@ public class RestartableFileSystemWatcherTest
     }
 
     @Test
-    public void closeDelegateOnClose() throws IOException
+    void closeDelegateOnClose() throws IOException
     {
         watcher.close();
         verify( delegate ).close();
     }
 
     @Test
-    public void startStopFileWatchingCycle() throws IOException, InterruptedException
+    void startStopFileWatchingCycle() throws IOException, InterruptedException
     {
         File file1 = mock( File.class );
         File file2 = mock( File.class );

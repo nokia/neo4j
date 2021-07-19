@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -162,4 +162,12 @@ public interface Schema
      *             FAILED state
      */
     void awaitIndexesOnline( long duration, TimeUnit unit );
+
+    /**
+     * Get an {@link IndexDefinition} by the given name of the index.
+     * @param indexName The given name of the index.
+     * @return The index with that given name.
+     * @throws IllegalArgumentException if there is no index with that given name.
+     */
+    IndexDefinition getIndexByName( String indexName );
 }

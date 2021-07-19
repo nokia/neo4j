@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,9 +19,10 @@
  */
 package org.neo4j.cypher.internal.ir.v3_5
 
-import org.neo4j.cypher.internal.util.v3_5.InternalException
-import org.neo4j.cypher.internal.frontend.v3_5.ast.AliasedReturnItem
+import org.neo4j.cypher.internal.v3_5.ast.AliasedReturnItem
 import org.neo4j.cypher.internal.v3_5.expressions.{Expression, StringLiteral, Variable}
+import org.neo4j.cypher.internal.v3_5.util.InternalException
+import org.neo4j.cypher.internal.ir.v3_5.helpers.ExpressionConverters._
 
 trait QueryHorizon {
 
@@ -64,10 +65,12 @@ case class LoadCSVProjection(variable: String, url: Expression, format: CSVForma
 }
 
 sealed abstract class QueryProjection extends QueryHorizon {
+  def selections: Selections
   def projections: Map[String, Expression]
   def shuffle: QueryShuffle
   def keySet: Set[String]
-  def withProjections(projections: Map[String, Expression]): QueryProjection
+  def withSelection(selections: Selections): QueryProjection
+  def withAddedProjections(projections: Map[String, Expression]): QueryProjection
   def withShuffle(shuffle: QueryShuffle): QueryProjection
 
   override def dependingExpressions: Seq[Expression] = shuffle.sortItems.map(_.expression)
@@ -75,6 +78,11 @@ sealed abstract class QueryProjection extends QueryHorizon {
     if (shuffle.limit.isDefined && shuffle.sortItems.isEmpty) Some(LazyMode) else None
 
   def updateShuffle(f: QueryShuffle => QueryShuffle) = withShuffle(f(shuffle))
+
+  def addPredicates(predicates: Expression*): QueryProjection = {
+    val newSelections = Selections(predicates.flatMap(_.asPredicates).toSet)
+    withSelection(selections = selections ++ newSelections)
+  }
 }
 
 object QueryProjection {
@@ -94,17 +102,19 @@ object QueryProjection {
 }
 
 final case class RegularQueryProjection(projections: Map[String, Expression] = Map.empty,
-                                        shuffle: QueryShuffle = QueryShuffle.empty) extends QueryProjection {
+                                        shuffle: QueryShuffle = QueryShuffle.empty,
+                                        selections: Selections = Selections()) extends QueryProjection {
   def keySet: Set[String] = projections.keySet
 
   def ++(other: RegularQueryProjection) =
     RegularQueryProjection(
       projections = projections ++ other.projections,
-      shuffle = shuffle ++ other.shuffle
+      shuffle = shuffle ++ other.shuffle,
+      selections = selections ++ other.selections
     )
 
-  override def withProjections(projections: Map[String, Expression]): RegularQueryProjection =
-    copy(projections = projections)
+  override def withAddedProjections(projections: Map[String, Expression]): RegularQueryProjection =
+    copy(projections = this.projections ++ projections)
 
   def withShuffle(shuffle: QueryShuffle) =
     copy(shuffle = shuffle)
@@ -112,11 +122,14 @@ final case class RegularQueryProjection(projections: Map[String, Expression] = M
   override def exposedSymbols(coveredIds: Set[String]): Set[String] = projections.keySet
 
   override def dependingExpressions = super.dependingExpressions ++ projections.values
+
+  override def withSelection(selections: Selections): QueryProjection = copy(selections = selections)
 }
 
 final case class AggregatingQueryProjection(groupingExpressions: Map[String, Expression] = Map.empty,
                                             aggregationExpressions: Map[String, Expression] = Map.empty,
-                                            shuffle: QueryShuffle = QueryShuffle.empty) extends QueryProjection {
+                                            shuffle: QueryShuffle = QueryShuffle.empty,
+                                            selections: Selections = Selections()) extends QueryProjection {
 
   assert(
     !(groupingExpressions.isEmpty && aggregationExpressions.isEmpty),
@@ -129,18 +142,21 @@ final case class AggregatingQueryProjection(groupingExpressions: Map[String, Exp
 
   override def dependingExpressions = super.dependingExpressions ++ groupingExpressions.values ++ aggregationExpressions.values
 
-  override def withProjections(groupingKeys: Map[String, Expression]): AggregatingQueryProjection =
-    copy(groupingExpressions = groupingKeys)
+  override def withAddedProjections(groupingKeys: Map[String, Expression]): AggregatingQueryProjection =
+    copy(groupingExpressions = this.groupingExpressions ++ groupingKeys)
 
   override def withShuffle(shuffle: QueryShuffle) =
     copy(shuffle = shuffle)
 
   override def exposedSymbols(coveredIds: Set[String]): Set[String] = groupingExpressions
     .keySet ++ aggregationExpressions.keySet
+
+  override def withSelection(selections: Selections): QueryProjection = copy(selections = selections)
 }
 
 final case class DistinctQueryProjection(groupingKeys: Map[String, Expression] = Map.empty,
-                                         shuffle: QueryShuffle = QueryShuffle.empty) extends QueryProjection {
+                                         shuffle: QueryShuffle = QueryShuffle.empty,
+                                         selections: Selections = Selections()) extends QueryProjection {
 
   def projections: Map[String, Expression] = groupingKeys
 
@@ -148,11 +164,13 @@ final case class DistinctQueryProjection(groupingKeys: Map[String, Expression] =
 
   override def dependingExpressions: Seq[Expression] = super.dependingExpressions ++ groupingKeys.values
 
-  override def withProjections(groupingKeys: Map[String, Expression]): DistinctQueryProjection =
-    copy(groupingKeys = groupingKeys)
+  override def withAddedProjections(groupingKeys: Map[String, Expression]): DistinctQueryProjection =
+    copy(groupingKeys = this.groupingKeys ++ groupingKeys)
 
   override def withShuffle(shuffle: QueryShuffle): DistinctQueryProjection =
     copy(shuffle = shuffle)
 
   override def exposedSymbols(coveredIds: Set[String]): Set[String] = groupingKeys.keySet
+
+  override def withSelection(selections: Selections): QueryProjection = copy(selections = selections)
 }

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,8 +21,6 @@ package org.neo4j.kernel.impl.transaction;
 
 /**
  * This monitor is used to track transaction management. It is called when client code starts, finishes, or terminates transactions.
- *
- * In HA this refers only to what the local instance is doing, not what is happening globally in the whole cluster.
  */
 public interface TransactionMonitor
 {

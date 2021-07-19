@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -35,8 +35,8 @@ import org.neo4j.commandline.dbms.config.WrappedCsvInputConfigurationForNeo4jAdm
 import org.neo4j.graphdb.factory.GraphDatabaseSettings;
 import org.neo4j.helpers.Args;
 import org.neo4j.io.fs.FileSystemAbstraction;
+import org.neo4j.io.layout.DatabaseLayout;
 import org.neo4j.kernel.configuration.Config;
-import org.neo4j.logging.LogTimeZone;
 import org.neo4j.tooling.ImportTool;
 import org.neo4j.unsafe.impl.batchimport.Configuration;
 import org.neo4j.unsafe.impl.batchimport.input.BadCollector;
@@ -104,7 +104,6 @@ class CsvImporter implements Importer
     {
         FileSystemAbstraction fs = outsideWorld.fileSystem();
         File storeDir = databaseConfig.get( GraphDatabaseSettings.database_path );
-        File logsDir = databaseConfig.get( GraphDatabaseSettings.logs_directory );
         File reportFile = new File( reportFileName );
 
         OutputStream badOutput = new BufferedOutputStream( fs.openAsOutputStream( reportFile, false ) );
@@ -123,9 +122,10 @@ class CsvImporter implements Importer
                 relationshipData( inputEncoding, relationshipsFiles ), defaultFormatRelationshipFileHeader( defaultTimeZone ),
                 idType,
                 new WrappedCsvInputConfigurationForNeo4jAdmin( csvConfiguration( args, false ) ),
-                badCollector );
+                badCollector,
+                new CsvInput.PrintingMonitor( outsideWorld.outStream() ) );
 
-        ImportTool.doImport( outsideWorld.errorStream(), outsideWorld.errorStream(), outsideWorld.inStream(), storeDir, logsDir,
+        ImportTool.doImport( outsideWorld.errorStream(), outsideWorld.errorStream(), outsideWorld.inStream(), DatabaseLayout.of( storeDir ),
                 reportFile, fs, nodesFiles, relationshipsFiles, false, input, this.databaseConfig, badOutput, configuration, false );
     }
 

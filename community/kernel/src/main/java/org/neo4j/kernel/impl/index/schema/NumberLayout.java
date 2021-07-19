@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -25,7 +25,7 @@ import org.neo4j.io.pagecache.PageCursor;
 /**
  * {@link Layout} for numbers where numbers doesn't need to be unique.
  */
-abstract class NumberLayout extends SchemaLayout<NumberSchemaKey>
+abstract class NumberLayout extends IndexLayout<NumberIndexKey,NativeIndexValue>
 {
     NumberLayout( long identifier, int majorVersion, int minorVersion )
     {
@@ -33,13 +33,13 @@ abstract class NumberLayout extends SchemaLayout<NumberSchemaKey>
     }
 
     @Override
-    public NumberSchemaKey newKey()
+    public NumberIndexKey newKey()
     {
-        return new NumberSchemaKey();
+        return new NumberIndexKey();
     }
 
     @Override
-    public NumberSchemaKey copyKey( NumberSchemaKey key, NumberSchemaKey into )
+    public NumberIndexKey copyKey( NumberIndexKey key, NumberIndexKey into )
     {
         into.type = key.type;
         into.rawValueBits = key.rawValueBits;
@@ -49,13 +49,13 @@ abstract class NumberLayout extends SchemaLayout<NumberSchemaKey>
     }
 
     @Override
-    public int keySize( NumberSchemaKey key )
+    public int keySize( NumberIndexKey key )
     {
-        return NumberSchemaKey.SIZE;
+        return NumberIndexKey.SIZE;
     }
 
     @Override
-    public void writeKey( PageCursor cursor, NumberSchemaKey key )
+    public void writeKey( PageCursor cursor, NumberIndexKey key )
     {
         cursor.putByte( key.type );
         cursor.putLong( key.rawValueBits );
@@ -63,7 +63,7 @@ abstract class NumberLayout extends SchemaLayout<NumberSchemaKey>
     }
 
     @Override
-    public void readKey( PageCursor cursor, NumberSchemaKey into, int keySize )
+    public void readKey( PageCursor cursor, NumberIndexKey into, int keySize )
     {
         into.type = cursor.getByte();
         into.rawValueBits = cursor.getLong();
@@ -71,7 +71,7 @@ abstract class NumberLayout extends SchemaLayout<NumberSchemaKey>
     }
 
     @Override
-    int compareValue( NumberSchemaKey o1, NumberSchemaKey o2 )
+    int compareValue( NumberIndexKey o1, NumberIndexKey o2 )
     {
         return o1.compareValueTo( o2 );
     }

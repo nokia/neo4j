@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,14 +19,15 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.plans.rewriter
 
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
+import org.neo4j.csv.reader.Configuration
+import org.neo4j.csv.reader.Configuration.DEFAULT_BUFFER_SIZE_4MB
 import org.neo4j.cypher.internal.compiler.v3_5.planner.LogicalPlanningTestSupport
-import org.neo4j.cypher.internal.frontend.v3_5.helpers.fixedPoint
 import org.neo4j.cypher.internal.ir.v3_5.NoHeaders
-import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.Solveds
-import org.neo4j.cypher.internal.util.v3_5.attribution.Attributes
-import org.neo4j.cypher.internal.v3_5.expressions.StringLiteral
 import org.neo4j.cypher.internal.v3_5.logical.plans._
+import org.neo4j.cypher.internal.v3_5.expressions.StringLiteral
+import org.neo4j.cypher.internal.v3_5.util.attribution.Attributes
+import org.neo4j.cypher.internal.v3_5.util.helpers.fixedPoint
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
 
 class cleanUpEagerTest extends CypherFunSuite with LogicalPlanningTestSupport {
 
@@ -80,11 +81,11 @@ class cleanUpEagerTest extends CypherFunSuite with LogicalPlanningTestSupport {
   test("should move eager on top of load csv to below it") {
     val leaf = newMockedLogicalPlan()
     val url = StringLiteral("file:///tmp/foo.csv")(pos)
-    val loadCSV = LoadCSV(leaf, url, "a", NoHeaders, None, legacyCsvQuoteEscaping = false)
+    val loadCSV = LoadCSV(leaf, url, "a", NoHeaders, None, legacyCsvQuoteEscaping = false, DEFAULT_BUFFER_SIZE_4MB)
     val eager = Eager(loadCSV)
     val topPlan = Projection(eager, Map.empty)
 
-    rewrite(topPlan) should equal(Projection(LoadCSV(Eager(leaf), url, "a", NoHeaders, None, false), Map.empty))
+    rewrite(topPlan) should equal(Projection(LoadCSV(Eager(leaf), url, "a", NoHeaders, None, false, DEFAULT_BUFFER_SIZE_4MB), Map.empty))
   }
 
   test("should move eager on top of limit to below it") {
@@ -102,7 +103,7 @@ class cleanUpEagerTest extends CypherFunSuite with LogicalPlanningTestSupport {
   test("should not rewrite plan with eager below load csv") {
     val leaf = newMockedLogicalPlan()
     val eager = Eager(leaf)
-    val loadCSV = LoadCSV(eager, StringLiteral("file:///tmp/foo.csv")(pos), "a", NoHeaders, None, false)
+    val loadCSV = LoadCSV(eager, StringLiteral("file:///tmp/foo.csv")(pos), "a", NoHeaders, None, false, DEFAULT_BUFFER_SIZE_4MB)
     val topPlan = Projection(loadCSV, Map.empty)
 
     rewrite(topPlan) should equal(topPlan)

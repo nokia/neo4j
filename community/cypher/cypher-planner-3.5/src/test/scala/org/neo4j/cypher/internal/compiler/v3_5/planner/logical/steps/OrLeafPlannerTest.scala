@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -22,28 +22,27 @@ package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.steps
 import org.mockito.ArgumentMatchers
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
 import org.neo4j.cypher.internal.compiler.v3_5.planner.LogicalPlanningTestSupport
-import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.{LeafPlanFromExpressions, LeafPlansForVariable, LogicalPlanningContext}
-import org.neo4j.cypher.internal.ir.v3_5.{QueryGraph, Selections}
-import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.{Cardinalities, Solveds}
-import org.neo4j.cypher.internal.v3_5.logical.plans.{Distinct, Union}
+import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.{LeafPlanFromExpressions, LeafPlansForVariable}
+import org.neo4j.cypher.internal.ir.v3_5.{InterestingOrder, QueryGraph, Selections}
 import org.neo4j.cypher.internal.v3_5.expressions.{Ors, Variable}
+import org.neo4j.cypher.internal.v3_5.logical.plans.{Distinct, Union}
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
 
 class OrLeafPlannerTest extends CypherFunSuite with LogicalPlanningTestSupport {
 
   test("two predicates on the same variable can be used") {
-    val (context, solveds, cardinalities) = newMockedLogicalPlanningContext(newMockedPlanContext)
+    val context = newMockedLogicalPlanningContext(newMockedPlanContext())
 
     val inner1 = mock[LeafPlanFromExpressions]
-    val p1 = newMockedLogicalPlan(solveds, cardinalities, "x")
-    val p2 = newMockedLogicalPlan(solveds, cardinalities, "x")
+    val p1 = newMockedLogicalPlan(context.planningAttributes, "x")
+    val p2 = newMockedLogicalPlan(context.planningAttributes, "x")
     val e1 = Variable("e1")(pos)
     val e2 = Variable("e2")(pos)
     val ors = Ors(Set(e1, e2))(pos)
-    when(inner1.producePlanFor(ArgumentMatchers.eq(Set(e1)), any(), any())).thenReturn(Set(LeafPlansForVariable("x", Set
+    when(inner1.producePlanFor(ArgumentMatchers.eq(Set(e1)), any(), any(), any())).thenReturn(Set(LeafPlansForVariable("x", Set
     (p1))))
-    when(inner1.producePlanFor(ArgumentMatchers.eq(Set(e2)), any(), any())).thenReturn(Set(LeafPlansForVariable("x", Set(p2))))
+    when(inner1.producePlanFor(ArgumentMatchers.eq(Set(e2)), any(), any(), any())).thenReturn(Set(LeafPlansForVariable("x", Set(p2))))
     val orPlanner = OrLeafPlanner(Seq(inner1))
 
     val expected = Distinct(
@@ -52,61 +51,61 @@ class OrLeafPlannerTest extends CypherFunSuite with LogicalPlanningTestSupport {
 
     val queryGraph = QueryGraph.empty.withSelections(Selections.from(ors))
 
-    orPlanner.apply(queryGraph, context, solveds, cardinalities) should equal(Seq(expected))
+    orPlanner.apply(queryGraph, InterestingOrder.empty, context) should equal(Seq(expected))
   }
 
   test("two predicates on different variables are not used") {
-    val (context, solveds, cardinalities) = newMockedLogicalPlanningContext(newMockedPlanContext)
+    val context = newMockedLogicalPlanningContext(newMockedPlanContext())
 
     val inner1 = mock[LeafPlanFromExpressions]
-    val p1 = newMockedLogicalPlan(solveds, cardinalities, "x")
-    val p2 = newMockedLogicalPlan(solveds, cardinalities, "x")
+    val p1 = newMockedLogicalPlan(context.planningAttributes, "x")
+    val p2 = newMockedLogicalPlan(context.planningAttributes, "x")
     val e1 = Variable("e1")(pos)
     val e2 = Variable("e2")(pos)
     val ors = Ors(Set(e1, e2))(pos)
-    when(inner1.producePlanFor(ArgumentMatchers.eq(Set(e1)), any(), any())).thenReturn(Set(LeafPlansForVariable("e1", Set(p1))))
-    when(inner1.producePlanFor(ArgumentMatchers.eq(Set(e2)), any(), any())).thenReturn(Set(LeafPlansForVariable("e2", Set(p2))))
+    when(inner1.producePlanFor(ArgumentMatchers.eq(Set(e1)), any(), any(), any())).thenReturn(Set(LeafPlansForVariable("e1", Set(p1))))
+    when(inner1.producePlanFor(ArgumentMatchers.eq(Set(e2)), any(), any(), any())).thenReturn(Set(LeafPlansForVariable("e2", Set(p2))))
     val orPlanner = OrLeafPlanner(Seq(inner1))
 
     val queryGraph = QueryGraph.empty.withSelections(Selections.from(ors))
 
-    orPlanner.apply(queryGraph, context, solveds, cardinalities) should equal(Seq.empty)
+    orPlanner.apply(queryGraph, InterestingOrder.empty, context) should equal(Seq.empty)
   }
 
   test("two predicates, where one cannot be leaf-plan-solved, is not used") {
-    val (context, solveds, cardinalities) = newMockedLogicalPlanningContext(newMockedPlanContext)
+    val context = newMockedLogicalPlanningContext(newMockedPlanContext())
 
     val inner1 = mock[LeafPlanFromExpressions]
-    val p1 = newMockedLogicalPlan(solveds, cardinalities, "x")
+    val p1 = newMockedLogicalPlan(context.planningAttributes, "x")
     val e1 = Variable("e1")(pos)
     val e2 = Variable("e2")(pos)
     val ors = Ors(Set(e1, e2))(pos)
-    when(inner1.producePlanFor(ArgumentMatchers.eq(Set(e1)), any(), any())).thenReturn(Set(LeafPlansForVariable("e1", Set(p1))))
-    when(inner1.producePlanFor(ArgumentMatchers.eq(Set(e2)), any(), any())).thenReturn(Set.empty[LeafPlansForVariable])
+    when(inner1.producePlanFor(ArgumentMatchers.eq(Set(e1)), any(), any(), any())).thenReturn(Set(LeafPlansForVariable("e1", Set(p1))))
+    when(inner1.producePlanFor(ArgumentMatchers.eq(Set(e2)), any(), any(), any())).thenReturn(Set.empty[LeafPlansForVariable])
     val orPlanner = OrLeafPlanner(Seq(inner1))
 
     val queryGraph = QueryGraph.empty.withSelections(Selections.from(ors))
 
-    orPlanner.apply(queryGraph, context, solveds, cardinalities) should equal(Seq.empty)
+    orPlanner.apply(queryGraph, InterestingOrder.empty, context) should equal(Seq.empty)
   }
 
   test("two predicates that produce two plans each") {
-    val (context, solveds, cardinalities) = newMockedLogicalPlanningContext(newMockedPlanContext)
+    val context = newMockedLogicalPlanningContext(newMockedPlanContext())
 
     val inner1 = mock[LeafPlanFromExpressions]
     val inner2 = mock[LeafPlanFromExpressions]
-    val p1 = newMockedLogicalPlan(solveds, cardinalities, "x", "a")
-    val p2 = newMockedLogicalPlan(solveds, cardinalities, "x", "b")
-    val p3 = newMockedLogicalPlan(solveds, cardinalities, "x", "c")
-    val p4 = newMockedLogicalPlan(solveds, cardinalities, "x", "d")
+    val p1 = newMockedLogicalPlan(context.planningAttributes, "x", "a")
+    val p2 = newMockedLogicalPlan(context.planningAttributes, "x", "b")
+    val p3 = newMockedLogicalPlan(context.planningAttributes, "x", "c")
+    val p4 = newMockedLogicalPlan(context.planningAttributes, "x", "d")
 
     val e1 = Variable("e1")(pos)
     val e2 = Variable("e2")(pos)
     val ors = Ors(Set(e1, e2))(pos)
-    when(inner1.producePlanFor(ArgumentMatchers.eq(Set(e1)), any(), any())).thenReturn(Set(LeafPlansForVariable("x", Set(p1))))
-    when(inner1.producePlanFor(ArgumentMatchers.eq(Set(e2)), any(), any())).thenReturn(Set(LeafPlansForVariable("x", Set(p2))))
-    when(inner2.producePlanFor(ArgumentMatchers.eq(Set(e1)), any(), any())).thenReturn(Set(LeafPlansForVariable("x", Set(p3))))
-    when(inner2.producePlanFor(ArgumentMatchers.eq(Set(e2)), any(), any())).thenReturn(Set(LeafPlansForVariable("x", Set(p4))))
+    when(inner1.producePlanFor(ArgumentMatchers.eq(Set(e1)), any(), any(), any())).thenReturn(Set(LeafPlansForVariable("x", Set(p1))))
+    when(inner1.producePlanFor(ArgumentMatchers.eq(Set(e2)), any(), any(), any())).thenReturn(Set(LeafPlansForVariable("x", Set(p2))))
+    when(inner2.producePlanFor(ArgumentMatchers.eq(Set(e1)), any(), any(), any())).thenReturn(Set(LeafPlansForVariable("x", Set(p3))))
+    when(inner2.producePlanFor(ArgumentMatchers.eq(Set(e2)), any(), any(), any())).thenReturn(Set(LeafPlansForVariable("x", Set(p4))))
     val orPlanner = OrLeafPlanner(Seq(inner1, inner2))
 
     val queryGraph = QueryGraph.empty.withSelections(Selections.from(ors))
@@ -125,25 +124,25 @@ class OrLeafPlannerTest extends CypherFunSuite with LogicalPlanningTestSupport {
       groupingExpressions = Map("x" -> Variable("x")(pos)))
 
 
-    orPlanner.apply(queryGraph, context, solveds, cardinalities) should equal(Seq(expected1, expected2, expected3, expected4))
+    orPlanner.apply(queryGraph, InterestingOrder.empty, context) should equal(Seq(expected1, expected2, expected3, expected4))
   }
 
   test("two predicates that produce two plans each mk 2") {
-    val (context, solveds, cardinalities) = newMockedLogicalPlanningContext(newMockedPlanContext)
+    val context = newMockedLogicalPlanningContext(newMockedPlanContext())
 
     val inner1 = mock[LeafPlanFromExpressions]
     val inner2 = mock[LeafPlanFromExpressions]
-    val p1 = newMockedLogicalPlan(solveds, cardinalities, "x", "a")
-    val p2 = newMockedLogicalPlan(solveds, cardinalities, "x", "b")
-    val p3 = newMockedLogicalPlan(solveds, cardinalities, "x", "c")
+    val p1 = newMockedLogicalPlan(context.planningAttributes, "x", "a")
+    val p2 = newMockedLogicalPlan(context.planningAttributes, "x", "b")
+    val p3 = newMockedLogicalPlan(context.planningAttributes, "x", "c")
 
     val e1 = Variable("e1")(pos)
     val e2 = Variable("e2")(pos)
     val ors = Ors(Set(e1, e2))(pos)
-    when(inner1.producePlanFor(ArgumentMatchers.eq(Set(e1)), any(), any())).thenReturn(Set(LeafPlansForVariable("x", Set(p1))))
-    when(inner1.producePlanFor(ArgumentMatchers.eq(Set(e2)), any(), any())).thenReturn(Set(LeafPlansForVariable("x", Set(p2))))
-    when(inner2.producePlanFor(ArgumentMatchers.eq(Set(e1)), any(), any())).thenReturn(Set(LeafPlansForVariable("x", Set(p3))))
-    when(inner2.producePlanFor(ArgumentMatchers.eq(Set(e2)), any(), any())).thenReturn(Set.empty[LeafPlansForVariable])
+    when(inner1.producePlanFor(ArgumentMatchers.eq(Set(e1)), any(), any(), any())).thenReturn(Set(LeafPlansForVariable("x", Set(p1))))
+    when(inner1.producePlanFor(ArgumentMatchers.eq(Set(e2)), any(), any(), any())).thenReturn(Set(LeafPlansForVariable("x", Set(p2))))
+    when(inner2.producePlanFor(ArgumentMatchers.eq(Set(e1)), any(), any(), any())).thenReturn(Set(LeafPlansForVariable("x", Set(p3))))
+    when(inner2.producePlanFor(ArgumentMatchers.eq(Set(e2)), any(), any(), any())).thenReturn(Set.empty[LeafPlansForVariable])
     val orPlanner = OrLeafPlanner(Seq(inner1, inner2))
 
     val queryGraph = QueryGraph.empty.withSelections(Selections.from(ors))
@@ -156,6 +155,6 @@ class OrLeafPlannerTest extends CypherFunSuite with LogicalPlanningTestSupport {
       groupingExpressions = Map("x" -> Variable("x")(pos)))
 
 
-    orPlanner.apply(queryGraph, context, solveds, cardinalities) should equal(Seq(expected1, expected3))
+    orPlanner.apply(queryGraph, InterestingOrder.empty, context) should equal(Seq(expected1, expected3))
   }
 }

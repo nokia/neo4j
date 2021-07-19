@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -37,8 +37,10 @@ import org.neo4j.io.NullOutputStream;
 import org.neo4j.io.fs.DefaultFileSystemAbstraction;
 import org.neo4j.io.fs.FileSystemAbstraction;
 import org.neo4j.kernel.configuration.Config;
-import org.neo4j.kernel.impl.logging.NullLogService;
 import org.neo4j.kernel.impl.store.format.standard.StandardV3_0;
+import org.neo4j.logging.internal.NullLogService;
+import org.neo4j.scheduler.JobScheduler;
+import org.neo4j.scheduler.ThreadPoolJobScheduler;
 import org.neo4j.test.rule.RandomRule;
 import org.neo4j.test.rule.TestDirectory;
 import org.neo4j.unsafe.impl.batchimport.input.BadCollector;
@@ -77,22 +79,19 @@ public class ImportPanicIT
     @Test
     public void shouldExitAndThrowExceptionOnPanic() throws Exception
     {
-        // GIVEN
-        BatchImporter importer = new ParallelBatchImporter( directory.absolutePath(), fs, null, Configuration.DEFAULT,
-                NullLogService.getInstance(), ExecutionMonitors.invisible(), AdditionalInitialIds.EMPTY,
-                Config.defaults(), StandardV3_0.RECORD_FORMATS, NO_MONITOR );
-        Iterable<DataFactory> nodeData =
-                datas( data( NO_DECORATOR, fileAsCharReadable( nodeCsvFileWithBrokenEntries() ) ) );
-        Input brokenCsvInput = new CsvInput(
-                nodeData, defaultFormatNodeFileHeader(),
-                datas(), defaultFormatRelationshipFileHeader(),
-                IdType.ACTUAL,
-                csvConfigurationWithLowBufferSize(),
-                new BadCollector( NullOutputStream.NULL_OUTPUT_STREAM, 0, 0 ) );
-
-        // WHEN
-        try
+        try ( JobScheduler jobScheduler = new ThreadPoolJobScheduler() )
         {
+            BatchImporter importer = new ParallelBatchImporter( directory.databaseLayout(), fs, null, Configuration.DEFAULT,
+                    NullLogService.getInstance(), ExecutionMonitors.invisible(), AdditionalInitialIds.EMPTY,
+                    Config.defaults(), StandardV3_0.RECORD_FORMATS, NO_MONITOR, jobScheduler );
+            Iterable<DataFactory> nodeData =
+                    datas( data( NO_DECORATOR, fileAsCharReadable( nodeCsvFileWithBrokenEntries() ) ) );
+            Input brokenCsvInput = new CsvInput(
+                    nodeData, defaultFormatNodeFileHeader(),
+                    datas(), defaultFormatRelationshipFileHeader(),
+                    IdType.ACTUAL,
+                    csvConfigurationWithLowBufferSize(),
+                    new BadCollector( NullOutputStream.NULL_OUTPUT_STREAM, 0, 0 ), CsvInput.NO_MONITOR );
             importer.doImport( brokenCsvInput );
             fail( "Should have failed properly" );
         }
@@ -104,7 +103,7 @@ public class ImportPanicIT
         }
     }
 
-    private org.neo4j.unsafe.impl.batchimport.input.csv.Configuration csvConfigurationWithLowBufferSize()
+    private static org.neo4j.unsafe.impl.batchimport.input.csv.Configuration csvConfigurationWithLowBufferSize()
     {
         return new org.neo4j.unsafe.impl.batchimport.input.csv.Configuration.Overridden( COMMAS )
         {
@@ -116,7 +115,7 @@ public class ImportPanicIT
         };
     }
 
-    private Supplier<CharReadable> fileAsCharReadable( File file )
+    private static Supplier<CharReadable> fileAsCharReadable( File file )
     {
         return () ->
         {

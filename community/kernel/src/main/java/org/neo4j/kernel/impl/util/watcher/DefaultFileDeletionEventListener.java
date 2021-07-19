@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -22,8 +22,8 @@ package org.neo4j.kernel.impl.util.watcher;
 import java.util.function.Predicate;
 
 import org.neo4j.io.fs.watcher.FileWatchEventListener;
-import org.neo4j.kernel.impl.logging.LogService;
 import org.neo4j.logging.Log;
+import org.neo4j.logging.internal.LogService;
 
 import static java.lang.String.format;
 

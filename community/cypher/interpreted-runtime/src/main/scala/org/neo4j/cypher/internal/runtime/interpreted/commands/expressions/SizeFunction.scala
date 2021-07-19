@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,29 +19,24 @@
  */
 package org.neo4j.cypher.internal.runtime.interpreted.commands.expressions
 
-import org.neo4j.cypher.internal.util.v3_5.CypherTypeException
 import org.neo4j.cypher.internal.runtime.interpreted.ExecutionContext
-import org.neo4j.cypher.internal.runtime.interpreted.ListSupport
+import org.neo4j.cypher.internal.runtime.interpreted.commands.AstNode
 import org.neo4j.cypher.internal.runtime.interpreted.pipes.QueryState
+import org.neo4j.cypher.operations.CypherFunctions
 import org.neo4j.values.AnyValue
-import org.neo4j.values.storable.{TextValue, Values}
-import org.neo4j.values.virtual.PathValue
 
 case class SizeFunction(inner: Expression)
-  extends NullInNullOutExpression(inner)
-    with ListSupport {
+  extends NullInNullOutExpression(inner) {
 
-  override def compute(value: AnyValue, m: ExecutionContext, state: QueryState): AnyValue = value match {
-    case _: PathValue => throw new CypherTypeException("SIZE cannot be used on paths")
-    case s: TextValue => Values.longValue(s.length())
-    case x => Values.longValue(makeTraversable(x).size())
-  }
+  override def compute(value: AnyValue, m: ExecutionContext, state: QueryState): AnyValue = CypherFunctions.size( value )
 
-  def rewrite(f: (Expression) => Expression) = f(LengthFunction(inner.rewrite(f)))
+  override def rewrite(f: Expression => Expression): Expression = f(LengthFunction(inner.rewrite(f)))
 
-  def arguments = Seq(inner)
+  override def arguments: Seq[Expression] = Seq(inner)
 
-  def symbolTableDependencies = inner.symbolTableDependencies
+  override def children: Seq[AstNode[_]] = Seq(inner)
+
+  override def symbolTableDependencies: Set[String] = inner.symbolTableDependencies
 
   override def toString = s"size($inner)"
 }

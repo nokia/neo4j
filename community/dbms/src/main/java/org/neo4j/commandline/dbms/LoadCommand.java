@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -31,12 +31,12 @@ import org.neo4j.commandline.admin.CommandFailed;
 import org.neo4j.commandline.admin.IncorrectUsage;
 import org.neo4j.commandline.arguments.Arguments;
 import org.neo4j.commandline.arguments.OptionalBooleanArg;
-import org.neo4j.commandline.arguments.common.Database;
 import org.neo4j.commandline.arguments.common.MandatoryCanonicalPath;
 import org.neo4j.dbms.archive.IncorrectFormat;
 import org.neo4j.dbms.archive.Loader;
 import org.neo4j.graphdb.factory.GraphDatabaseSettings;
 import org.neo4j.io.fs.FileUtils;
+import org.neo4j.io.layout.DatabaseLayout;
 import org.neo4j.kernel.configuration.Config;
 
 import static java.util.Objects.requireNonNull;
@@ -102,6 +102,7 @@ public class LoadCommand implements AdminCommand
         return Config.fromFile( configDir.resolve( Config.DEFAULT_CONFIG_FILE_NAME ) )
                 .withHome( homeDir )
                 .withConnectorsDisabled()
+                .withNoThrowOnFileLoadFailure()
                 .withSetting( GraphDatabaseSettings.active_database, databaseName )
                 .build();
     }
@@ -112,7 +113,7 @@ public class LoadCommand implements AdminCommand
         {
             if ( force )
             {
-                checkLock( databaseDirectory );
+                checkLock( DatabaseLayout.of( databaseDirectory.toFile() ).getStoreLayout() );
                 FileUtils.deletePathRecursively( databaseDirectory );
                 if ( !isSameOrChildPath( databaseDirectory, transactionLogsDirectory ) )
                 {

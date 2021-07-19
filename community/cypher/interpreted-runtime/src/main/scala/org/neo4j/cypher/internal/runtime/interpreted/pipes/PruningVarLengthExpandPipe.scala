@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,10 +21,11 @@ package org.neo4j.cypher.internal.runtime.interpreted.pipes
 
 import org.eclipse.collections.impl.map.mutable.primitive.LongObjectHashMap
 import org.neo4j.cypher.internal.runtime.interpreted.ExecutionContext
-import org.neo4j.cypher.internal.util.v3_5.InternalException
-import org.neo4j.cypher.internal.util.v3_5.attribution.Id
+import org.neo4j.cypher.internal.v3_5.util.InternalException
+import org.neo4j.cypher.internal.v3_5.util.attribution.Id
 import org.neo4j.cypher.internal.v3_5.expressions.SemanticDirection
 import org.neo4j.values.storable.{Value, Values}
+import org.neo4j.values.virtual.NodeValue
 import org.neo4j.values.virtual.{RelationshipValue, VirtualNodeValue}
 
 case class PruningVarLengthExpandPipe(source: Pipe,
@@ -39,6 +40,8 @@ case class PruningVarLengthExpandPipe(source: Pipe,
   self =>
 
   assert(min <= max)
+
+  filteringStep.predicateExpressions.foreach(_.registerOwningPipe(this))
 
   /**
     * Performs DFS traversal, but omits traversing relationships that have been completely traversed (to the
@@ -262,18 +265,27 @@ case class PruningVarLengthExpandPipe(source: Pipe,
       depth = -1
     }
     def canContinue: Boolean = inputRow != null
+
+    private def satisfiesPredicate(node: VirtualNodeValue) = {
+      node match {
+        case n: NodeValue => filteringStep.filterNode(inputRow, queryState)(n)
+        case _ => filteringStep.filterNode(inputRow, queryState)(queryState.query.nodeById(node.id()))
+      }
+    }
+
     def next(): ExecutionContext = {
       val endNode =
         if (depth == -1) {
           val fromValue = inputRow.getOrElse(fromName, error(s"Required variable `$fromName` is not in context"))
           fromValue match {
-            case node: VirtualNodeValue =>
+            case node: VirtualNodeValue if satisfiesPredicate(node) =>
               push( node = node,
                 pathLength = 0,
                 expandMap = new LongObjectHashMap[NodeState](),
                 prevLocalRelIndex = -1,
                 prevNodeState = NodeState.NOOP )
 
+            case _: VirtualNodeValue => null
             case x: Value if x == Values.NO_VALUE =>
               null
 

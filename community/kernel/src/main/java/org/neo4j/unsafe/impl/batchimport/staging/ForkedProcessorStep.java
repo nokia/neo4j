@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -31,7 +31,6 @@ import static java.lang.Integer.max;
 import static java.lang.Integer.min;
 import static java.lang.String.format;
 import static java.lang.System.nanoTime;
-
 import static org.neo4j.unsafe.impl.internal.dragons.UnsafeUtil.getFieldOffset;
 
 /**
@@ -44,10 +43,6 @@ import static org.neo4j.unsafe.impl.internal.dragons.UnsafeUtil.getFieldOffset;
  */
 public abstract class ForkedProcessorStep<T> extends AbstractStep<T>
 {
-    // ID 0 is the id of a processor which is always present, no matter how many or few processors
-    // are assigned to process a batch. Therefore some tasks can be put on this processor, tasks
-    // which may affect the batches as a whole.
-    protected static final int MAIN = 0;
     private final long COMPLETED_PROCESSORS_OFFSET = getFieldOffset( Unit.class, "completedProcessors" );
     private final long PROCESSING_TIME_OFFSET = getFieldOffset( Unit.class, "processingTime" );
 
@@ -65,7 +60,10 @@ public abstract class ForkedProcessorStep<T> extends AbstractStep<T>
     protected ForkedProcessorStep( StageControl control, String name, Configuration config, StatsProvider... statsProviders )
     {
         super( control, name, config, statsProviders );
-        this.maxProcessors = config.maxNumberOfProcessors();
+        // Limit max processors to some extent because adding processors to a forked processor step doesn't scale linearly,
+        // at least not given that all known implementations do semi-cheap work. Adding more will on the contrary add more
+        // "wasted" CPU cycles potentially cause scheduling problems which will affect processing times negatively instead.
+        this.maxProcessors = max( 1, (int) (config.maxNumberOfProcessors() * 0.7D) );
         this.forkedProcessors = new Object[this.maxProcessors];
         stripingLock = new StampedLock();
 
@@ -117,6 +115,12 @@ public abstract class ForkedProcessorStep<T> extends AbstractStep<T>
     {
         targetNumberOfProcessors = max( 1, min( targetNumberOfProcessors + delta, maxProcessors ) );
         return targetNumberOfProcessors;
+    }
+
+    @Override
+    public int maxProcessors()
+    {
+        return maxProcessors;
     }
 
     @Override

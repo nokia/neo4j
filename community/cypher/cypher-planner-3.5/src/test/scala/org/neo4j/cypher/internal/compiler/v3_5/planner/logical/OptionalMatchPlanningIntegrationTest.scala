@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -23,14 +23,18 @@ import org.neo4j.cypher.internal.compiler.v3_5.planner.LogicalPlanningTestSuppor
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.plans.rewriter.unnestOptional
 import org.neo4j.cypher.internal.ir.v3_5.SimplePatternLength
 import org.neo4j.cypher.internal.planner.v3_5.spi.DelegatingGraphStatistics
-import org.neo4j.cypher.internal.util.v3_5.{Cardinality, LabelId, RelTypeId}
-import org.neo4j.cypher.internal.util.v3_5.Foldable._
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
-import org.neo4j.cypher.internal.v3_5.expressions._
-import org.neo4j.cypher.internal.v3_5.logical.plans.{Limit, _}
+import org.neo4j.cypher.internal.v3_5.logical.plans.Limit
+import org.neo4j.cypher.internal.v3_5.logical.plans._
 import org.neo4j.kernel.impl.util.dbstructure.DbStructureLargeOptionalMatchStructure
+import org.neo4j.cypher.internal.v3_5.expressions._
+import org.neo4j.cypher.internal.v3_5.util.Foldable._
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
+import org.neo4j.cypher.internal.v3_5.util.Cardinality
+import org.neo4j.cypher.internal.v3_5.util.LabelId
+import org.neo4j.cypher.internal.v3_5.util.RelTypeId
+import org.scalatest.Inside
 
-class OptionalMatchPlanningIntegrationTest extends CypherFunSuite with LogicalPlanningTestSupport2 {
+class OptionalMatchPlanningIntegrationTest extends CypherFunSuite with LogicalPlanningTestSupport2 with Inside {
 
   test("should build plans containing left outer joins") {
     (new given {
@@ -183,7 +187,7 @@ class OptionalMatchPlanningIntegrationTest extends CypherFunSuite with LogicalPl
       ) =>
         args should equal(Set("r", "a1"))
         val predicate: Expression = Equals(Variable("a1") _, Variable("a2") _) _
-        predicates should equal(Seq(predicate))
+        predicates.exprs should equal(Set(predicate))
     }
   }
 
@@ -224,8 +228,7 @@ class OptionalMatchPlanningIntegrationTest extends CypherFunSuite with LogicalPl
         |WHERE m.prop = 42
         |RETURN m""".stripMargin)._2.endoRewrite(unnestOptional)
     val allNodesN: LogicalPlan = NodeByLabelScan("n", LabelName("X") _, Set.empty)
-    val propEquality: Expression =
-      In(Property(varFor("m"), PropertyKeyName("prop") _) _, ListLiteral(List(SignedDecimalIntegerLiteral("42") _)) _) _
+    val propEquality: Expression = Equals(Property(varFor("m"), PropertyKeyName("prop") _) _, SignedDecimalIntegerLiteral("42") _) _
 
     val labelCheck: Expression =
       HasLabels(varFor("m"), List(LabelName("Y") _)) _
@@ -236,8 +239,7 @@ class OptionalMatchPlanningIntegrationTest extends CypherFunSuite with LogicalPl
     )
   }
 
-  test(
-    "should plan for large number of optional matches without numerical overflow in estimatedRows") {
+  test("should plan for large number of optional matches without numerical overflow in estimatedRows") {
 
     val lom: LogicalPlanningEnvironment[_] = new fromDbStructure(DbStructureLargeOptionalMatchStructure.INSTANCE)
     val query =
@@ -294,5 +296,74 @@ class OptionalMatchPlanningIntegrationTest extends CypherFunSuite with LogicalPl
         }
         false // this is a "trick" to use treeExists to iterate over the whole tree
     }
+  }
+
+  test("should not plan outer hash joins when rhs has arguments other than join nodes") {
+    val query = """
+        |WITH 1 AS x
+        |MATCH (a)
+        |OPTIONAL MATCH (a)-[r]->(c)
+        |WHERE c.id = x
+        |RETURN c
+        |""".stripMargin
+
+    val cfg = new given {
+      cost = {
+        case (_: RightOuterHashJoin, _, _) => 1.0
+        case (_: LeftOuterHashJoin, _, _) => 1.0
+        case _ => Double.MaxValue
+      }
+    }
+
+    val plan = cfg.getLogicalPlanFor(query)._2
+    inside(plan) {
+      case Apply(_:Projection, Apply(_:AllNodesScan, Optional(Expand(Selection(_, AllNodesScan("c", arguments)), _, _, _, _, _, _), _))) =>
+        arguments should equal(Set("a", "x"))
+    }
+  }
+
+  test("Optional match in tail should have correct cardinality and therefore generate Argument leaf plan") {
+    val query = """MATCH (a:A)
+                  |WITH a
+                  |LIMIT 994
+                  |MATCH (:D) <- [:R1] - (a)
+                  |OPTIONAL MATCH (a)-[:R1]->(:D)-[:R2]->(:B)-[:R3 {bool: false}]->(:C {some: 'prop'})
+                  |RETURN count(a)""".stripMargin
+
+    val cfg = new given {
+      knownLabels = Set("A", "B", "C", "D", "E")
+      knownRelationships = Set("R1", "R2", "R3")
+      uniqueIndexOn("C", "prop")
+      statistics = new DelegatingGraphStatistics(parent.graphStatistics) {
+        override def nodesAllCardinality(): Cardinality = 1120169.0
+        override def nodesWithLabelCardinality(labelId: Option[LabelId]): Cardinality = labelId match {
+          case Some(LabelId(0)) => 101.0      // C
+          case Some(LabelId(2)) => 225598.0   // A
+          case Some(LabelId(3)) => 41.0       // B
+          case Some(LabelId(4)) => 141936.0   // D
+          case _ => super.nodesWithLabelCardinality(labelId)
+        }
+        override def cardinalityByLabelsAndRelationshipType(fromLabel: Option[LabelId],
+                                            relTypeId: Option[RelTypeId],
+                                            toLabel: Option[LabelId]): Cardinality = (fromLabel, relTypeId, toLabel) match {
+          case(Some(LabelId(2)), Some(RelTypeId(0)), None) => 223600.0                  // A - [R1] -> *
+          case(Some(LabelId(2)), Some(RelTypeId(0)), Some(LabelId(4))) => 223600.0    // A - [R1] -> D
+          case(None, Some(RelTypeId(1)), Some(LabelId(3))) => 139911.0                  // * - [R2] -> B
+          case(Some(LabelId(4)), Some(RelTypeId(1)), Some(LabelId(3))) => 139911.0      // D - [R2] -> B
+          case(Some(LabelId(4)), Some(RelTypeId(1)), None) => 139911.0                  // D - [R2] -> *
+          case(Some(LabelId(3)), Some(RelTypeId(2)), Some(LabelId(0))) => 1477.0        // B - [R3] -> C
+          case(Some(LabelId(3)), Some(RelTypeId(2)), None) => 1477.0                    // B - [R3] -> *
+          case(None, Some(RelTypeId(2)), Some(LabelId(0))) => 113740.0                  // * - [R3] -> C
+          case _ => 0.0
+        }
+      }
+    }
+
+    val (_, plan, _, _, _) = cfg.getLogicalPlanFor(query)
+    inside(plan) {
+      case Aggregation(Apply(_, rhs), _, _) =>
+        rhs.leaves.foreach( leaf => leaf shouldBe an [Argument])
+    }
+
   }
 }

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,19 +19,32 @@
  */
 package org.neo4j.consistency.store.synthetic;
 
-import org.neo4j.kernel.impl.index.labelscan.NativeLabelScanStore;
+import org.apache.commons.lang3.exception.CloneFailedException;
+
+import java.io.File;
+
 import org.neo4j.kernel.impl.store.record.AbstractBaseRecord;
 
 public class LabelScanIndex extends AbstractBaseRecord
 {
-    public LabelScanIndex()
+
+    private final String fineName;
+
+    public LabelScanIndex( File storeFile )
     {
         super( NO_ID );
+        fineName = storeFile.getName();
+    }
+
+    @Override
+    public final AbstractBaseRecord clone()
+    {
+        throw new CloneFailedException( "Synthetic records cannot be cloned." );
     }
 
     @Override
     public String toString()
     {
-        return "Label index: " + NativeLabelScanStore.FILE_NAME;
+        return "Label index: " + fineName;
     }
 }

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,6 +20,7 @@
 package org.neo4j.kernel.api.impl.schema.populator;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,31 +28,31 @@ import org.neo4j.kernel.api.exceptions.index.IndexEntryConflictException;
 import org.neo4j.kernel.api.impl.schema.SchemaIndex;
 import org.neo4j.kernel.api.impl.schema.writer.LuceneIndexWriter;
 import org.neo4j.kernel.api.index.IndexEntryUpdate;
-import org.neo4j.kernel.api.index.PropertyAccessor;
+import org.neo4j.storageengine.api.NodePropertyAccessor;
 import org.neo4j.kernel.impl.api.index.sampling.UniqueIndexSampler;
 import org.neo4j.values.storable.Value;
 
 /**
  * A {@link LuceneIndexPopulatingUpdater} used for unique Lucene schema indexes.
  * Verifies uniqueness of added and changed values when closed using
- * {@link SchemaIndex#verifyUniqueness(PropertyAccessor, int[], List)} method.
+ * {@link SchemaIndex#verifyUniqueness(NodePropertyAccessor, int[], List)} method.
  */
 public class UniqueLuceneIndexPopulatingUpdater extends LuceneIndexPopulatingUpdater
 {
     private final int[] propertyKeyIds;
     private final SchemaIndex luceneIndex;
-    private final PropertyAccessor propertyAccessor;
+    private final NodePropertyAccessor nodePropertyAccessor;
     private final UniqueIndexSampler sampler;
 
     private final List<Value[]> updatedValueTuples = new ArrayList<>();
 
     public UniqueLuceneIndexPopulatingUpdater( LuceneIndexWriter writer, int[] propertyKeyIds,
-            SchemaIndex luceneIndex, PropertyAccessor propertyAccessor, UniqueIndexSampler sampler )
+            SchemaIndex luceneIndex, NodePropertyAccessor nodePropertyAccessor, UniqueIndexSampler sampler )
     {
         super( writer );
         this.propertyKeyIds = propertyKeyIds;
         this.luceneIndex = luceneIndex;
-        this.propertyAccessor = propertyAccessor;
+        this.nodePropertyAccessor = nodePropertyAccessor;
         this.sampler = sampler;
     }
 
@@ -75,8 +76,15 @@ public class UniqueLuceneIndexPopulatingUpdater extends LuceneIndexPopulatingUpd
     }
 
     @Override
-    public void close() throws IOException, IndexEntryConflictException
+    public void close() throws IndexEntryConflictException
     {
-        luceneIndex.verifyUniqueness( propertyAccessor, propertyKeyIds, updatedValueTuples );
+        try
+        {
+            luceneIndex.verifyUniqueness( nodePropertyAccessor, propertyKeyIds, updatedValueTuples );
+        }
+        catch ( IOException e )
+        {
+            throw new UncheckedIOException( e );
+        }
     }
 }

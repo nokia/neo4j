@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -30,23 +30,19 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.neo4j.bolt.BoltChannel;
-import org.neo4j.bolt.BoltKernelExtension;
+import org.neo4j.bolt.BoltServer;
 import org.neo4j.bolt.v1.packstream.PackOutput;
-import org.neo4j.bolt.v1.runtime.BoltConnectionAuthFatality;
-import org.neo4j.bolt.v1.runtime.BoltProtocolBreachFatality;
-import org.neo4j.bolt.v1.runtime.BoltStateMachine;
 import org.neo4j.bolt.v1.runtime.Job;
-import org.neo4j.bolt.v1.runtime.Neo4jError;
 import org.neo4j.kernel.api.exceptions.Status;
-import org.neo4j.kernel.impl.logging.LogService;
 import org.neo4j.logging.Log;
+import org.neo4j.logging.internal.LogService;
 import org.neo4j.util.FeatureToggles;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 public class DefaultBoltConnection implements BoltConnection
 {
-    protected static final int DEFAULT_MAX_BATCH_SIZE = FeatureToggles.getInteger( BoltKernelExtension.class, "max_batch_size", 100 );
+    protected static final int DEFAULT_MAX_BATCH_SIZE = FeatureToggles.getInteger( BoltServer.class, "max_batch_size", 100 );
 
     private final String id;
 
@@ -140,10 +136,10 @@ public class DefaultBoltConnection implements BoltConnection
     @Override
     public boolean processNextBatch()
     {
-        return processNextBatch( maxBatchSize );
+        return processNextBatch( maxBatchSize, false );
     }
 
-    protected boolean processNextBatch( int batchCount )
+    protected boolean processNextBatch( int batchCount, boolean exitIfNoJobsAvailable )
     {
         try
         {
@@ -163,7 +159,9 @@ public class DefaultBoltConnection implements BoltConnection
                 if ( waitForMessage || !queue.isEmpty() )
                 {
                     queue.drainTo( batch, batchCount );
-                    if ( batch.size() == 0 )
+                    // if we expect one message but did not get any (because it was already
+                    // processed), silently exit
+                    if ( batch.size() == 0 && !exitIfNoJobsAvailable )
                     {
                         // loop until we get a new job, if we cannot then validate
                         // transaction to check for termination condition. We'll
@@ -201,7 +199,7 @@ public class DefaultBoltConnection implements BoltConnection
                 }
 
                 // we processed all pending messages, let's flush underlying channel
-                if ( queue.size() == 0 || maxBatchSize == 1 )
+                if ( queue.size() == 0 )
                 {
                     output.flush();
                 }
@@ -216,8 +214,11 @@ public class DefaultBoltConnection implements BoltConnection
         }
         catch ( BoltConnectionAuthFatality ex )
         {
-            // do not log
             shouldClose.set( true );
+            if ( ex.isLoggable() )
+            {
+                userLog.warn( ex.getMessage() );
+            }
         }
         catch ( BoltProtocolBreachFatality ex )
         {
@@ -248,24 +249,35 @@ public class DefaultBoltConnection implements BoltConnection
     @Override
     public void handleSchedulingError( Throwable t )
     {
-        String message;
-        Neo4jError error;
-        if ( ExceptionUtils.hasCause( t, RejectedExecutionException.class ) )
+        // if the connection is closing, don't output any logs
+        if ( !willClose() )
         {
-            error = Neo4jError.from( Status.Request.NoThreadsAvailable, Status.Request.NoThreadsAvailable.code().description() );
-            message = String.format( "Unable to schedule bolt session '%s' for execution since there are no available threads to " +
-                    "serve it at the moment. You can retry at a later time or consider increasing max thread pool size for bolt connector(s).", id() );
-        }
-        else
-        {
-            error = Neo4jError.fatalFrom( t );
-            message = String.format( "Unexpected error during scheduling of bolt session '%s'.", id() );
+            String message;
+            Neo4jError error;
+            if ( ExceptionUtils.hasCause( t, RejectedExecutionException.class ) )
+            {
+                error = Neo4jError.from( Status.Request.NoThreadsAvailable, Status.Request.NoThreadsAvailable.code().description() );
+                message = String.format( "Unable to schedule bolt session '%s' for execution since there are no available threads to " +
+                        "serve it at the moment. You can retry at a later time or consider increasing max thread pool size for bolt connector(s).", id() );
+            }
+            else
+            {
+                error = Neo4jError.fatalFrom( t );
+                message = String.format( "Unexpected error during scheduling of bolt session '%s'.", id() );
+            }
+
+            log.error( message, t );
+            userLog.error( message );
+            machine.markFailed( error );
         }
 
-        log.error( message, t );
-        userLog.error( message );
-        machine.markFailed( error );
-        processNextBatch( 1 );
+        // this will ensure that the scheduled job will be executed on this thread (fork-join pool)
+        // and it will either send a failure response to the client or close the connection and its
+        // related resources (if closing)
+        processNextBatch( 1, true );
+        // we close the connection directly to enforce the client to stop waiting for
+        // any more messages responses besides the failure message.
+        close();
     }
 
     @Override
@@ -279,9 +291,10 @@ public class DefaultBoltConnection implements BoltConnection
     {
         if ( shouldClose.compareAndSet( false, true ) )
         {
-            machine.terminate();
+            machine.markForTermination();
 
             // Enqueue an empty job for close to be handled linearly
+            // This is for already executing connections
             enqueueInternal( ignore ->
             {
 

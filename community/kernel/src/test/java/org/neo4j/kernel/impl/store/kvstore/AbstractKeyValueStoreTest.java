@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -58,12 +58,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.neo4j.kernel.impl.store.kvstore.DataProvider.EMPTY_DATA_PROVIDER;
 import static org.neo4j.test.rule.Resources.InitialLifecycle.STARTED;
-import static org.neo4j.test.rule.Resources.TestPath.FILE_IN_EXISTING_DIRECTORY;
 
 public class AbstractKeyValueStoreTest
 {
     private final ExpectedException expectedException = ExpectedException.none();
-    private final Resources resourceManager = new Resources( FILE_IN_EXISTING_DIRECTORY );
+    private final Resources resourceManager = new Resources();
     private final ThreadingRule threading = new ThreadingRule();
     private final Timeout timeout = Timeout.builder()
                                            .withTimeout( 20, TimeUnit.SECONDS )
@@ -277,7 +276,7 @@ public class AbstractKeyValueStoreTest
     public void shouldPickTheUncorruptedStoreWhenTruncatingAfterTheHeader() throws IOException
     {
         /*
-         * The problem was that if we were succesfull in writing the header but failing immediately after, we would
+         * The problem was that if we were successful in writing the header but failing immediately after, we would
          *  read 0 as counter for entry data and pick the corrupted store thinking that it was simply empty.
          */
 
@@ -480,11 +479,6 @@ public class AbstractKeyValueStoreTest
         }
     }
 
-    private static ValueUpdate longValue( long value )
-    {
-        return target -> target.putLong( 0, value );
-    }
-
     private Store createTestStore()
     {
         return createTestStore( TimeUnit.SECONDS.toMillis( 100 ) );
@@ -607,7 +601,7 @@ public class AbstractKeyValueStoreTest
 
         private Store( long rotationTimeout, HeaderField<?>... headerFields )
         {
-            super( resourceManager.fileSystem(), resourceManager.pageCache(), resourceManager.testPath(), null,
+            super( resourceManager.fileSystem(), resourceManager.pageCache(), resourceManager.testDirectory().databaseLayout(), null, null,
                     new RotationTimerFactory( Clocks.nanoClock(), rotationTimeout ),
                     EmptyVersionContextSupplier.EMPTY, 16, 16, headerFields );
             this.headerFields = headerFields;

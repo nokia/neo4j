@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,6 +21,10 @@ package org.neo4j.values.storable;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.neo4j.hashing.HashFunction;
+
+import static org.neo4j.values.utils.ValueMath.HASH_CONSTANT;
 
 /**
  * Implementation of StringValue that wraps a `java.lang.String` and
@@ -60,9 +64,37 @@ final class StringWrappingStringValue extends StringValue
         for ( int offset = 0, codePoint; offset < length; offset += Character.charCount( codePoint ) )
         {
             codePoint = value.codePointAt( offset );
-            h = 31 * h + codePoint;
+            h = HASH_CONSTANT * h + codePoint;
         }
         return h;
+    }
+
+    @Override
+    public long updateHash( HashFunction hashFunction, long hash )
+    {
+        return updateHash( hashFunction, hash, value );
+    }
+
+    public static long updateHash( HashFunction hashFunction, long hash, String value )
+    {
+        //NOTE that we are basing the hash code on code points instead of char[] values.
+        int length = value.length();
+        int codePointCount = 0;
+        for ( int offset = 0; offset < length; )
+        {
+            int codePointA = value.codePointAt( offset );
+            int codePointB = 0;
+            offset += Character.charCount( codePointA );
+            codePointCount++;
+            if ( offset < length )
+            {
+                codePointB = value.codePointAt( offset );
+                offset += Character.charCount( codePointB );
+                codePointCount++;
+            }
+            hash = hashFunction.update( hash, ((long) codePointA << 32) + codePointB );
+        }
+        return hashFunction.update( hash, codePointCount );
     }
 
     @Override
@@ -103,6 +135,30 @@ final class StringWrappingStringValue extends StringValue
     {
         StringBuilder stringBuilder = new StringBuilder( value() );
         return Values.stringValue( stringBuilder.reverse().toString() );
+    }
+
+    @Override
+    public TextValue plus( TextValue other )
+    {
+        return new StringWrappingStringValue( value + other.stringValue() );
+    }
+
+    @Override
+    public boolean startsWith( TextValue other )
+    {
+        return value.startsWith( other.stringValue() );
+    }
+
+    @Override
+    public boolean endsWith( TextValue other )
+    {
+        return value.endsWith( other.stringValue() );
+    }
+
+    @Override
+    public boolean contains( TextValue other )
+    {
+        return value.contains( other.stringValue() );
     }
 
     @Override

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,21 +19,21 @@
  */
 package org.neo4j.helpers;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.neo4j.helpers.MathUtil.numbersEqual;
 
-public class MathUtilTest
+class MathUtilTest
 {
     @Test
-    public void numbersEqualShouldAlwaysBeFalseWhenComparingAgainstDoubleNaN()
+    void numbersEqualShouldAlwaysBeFalseWhenComparingAgainstDoubleNaN()
     {
         assertFalse( numbersEqual( Double.NaN, 0 ) );
     }
 
     @Test
-    public void numbersEqualShouldAlwaysBeFalseWhenComparingAgainstInfinities()
+    void numbersEqualShouldAlwaysBeFalseWhenComparingAgainstInfinities()
     {
         assertFalse( numbersEqual( Double.NEGATIVE_INFINITY, Long.MIN_VALUE ) );
         assertFalse( numbersEqual( Double.POSITIVE_INFINITY, Long.MAX_VALUE ) );

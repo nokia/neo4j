@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -23,7 +23,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+import org.neo4j.internal.kernel.api.Kernel;
+import org.neo4j.internal.kernel.api.Transaction;
 import org.neo4j.internal.kernel.api.security.AuthSubject;
+import org.neo4j.internal.kernel.api.security.LoginContext;
 import org.neo4j.kernel.api.exceptions.Status;
 import org.neo4j.kernel.api.query.ExecutingQuery;
 import org.neo4j.kernel.impl.api.TransactionExecutionStatistic;
@@ -50,11 +53,21 @@ public interface KernelTransactionHandle
 
     /**
      * The start time of the underlying transaction. I.e. basically {@link System#currentTimeMillis()} when user
-     * called {@link org.neo4j.internal.kernel.api.Session#beginTransaction(KernelTransaction.Type)}.
+     * called {@link Kernel#beginTransaction(Transaction.Type, LoginContext)}.
      *
      * @return the transaction start time.
      */
     long startTime();
+
+    /**
+     * The start time of the underlying transaction. I.e. basically {@link System#nanoTime()} ()} when user
+     * called {@link org.neo4j.internal.kernel.api.Session#beginTransaction(KernelTransaction.Type)}.
+     *
+     * This can be used to measure elapsed time in a safe way that is not affected by system time changes.
+     *
+     * @return nanoTime at the start of the transaction.
+     */
+    long startTimeNanos();
 
     /**
      * Underlying transaction specific timeout. In case if timeout is 0 - transaction does not have a timeout.
@@ -137,4 +150,10 @@ public interface KernelTransactionHandle
      * @return transaction statistics projection
      */
     TransactionExecutionStatistic transactionStatistic();
+
+    /**
+     * @return whether or not this transaction is a schema transaction. Type of transaction is decided
+     * on first write operation, be it data or schema operation.
+     */
+    boolean isSchemaTransaction();
 }

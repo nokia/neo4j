@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -33,11 +33,11 @@ import org.neo4j.collection.PrimitiveLongCollections;
 import org.neo4j.collection.PrimitiveLongResourceCollections;
 import org.neo4j.helpers.TaskCoordinator;
 import org.neo4j.internal.kernel.api.IndexQuery;
-import org.neo4j.kernel.api.exceptions.index.IndexNotFoundKernelException;
+import org.neo4j.internal.kernel.api.exceptions.schema.IndexNotFoundKernelException;
 import org.neo4j.kernel.api.impl.index.partition.PartitionSearcher;
-import org.neo4j.kernel.api.schema.index.SchemaIndexDescriptor;
-import org.neo4j.kernel.api.schema.index.SchemaIndexDescriptorFactory;
+import org.neo4j.kernel.api.schema.index.TestIndexDescriptorFactory;
 import org.neo4j.kernel.impl.api.index.sampling.IndexSamplingConfig;
+import org.neo4j.storageengine.api.schema.IndexDescriptor;
 import org.neo4j.storageengine.api.schema.IndexSample;
 import org.neo4j.storageengine.api.schema.IndexSampler;
 import org.neo4j.values.storable.Values;
@@ -46,12 +46,15 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.neo4j.values.storable.Values.stringValue;
 
 @RunWith( MockitoJUnitRunner.class )
 public class PartitionedIndexReaderTest
 {
+    private static final int PROP_KEY = 1;
+    private static final int LABEL_ID = 0;
 
-    private SchemaIndexDescriptor schemaIndexDescriptor = SchemaIndexDescriptorFactory.forLabel( 0, 1 );
+    private IndexDescriptor schemaIndexDescriptor = TestIndexDescriptorFactory.forLabel( LABEL_ID, PROP_KEY );
     @Mock
     private IndexSamplingConfig samplingConfig;
     @Mock
@@ -127,7 +130,7 @@ public class PartitionedIndexReaderTest
     public void rangeSeekByPrefixOverPartitions() throws Exception
     {
         PartitionedIndexReader indexReader = createPartitionedReaderFromReaders();
-        IndexQuery.StringPrefixPredicate query = IndexQuery.stringPrefix( 1, "prefix" );
+        IndexQuery.StringPrefixPredicate query = IndexQuery.stringPrefix( 1, stringValue( "prefix" ) );
         when( indexReader1.query( query ) ).thenReturn( PrimitiveLongResourceCollections.iterator( null, 1 ) );
         when( indexReader2.query( query ) ).thenReturn( PrimitiveLongResourceCollections.iterator( null, 2 ) );
         when( indexReader3.query( query ) ).thenReturn( PrimitiveLongResourceCollections.iterator( null, 3 ) );
@@ -153,11 +156,11 @@ public class PartitionedIndexReaderTest
     public void countNodesOverPartitions()
     {
         PartitionedIndexReader indexReader = createPartitionedReaderFromReaders();
-        when( indexReader1.countIndexedNodes( 1, Values.of( "a" ) ) ).thenReturn( 1L );
-        when( indexReader2.countIndexedNodes( 1, Values.of( "a" ) ) ).thenReturn( 2L );
-        when( indexReader3.countIndexedNodes( 1, Values.of( "a" ) ) ).thenReturn( 3L );
+        when( indexReader1.countIndexedNodes( 1, new int[] {PROP_KEY}, Values.of( "a" ) ) ).thenReturn( 1L );
+        when( indexReader2.countIndexedNodes( 1, new int[] {PROP_KEY}, Values.of( "a" ) ) ).thenReturn( 2L );
+        when( indexReader3.countIndexedNodes( 1, new int[] {PROP_KEY}, Values.of( "a" ) ) ).thenReturn( 3L );
 
-        assertEquals( 6, indexReader.countIndexedNodes( 1, Values.of( "a" ) ) );
+        assertEquals( 6, indexReader.countIndexedNodes( 1, new int[] {PROP_KEY}, Values.of( "a" ) ) );
     }
 
     @Test

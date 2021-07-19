@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,12 +19,13 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.phases
 
-import org.neo4j.cypher.internal.util.v3_5.InternalException
+import org.neo4j.cypher.internal.v3_5.util.InternalException
 import org.neo4j.cypher.internal.compiler.v3_5.ast.convert.plannerQuery.StatementConverters._
-import org.neo4j.cypher.internal.frontend.v3_5.ast.Query
-import org.neo4j.cypher.internal.frontend.v3_5.phases.CompilationPhaseTracer.CompilationPhase.LOGICAL_PLANNING
-import org.neo4j.cypher.internal.frontend.v3_5.phases.{BaseContext, BaseState, Phase}
+import org.neo4j.cypher.internal.v3_5.ast.Query
+import org.neo4j.cypher.internal.v3_5.frontend.phases.CompilationPhaseTracer.CompilationPhase.LOGICAL_PLANNING
+import org.neo4j.cypher.internal.v3_5.frontend.phases.{BaseContext, BaseState, Phase}
 import org.neo4j.cypher.internal.ir.v3_5.UnionQuery
+
 
 object CreatePlannerQuery extends Phase[BaseContext, BaseState, LogicalPlanState] {
   override def phase = LOGICAL_PLANNING

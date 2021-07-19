@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -42,6 +42,7 @@ import static org.neo4j.function.ThrowingSupplier.throwingSupplier;
 public class Predicates
 {
     public static final IntPredicate ALWAYS_TRUE_INT = v -> true;
+    public static final IntPredicate ALWAYS_FALSE_INT = v -> false;
 
     private static final int DEFAULT_POLL_INTERVAL = 20;
 

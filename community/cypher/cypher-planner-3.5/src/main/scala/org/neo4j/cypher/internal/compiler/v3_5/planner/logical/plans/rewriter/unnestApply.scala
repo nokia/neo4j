@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,8 +20,8 @@
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.plans.rewriter
 
 import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.Solveds
-import org.neo4j.cypher.internal.util.v3_5.attribution.{Attributes, SameId}
-import org.neo4j.cypher.internal.util.v3_5.{Rewriter, topDown}
+import org.neo4j.cypher.internal.v3_5.util.attribution.{Attributes, SameId}
+import org.neo4j.cypher.internal.v3_5.util.{Rewriter, topDown}
 import org.neo4j.cypher.internal.v3_5.logical.plans._
 
 case class unnestApply(solveds: Solveds, attributes: Attributes) extends Rewriter {
@@ -37,6 +37,7 @@ case class unnestApply(solveds: Solveds, attributes: Attributes) extends Rewrite
     π  : Projection
     Arg: Argument
     EXP: Expand
+    OEX: Optional Expand
     LOJ: Left Outer Join
     ROJ: Right Outer Join
     CN : CreateNode
@@ -67,15 +68,15 @@ case class unnestApply(solveds: Solveds, attributes: Attributes) extends Rewrite
       original.copy(lhs, rhs)(SameId(original.id))
 
     // L Ax (σ R) => σ(L Ax R)
-    case o@Apply(lhs, sel@Selection(predicates, rhs)) =>
-      val res = Selection(predicates, Apply(lhs, rhs)(SameId(o.id)))(attributes.copy(sel.id))
+    case o@Apply(lhs, sel@Selection(predicate, rhs)) =>
+      val res = Selection(predicate, Apply(lhs, rhs)(SameId(o.id)))(attributes.copy(sel.id))
       solveds.copy(o.id, res.id)
       res
 
     // L Ax ((σ L2) Ax R) => (σ L) Ax (L2 Ax R) iff σ does not have dependencies on L
-    case original@Apply(lhs, Apply(sel@Selection(predicates, lhs2), rhs))
-      if predicates.forall(lhs.satisfiesExpressionDependencies)=>
-      val selectionLHS = Selection(predicates, lhs)(attributes.copy(sel.id))
+    case original@Apply(lhs, Apply(sel@Selection(predicate, lhs2), rhs))
+      if predicate.exprs.forall(lhs.satisfiesExpressionDependencies)=>
+      val selectionLHS = Selection(predicate, lhs)(attributes.copy(sel.id))
       solveds.copy(original.id, selectionLHS.id)
       val apply2 = Apply(lhs2, rhs)(attributes.copy(lhs.id))
       solveds.copy(original.id, apply2.id)
@@ -114,9 +115,15 @@ case class unnestApply(solveds: Solveds, attributes: Attributes) extends Rewrite
       solveds.copy(apply.id, res.id)
       res
 
-    // L Ax (CN R) => CN Ax (L R)
-    case apply@Apply(lhs, create@CreateNode(rhs, name, labels, props)) =>
-      val res = CreateNode(Apply(lhs, rhs)(SameId(apply.id)), name, labels, props)(attributes.copy(create.id))
+    // L Ax (OEX Arg) => OEX L
+    case apply@Apply(lhs, oex@OptionalExpand(_:Argument, _, _, _, _, _, _, _)) =>
+      val res = oex.copy(source = lhs)(attributes.copy(oex.id))
+      solveds.copy(apply.id, res.id)
+      res
+
+    // L Ax (Cr R) => Cr Ax (L R)
+    case apply@Apply(lhs, create@Create(rhs, nodes, relationships)) =>
+      val res = Create(Apply(lhs, rhs)(SameId(apply.id)), nodes, relationships)(attributes.copy(create.id))
       solveds.copy(apply.id, res.id)
       res
   })

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,15 +19,18 @@
  */
 package org.neo4j.kernel.impl.index.schema;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.neo4j.collection.PrimitiveLongResourceIterator;
 import org.neo4j.graphdb.Resource;
-import org.neo4j.helpers.collection.Iterators;
 import org.neo4j.internal.kernel.api.IndexOrder;
 import org.neo4j.internal.kernel.api.IndexQuery;
 import org.neo4j.internal.kernel.api.IndexQuery.ExistsPredicate;
-import org.neo4j.kernel.api.schema.index.SchemaIndexDescriptor;
-import org.neo4j.kernel.impl.index.schema.fusion.BridgingIndexProgressor;
+import org.neo4j.kernel.impl.api.schema.BridgingIndexProgressor;
 import org.neo4j.kernel.impl.index.schema.fusion.FusionIndexSampler;
+import org.neo4j.storageengine.api.NodePropertyAccessor;
+import org.neo4j.storageengine.api.schema.IndexDescriptor;
 import org.neo4j.storageengine.api.schema.IndexProgressor;
 import org.neo4j.storageengine.api.schema.IndexReader;
 import org.neo4j.storageengine.api.schema.IndexSampler;
@@ -38,9 +41,9 @@ import static org.neo4j.kernel.impl.index.schema.fusion.FusionIndexBase.forAll;
 
 class TemporalIndexReader extends TemporalIndexCache<TemporalIndexPartReader<?>> implements IndexReader
 {
-    private final SchemaIndexDescriptor descriptor;
+    private final IndexDescriptor descriptor;
 
-    TemporalIndexReader( SchemaIndexDescriptor descriptor, TemporalIndexAccessor accessor )
+    TemporalIndexReader( IndexDescriptor descriptor, TemporalIndexAccessor accessor )
     {
         super( new PartFactory( accessor ) );
         this.descriptor = descriptor;
@@ -53,28 +56,33 @@ class TemporalIndexReader extends TemporalIndexCache<TemporalIndexPartReader<?>>
     }
 
     @Override
-    public long countIndexedNodes( long nodeId, Value... propertyValues )
+    public long countIndexedNodes( long nodeId, int[] propertyKeyIds, Value... propertyValues )
     {
-        NativeSchemaIndexReader<?,NativeSchemaValue> partReader = uncheckedSelect( propertyValues[0].valueGroup() );
-        return partReader == null ? 0L : partReader.countIndexedNodes( nodeId, propertyValues );
+        NativeIndexReader<?,NativeIndexValue> partReader = uncheckedSelect( propertyValues[0].valueGroup() );
+        return partReader == null ? 0L : partReader.countIndexedNodes( nodeId, propertyKeyIds, propertyValues );
     }
 
     @Override
     public IndexSampler createSampler()
     {
-        return new FusionIndexSampler( Iterators.stream( iterator() ).map( IndexReader::createSampler ).toArray( IndexSampler[]::new ) );
+        List<IndexSampler> samplers = new ArrayList<>();
+        for ( TemporalIndexPartReader<?> partReader : this )
+        {
+            samplers.add( partReader.createSampler() );
+        }
+        return new FusionIndexSampler( samplers );
     }
 
     @Override
     public PrimitiveLongResourceIterator query( IndexQuery... predicates )
     {
         NodeValueIterator nodeValueIterator = new NodeValueIterator();
-        query( nodeValueIterator, IndexOrder.NONE, predicates );
+        query( nodeValueIterator, IndexOrder.NONE, nodeValueIterator.needsValues(), predicates );
         return nodeValueIterator;
     }
 
     @Override
-    public void query( IndexProgressor.NodeValueClient cursor, IndexOrder indexOrder, IndexQuery... predicates )
+    public void query( IndexProgressor.NodeValueClient cursor, IndexOrder indexOrder, boolean needsValues, IndexQuery... predicates )
     {
         if ( predicates.length != 1 )
         {
@@ -85,29 +93,29 @@ class TemporalIndexReader extends TemporalIndexCache<TemporalIndexPartReader<?>>
         {
             loadAll();
             BridgingIndexProgressor multiProgressor = new BridgingIndexProgressor( cursor, descriptor.schema().getPropertyIds() );
-            cursor.initialize( descriptor, multiProgressor, predicates );
-            for ( NativeSchemaIndexReader<?,NativeSchemaValue> reader : this )
+            cursor.initialize( descriptor, multiProgressor, predicates, indexOrder, needsValues );
+            for ( NativeIndexReader<?,NativeIndexValue> reader : this )
             {
-                reader.query( multiProgressor, indexOrder, predicates );
+                reader.query( multiProgressor, indexOrder, needsValues, predicates );
             }
         }
         else
         {
             if ( validPredicate( predicate ) )
             {
-                NativeSchemaIndexReader<?,NativeSchemaValue> part = uncheckedSelect( predicate.valueGroup() );
+                NativeIndexReader<?,NativeIndexValue> part = uncheckedSelect( predicate.valueGroup() );
                 if ( part != null )
                 {
-                    part.query( cursor, indexOrder, predicates );
+                    part.query( cursor, indexOrder, needsValues, predicates );
                 }
                 else
                 {
-                    cursor.initialize( descriptor, IndexProgressor.EMPTY, predicates );
+                    cursor.initialize( descriptor, IndexProgressor.EMPTY, predicates, indexOrder, needsValues );
                 }
             }
             else
             {
-                cursor.initialize( descriptor, IndexProgressor.EMPTY, predicates );
+                cursor.initialize( descriptor, IndexProgressor.EMPTY, predicates, indexOrder, needsValues );
             }
         }
     }
@@ -116,6 +124,18 @@ class TemporalIndexReader extends TemporalIndexCache<TemporalIndexPartReader<?>>
     public boolean hasFullValuePrecision( IndexQuery... predicates )
     {
         return true;
+    }
+
+    @Override
+    public void distinctValues( IndexProgressor.NodeValueClient cursor, NodePropertyAccessor propertyAccessor, boolean needsValues )
+    {
+        loadAll();
+        BridgingIndexProgressor multiProgressor = new BridgingIndexProgressor( cursor, descriptor.schema().getPropertyIds() );
+        cursor.initialize( descriptor, multiProgressor, new IndexQuery[0], IndexOrder.NONE, needsValues );
+        for ( NativeIndexReader<?,NativeIndexValue> reader : this )
+        {
+            reader.distinctValues( multiProgressor, propertyAccessor, needsValues );
+        }
     }
 
     private boolean validPredicate( IndexQuery predicate )

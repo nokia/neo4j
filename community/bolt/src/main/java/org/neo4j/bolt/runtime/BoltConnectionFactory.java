@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -27,8 +27,9 @@ public interface BoltConnectionFactory
      * Create a new connection bound to the specified channel
      *
      * @param channel the underlying channel
+     * @param boltStateMachine to handle state change of the connection
      * @return the newly created connection instance
      */
-    BoltConnection newConnection( BoltChannel channel );
+    BoltConnection newConnection( BoltChannel channel, BoltStateMachine boltStateMachine );
 
 }

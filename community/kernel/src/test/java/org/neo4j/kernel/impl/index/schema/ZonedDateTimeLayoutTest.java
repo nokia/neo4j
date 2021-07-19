@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -50,8 +50,8 @@ public class ZonedDateTimeLayoutTest
 
         ZonedDateTimeLayout layout = new ZonedDateTimeLayout();
         PageCursor cursor = new StubPageCursor( 0, 8 * 1024 );
-        ZonedDateTimeSchemaKey writeKey = layout.newKey();
-        ZonedDateTimeSchemaKey readKey = layout.newKey();
+        ZonedDateTimeIndexKey writeKey = layout.newKey();
+        ZonedDateTimeIndexKey readKey = layout.newKey();
 
         // Write all
         for ( Value value : values )
@@ -64,7 +64,7 @@ public class ZonedDateTimeLayoutTest
         cursor.setOffset( 0 );
         for ( Value value : values )
         {
-            layout.readKey( cursor, readKey, ZonedDateTimeSchemaKey.SIZE );
+            layout.readKey( cursor, readKey, ZonedDateTimeIndexKey.SIZE );
             assertEquals( value, readKey.asValue() );
         }
     }

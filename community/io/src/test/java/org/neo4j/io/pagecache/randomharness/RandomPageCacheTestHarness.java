@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -29,11 +29,13 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.neo4j.adversaries.RandomAdversary;
 import org.neo4j.adversaries.fs.AdversarialFileSystemAbstraction;
@@ -51,6 +53,10 @@ import org.neo4j.io.pagecache.tracing.cursor.PageCursorTracerSupplier;
 import org.neo4j.io.pagecache.tracing.cursor.context.EmptyVersionContextSupplier;
 import org.neo4j.io.pagecache.tracing.linear.LinearHistoryPageCacheTracerTest;
 import org.neo4j.io.pagecache.tracing.linear.LinearTracers;
+import org.neo4j.resources.Profiler;
+import org.neo4j.scheduler.DaemonThreadFactory;
+import org.neo4j.scheduler.JobScheduler;
+import org.neo4j.scheduler.ThreadPoolJobScheduler;
 import org.neo4j.test.rule.TestDirectory;
 
 /**
@@ -60,11 +66,14 @@ import org.neo4j.test.rule.TestDirectory;
  * records don't end up in the wrong files. The harness can also execute separate preparation and verification steps,
  * before and after executing the planned test respectively, and it can integrate with the adversarial file system
  * for fault injection, and arbitrary PageCacheTracers.
- *
+ * <p>
  * See {@link LinearHistoryPageCacheTracerTest} for an example of how to configure and use the harness.
  */
 public class RandomPageCacheTestHarness implements Closeable
 {
+    private static final ExecutorService EXECUTOR_SERVICE = new ThreadPoolExecutor(
+            0, Integer.MAX_VALUE, 1, TimeUnit.SECONDS, new SynchronousQueue<>(), new DaemonThreadFactory() );
+
     private double mischiefRate;
     private double failureRate;
     private double errorRate;
@@ -85,6 +94,7 @@ public class RandomPageCacheTestHarness implements Closeable
     private Phase preparation;
     private Phase verification;
     private RecordFormat recordFormat;
+    private Profiler profiler;
 
     public RandomPageCacheTestHarness()
     {
@@ -109,6 +119,7 @@ public class RandomPageCacheTestHarness implements Closeable
         fs = new EphemeralFileSystemAbstraction();
         useAdversarialIO = true;
         recordFormat = new StandardRecordFormat();
+        profiler = Profiler.nullProfiler();
     }
 
     /**
@@ -126,7 +137,7 @@ public class RandomPageCacheTestHarness implements Closeable
      * Set the probability factor of the given command. The default value is given by
      * {@link Command#getDefaultProbabilityFactor()}. The effective probability is computed from the relative
      * difference in probability factors between all the commands.
-     *
+     * <p>
      * Setting the probability factor to zero will disable that command.
      */
     public void setCommandProbabilityFactor( Command command, double probabilityFactor )
@@ -138,7 +149,7 @@ public class RandomPageCacheTestHarness implements Closeable
     /**
      * Set to "true" to execute the plans with fault injection from the {@link AdversarialFileSystemAbstraction}, or
      * set to "false" to disable this feature.
-     *
+     * <p>
      * The default is "true".
      */
     public void setUseAdversarialIO( boolean useAdversarialIO )
@@ -200,7 +211,7 @@ public class RandomPageCacheTestHarness implements Closeable
      * Set the number of files that should be mapped from the start of the plan. If you have set the probability of
      * the {@link Command#MapFile} command to zero, then you must have a positive number of initial mapped files.
      * Otherwise there will be no files to plan any work for.
-     *
+     * <p>
      * The default value is 2.
      */
     public void setInitialMappedFiles( int initialMappedFiles )
@@ -235,7 +246,7 @@ public class RandomPageCacheTestHarness implements Closeable
      * Set the preparation phase to use. This phase is executed before all the planned commands. It can be used to
      * prepare some file contents, or reset some external state, such as the
      * {@link LinearTracers}.
-     *
+     * <p>
      * The preparation phase is executed before each iteration.
      */
     public void setPreparation( Phase preparation )
@@ -246,7 +257,7 @@ public class RandomPageCacheTestHarness implements Closeable
     /**
      * Set the verification phase to use. This phase is executed after all the planned commands have executed
      * completely, and can be used to verify the consistency of the data, or some other invariant.
-     *
+     * <p>
      * The verification phase is executed after each iteration.
      */
     public void setVerification( Phase verification )
@@ -264,7 +275,7 @@ public class RandomPageCacheTestHarness implements Closeable
 
     /**
      * Set and fix the random seed to the given value. All iterations run through this harness will then use that seed.
-     *
+     * <p>
      * If the random seed has not been configured, then each iteration will use a new seed.
      */
     public void setRandomSeed( long randomSeed )
@@ -276,6 +287,11 @@ public class RandomPageCacheTestHarness implements Closeable
     public void setFileSystem( FileSystemAbstraction fileSystem )
     {
         this.fs = fileSystem;
+    }
+
+    public void useProfiler( Profiler profiler )
+    {
+        this.profiler = profiler;
     }
 
     /**
@@ -311,9 +327,9 @@ public class RandomPageCacheTestHarness implements Closeable
 
     /**
      * Run a single iteration with the current harness configuration.
-     *
+     * <p>
      * This will either complete within the given timeout, or throw an exception.
-     *
+     * <p>
      * If the run fails, then a description will be printed to System.err.
      */
     public void run( long iterationTimeout, TimeUnit unit ) throws Exception
@@ -323,13 +339,13 @@ public class RandomPageCacheTestHarness implements Closeable
 
     /**
      * Run the given number of iterations with the given harness configuration.
-     *
+     * <p>
      * If the random seed has been set to a specific value, then all iterations will use that seed. Otherwise each
      * iteration will use a new seed.
-     *
+     * <p>
      * The given timeout applies to the individual iteration, not to their combined run. This is effectively similar
      * to calling {@link #run(long, TimeUnit)} the given number of times.
-     *
+     * <p>
      * The run will stop at the first failure, if any, and print a description of it to System.err.
      */
     public void run( int iterations, long iterationTimeout, TimeUnit unit ) throws Exception
@@ -378,8 +394,9 @@ public class RandomPageCacheTestHarness implements Closeable
 
         PageSwapperFactory swapperFactory = new SingleFilePageSwapperFactory();
         swapperFactory.open( fs, Configuration.EMPTY );
+        JobScheduler jobScheduler = new ThreadPoolJobScheduler();
         MuninnPageCache cache = new MuninnPageCache( swapperFactory, cachePageCount, tracer,
-                cursorTracerSupplier, EmptyVersionContextSupplier.EMPTY );
+                cursorTracerSupplier, EmptyVersionContextSupplier.EMPTY, jobScheduler );
         if ( filePageSize == 0 )
         {
             filePageSize = cache.pageSize();
@@ -394,12 +411,12 @@ public class RandomPageCacheTestHarness implements Closeable
 
         plan = plan( cache, files, fileMap );
 
-        Callable<Void> planRunner = new PlanRunner( plan );
+        AtomicBoolean stopSignal = new AtomicBoolean();
+        Callable<Void> planRunner = new PlanRunner( plan, stopSignal, profiler );
         Future<Void>[] futures = new Future[concurrencyLevel];
-        ExecutorService executor = Executors.newFixedThreadPool( concurrencyLevel );
         for ( int i = 0; i < concurrencyLevel; i++ )
         {
-            futures[i] = executor.submit( planRunner );
+            futures[i] = EXECUTOR_SERVICE.submit( planRunner );
         }
 
         if ( preparation != null )
@@ -429,28 +446,46 @@ public class RandomPageCacheTestHarness implements Closeable
         }
         finally
         {
+            stopSignal.set( true );
             adversary.setProbabilityFactor( 0.0 );
-            for ( Future<Void> future : futures )
+            try
             {
-                future.cancel( true );
-            }
-            executor.shutdown();
-            now = System.currentTimeMillis();
-            executor.awaitTermination( deadlineMillis - now, TimeUnit.MILLISECONDS );
-            plan.close();
-            cache.close();
-
-            if ( this.fs instanceof EphemeralFileSystemAbstraction )
-            {
-                this.fs.close();
-                this.fs = new EphemeralFileSystemAbstraction();
-            }
-            else
-            {
-                for ( File file : files )
+                for ( Future<Void> future : futures )
                 {
-                    file.delete();
+                    future.get( 10, TimeUnit.SECONDS );
                 }
+            }
+            catch ( InterruptedException | TimeoutException e )
+            {
+                for ( Future<Void> future : futures )
+                {
+                    future.cancel( true );
+                }
+                e.printStackTrace();
+            }
+
+            try
+            {
+                plan.close();
+                cache.close();
+                jobScheduler.close();
+
+                if ( this.fs instanceof EphemeralFileSystemAbstraction )
+                {
+                    this.fs.close();
+                    this.fs = new EphemeralFileSystemAbstraction();
+                }
+                else
+                {
+                    for ( File file : files )
+                    {
+                        file.delete();
+                    }
+                }
+            }
+            catch ( IOException e )
+            {
+                e.printStackTrace();
             }
         }
     }

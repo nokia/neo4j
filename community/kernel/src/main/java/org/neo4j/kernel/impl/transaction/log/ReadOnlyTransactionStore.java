@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,10 +19,10 @@
  */
 package org.neo4j.kernel.impl.transaction.log;
 
-import java.io.File;
 import java.io.IOException;
 
 import org.neo4j.io.fs.FileSystemAbstraction;
+import org.neo4j.io.layout.DatabaseLayout;
 import org.neo4j.io.pagecache.PageCache;
 import org.neo4j.kernel.configuration.Config;
 import org.neo4j.kernel.impl.transaction.log.TransactionMetadataCache.TransactionMetadata;
@@ -42,13 +42,13 @@ public class ReadOnlyTransactionStore implements Lifecycle, LogicalTransactionSt
     private final LifeSupport life = new LifeSupport();
     private final LogicalTransactionStore physicalStore;
 
-    public ReadOnlyTransactionStore( PageCache pageCache, FileSystemAbstraction fs, File fromPath, Config config,
+    public ReadOnlyTransactionStore( PageCache pageCache, FileSystemAbstraction fs, DatabaseLayout fromDatabaseLayout, Config config,
             Monitors monitors ) throws IOException
     {
-        TransactionMetadataCache transactionMetadataCache = new TransactionMetadataCache( 100 );
+        TransactionMetadataCache transactionMetadataCache = new TransactionMetadataCache();
         LogEntryReader<ReadableClosablePositionAwareChannel> logEntryReader = new VersionAwareLogEntryReader<>();
         LogFiles logFiles = LogFilesBuilder
-                .activeFilesBuilder( fromPath, fs, pageCache ).withLogEntryReader( logEntryReader )
+                .activeFilesBuilder( fromDatabaseLayout, fs, pageCache ).withLogEntryReader( logEntryReader )
                 .withConfig( config )
                 .build();
         physicalStore = new PhysicalLogicalTransactionStore( logFiles, transactionMetadataCache, logEntryReader,
@@ -78,6 +78,12 @@ public class ReadOnlyTransactionStore implements Lifecycle, LogicalTransactionSt
     public TransactionMetadata getMetadataFor( long transactionId ) throws IOException
     {
         return physicalStore.getMetadataFor( transactionId );
+    }
+
+    @Override
+    public boolean existsOnDisk( long transactionId ) throws IOException
+    {
+        return physicalStore.existsOnDisk( transactionId );
     }
 
     @Override

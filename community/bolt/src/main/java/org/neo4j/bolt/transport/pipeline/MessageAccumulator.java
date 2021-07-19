@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -26,9 +26,24 @@ import io.netty.handler.codec.DecoderException;
 
 import java.util.List;
 
+import org.neo4j.util.FeatureToggles;
+
 public class MessageAccumulator extends ByteToMessageDecoder
 {
+    private static final boolean USE_MERGE_CUMULATOR = FeatureToggles.flag( MessageAccumulator.class, "mergeCumulator", false );
     private boolean readMessageBoundary;
+
+    public MessageAccumulator()
+    {
+        if ( USE_MERGE_CUMULATOR )
+        {
+            setCumulator( MERGE_CUMULATOR );
+        }
+        else
+        {
+            setCumulator( COMPOSITE_CUMULATOR );
+        }
+    }
 
     @Override
     public void channelRead( ChannelHandlerContext ctx, Object msg ) throws Exception

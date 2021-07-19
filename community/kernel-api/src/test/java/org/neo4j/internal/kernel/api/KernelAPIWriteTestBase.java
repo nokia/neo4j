@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,15 +19,14 @@
  */
 package org.neo4j.internal.kernel.api;
 
-import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.IOException;
 
 import org.neo4j.graphdb.GraphDatabaseService;
+import org.neo4j.internal.kernel.api.exceptions.TransactionFailureException;
 import org.neo4j.internal.kernel.api.security.LoginContext;
 
 /**
@@ -46,8 +45,6 @@ public abstract class KernelAPIWriteTestBase<WriteSupport extends KernelAPIWrite
 {
     protected static final TemporaryFolder folder = new TemporaryFolder();
     protected static KernelAPIWriteTestSupport testSupport;
-    protected Session session;
-    protected Modes modes;
     protected static GraphDatabaseService graphDb;
 
     /**
@@ -66,15 +63,12 @@ public abstract class KernelAPIWriteTestBase<WriteSupport extends KernelAPIWrite
             graphDb = testSupport.graphBackdoor();
         }
         testSupport.clearGraph();
-        Kernel kernel = testSupport.kernelToTest();
-        session = kernel.beginSession( LoginContext.AUTH_DISABLED );
-        modes = kernel.modes();
     }
 
-    @After
-    public void closeSession()
+    protected Transaction beginTransaction() throws TransactionFailureException
     {
-        session.close();
+        Kernel kernel = testSupport.kernelToTest();
+        return kernel.beginTransaction( Transaction.Type.implicit, LoginContext.AUTH_DISABLED );
     }
 
     @AfterClass

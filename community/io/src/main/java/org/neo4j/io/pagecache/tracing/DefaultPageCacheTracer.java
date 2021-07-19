@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -242,7 +242,12 @@ public class DefaultPageCacheTracer implements PageCacheTracer
     @Override
     public double usageRatio()
     {
-        return (faults.sum() - evictions.sum()) / (double) maxPages.get();
+        long pages = maxPages.get();
+        if ( pages == 0 )
+        {
+            return 0;
+        }
+        return Math.max( 0, (faults.sum() - evictions.sum()) / (double) pages );
     }
 
     @Override

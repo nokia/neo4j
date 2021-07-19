@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -23,21 +23,24 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.RuleChain;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.neo4j.helpers.Exceptions;
+import org.neo4j.helpers.collection.Visitor;
 import org.neo4j.internal.kernel.api.exceptions.KernelException;
 import org.neo4j.io.fs.FileSystemAbstraction;
+import org.neo4j.io.layout.DatabaseLayout;
 import org.neo4j.io.pagecache.DelegatingPageCache;
 import org.neo4j.io.pagecache.IOLimiter;
 import org.neo4j.io.pagecache.PageCache;
@@ -45,19 +48,27 @@ import org.neo4j.kernel.api.exceptions.Status;
 import org.neo4j.kernel.impl.api.BatchTransactionApplier;
 import org.neo4j.kernel.impl.api.BatchTransactionApplierFacade;
 import org.neo4j.kernel.impl.api.CountsAccessor;
+import org.neo4j.kernel.impl.api.TransactionApplier;
 import org.neo4j.kernel.impl.api.TransactionToApply;
+import org.neo4j.kernel.impl.locking.Lock;
+import org.neo4j.kernel.impl.locking.LockGroup;
+import org.neo4j.kernel.impl.locking.LockService;
 import org.neo4j.kernel.impl.store.StoreType;
 import org.neo4j.kernel.impl.store.UnderlyingStorageException;
 import org.neo4j.kernel.impl.store.counts.CountsTracker;
+import org.neo4j.kernel.impl.store.record.NodeRecord;
 import org.neo4j.kernel.impl.transaction.TransactionRepresentation;
+import org.neo4j.kernel.impl.transaction.command.Command;
 import org.neo4j.kernel.impl.transaction.log.FakeCommitment;
 import org.neo4j.kernel.impl.transaction.log.TransactionIdStore;
 import org.neo4j.kernel.internal.DatabaseHealth;
 import org.neo4j.storageengine.api.CommandsToApply;
+import org.neo4j.storageengine.api.StorageCommand;
 import org.neo4j.storageengine.api.StoreFileMetadata;
 import org.neo4j.storageengine.api.TransactionApplicationMode;
 import org.neo4j.test.rule.PageCacheRule;
 import org.neo4j.test.rule.RecordStorageEngineRule;
+import org.neo4j.test.rule.TestDirectory;
 import org.neo4j.test.rule.fs.EphemeralFileSystemRule;
 
 import static org.hamcrest.Matchers.is;
@@ -66,29 +77,33 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class RecordStorageEngineTest
 {
-    private static final File storeDir = new File( "/storedir" );
     private final RecordStorageEngineRule storageEngineRule = new RecordStorageEngineRule();
     private final EphemeralFileSystemRule fsRule = new EphemeralFileSystemRule();
     private final PageCacheRule pageCacheRule = new PageCacheRule();
-    private DatabaseHealth databaseHealth = mock( DatabaseHealth.class );
+    private final TestDirectory testDirectory = TestDirectory.testDirectory( fsRule );
+    private final DatabaseHealth databaseHealth = mock( DatabaseHealth.class );
 
     @Rule
     public RuleChain ruleChain = RuleChain.outerRule( fsRule )
             .around( pageCacheRule )
+            .around( testDirectory )
             .around( storageEngineRule );
 
     private static final Function<Optional<StoreType>,StoreType> assertIsPresentAndGet = optional ->
     {
-        assert optional.isPresent() : "Expected optional to be present";
+        assertTrue( "Expected optional to be present", optional.isPresent() );
         return optional.get();
     };
 
@@ -104,8 +119,7 @@ public class RecordStorageEngineTest
     public void panicOnExceptionDuringCommandsApply()
     {
         IllegalStateException failure = new IllegalStateException( "Too many open files" );
-        RecordStorageEngine engine = storageEngineRule
-                .getWith( fsRule.get(), pageCacheRule.getPageCache( fsRule.get() ) )
+        RecordStorageEngine engine = storageEngineRule.getWith( fsRule.get(), pageCacheRule.getPageCache( fsRule.get() ), testDirectory.databaseLayout() )
                 .databaseHealth( databaseHealth )
                 .transactionApplierTransformer( facade -> transactionApplierFacadeTransformer( facade, failure ) )
                 .build();
@@ -164,7 +178,7 @@ public class RecordStorageEngineTest
     @Test
     public void mustFlushStoresWithGivenIOLimiter()
     {
-        IOLimiter limiter = ( stamp, completedIOs, swapper ) -> 0;
+        IOLimiter limiter = IOLimiter.UNLIMITED;
         FileSystemAbstraction fs = fsRule.get();
         AtomicReference<IOLimiter> observedLimiter = new AtomicReference<>();
         PageCache pageCache = new DelegatingPageCache( pageCacheRule.getPageCache( fs ) )
@@ -177,7 +191,7 @@ public class RecordStorageEngineTest
             }
         };
 
-        RecordStorageEngine engine = storageEngineRule.getWith( fs, pageCache ).build();
+        RecordStorageEngine engine = storageEngineRule.getWith( fs, pageCache, testDirectory.databaseLayout() ).build();
         engine.flushAndForce( limiter );
 
         assertThat( observedLimiter.get(), sameInstance( limiter ) );
@@ -187,28 +201,66 @@ public class RecordStorageEngineTest
     public void shouldListAllStoreFiles()
     {
         RecordStorageEngine engine = buildRecordStorageEngine();
-
         final Collection<StoreFileMetadata> files = engine.listStorageFiles();
-        Set<StoreType> expectedStoreTypes = Arrays.stream( StoreType.values() ).collect( Collectors.toSet() );
+        Set<File> currentFiles = files.stream().map( StoreFileMetadata::file ).collect( Collectors.toSet() );
+        // current engine files should contain everything except another count store file and label scan store
+        DatabaseLayout databaseLayout = testDirectory.databaseLayout();
+        Set<File> allPossibleFiles = databaseLayout.storeFiles();
+        allPossibleFiles.remove( databaseLayout.countStoreB() );
+        allPossibleFiles.remove( databaseLayout.labelScanStore() );
 
-        Set<StoreType> actualStoreTypes = files.stream()
-                .map( storeFileMetadata -> StoreType.typeOf( storeFileMetadata.file().getName() ) )
-                .map( assertIsPresentAndGet )
-                .collect( Collectors.toSet() );
+        assertEquals( currentFiles, allPossibleFiles );
+    }
 
-        assertEquals( expectedStoreTypes, actualStoreTypes );
+    @Test
+    public void shouldCloseLockGroupAfterAppliers() throws Exception
+    {
+        // given
+        long nodeId = 5;
+        LockService lockService = mock( LockService.class );
+        Lock nodeLock = mock( Lock.class );
+        when( lockService.acquireNodeLock( nodeId, LockService.LockType.WRITE_LOCK ) ).thenReturn( nodeLock );
+        Consumer<Boolean> applierCloseCall = mock( Consumer.class ); // <-- simply so that we can use InOrder mockito construct
+        CapturingBatchTransactionApplierFacade applier = new CapturingBatchTransactionApplierFacade( applierCloseCall );
+        RecordStorageEngine engine = recordStorageEngineBuilder()
+                .lockService( lockService )
+                .transactionApplierTransformer( applier::wrapAroundActualApplier )
+                .build();
+        CommandsToApply commandsToApply = mock( CommandsToApply.class );
+        when( commandsToApply.accept( any() ) ).thenAnswer( invocationOnMock ->
+        {
+            // Visit one node command
+            Visitor<StorageCommand,IOException> visitor = invocationOnMock.getArgument( 0 );
+            NodeRecord after = new NodeRecord( nodeId );
+            after.setInUse( true );
+            visitor.visit( new Command.NodeCommand( new NodeRecord( nodeId ), after ) );
+            return null;
+        } );
+
+        // when
+        engine.apply( commandsToApply, TransactionApplicationMode.INTERNAL );
+
+        // then
+        InOrder inOrder = inOrder( lockService, applierCloseCall, nodeLock );
+        inOrder.verify( lockService ).acquireNodeLock( nodeId, LockService.LockType.WRITE_LOCK );
+        inOrder.verify( applierCloseCall ).accept( true );
+        inOrder.verify( nodeLock, times( 1 ) ).release();
+        inOrder.verifyNoMoreInteractions();
     }
 
     private RecordStorageEngine buildRecordStorageEngine()
     {
-        return storageEngineRule
-                .getWith( fsRule.get(), pageCacheRule.getPageCache( fsRule.get() ) )
-                .storeDirectory( storeDir )
-                .databaseHealth( databaseHealth )
-                .build();
+        return recordStorageEngineBuilder().build();
     }
 
-    private Exception executeFailingTransaction( RecordStorageEngine engine ) throws IOException
+    private RecordStorageEngineRule.Builder recordStorageEngineBuilder()
+    {
+        return storageEngineRule
+                .getWith( fsRule.get(), pageCacheRule.getPageCache( fsRule.get() ), testDirectory.databaseLayout() )
+                .databaseHealth( databaseHealth );
+    }
+
+    private static Exception executeFailingTransaction( RecordStorageEngine engine ) throws IOException
     {
         Exception applicationError = new UnderlyingStorageException( "No space left on device" );
         TransactionToApply txToApply = newTransactionThatFailsWith( applicationError );
@@ -241,7 +293,7 @@ public class RecordStorageEngineTest
 
     private static class FailingBatchTransactionApplierFacade extends BatchTransactionApplierFacade
     {
-        private Exception failure;
+        private final Exception failure;
 
         FailingBatchTransactionApplierFacade( Exception failure, BatchTransactionApplier... appliers )
         {
@@ -256,4 +308,39 @@ public class RecordStorageEngineTest
         }
     }
 
+    private class CapturingBatchTransactionApplierFacade extends BatchTransactionApplierFacade
+    {
+        private final Consumer<Boolean> applierCloseCall;
+        private BatchTransactionApplierFacade actual;
+
+        CapturingBatchTransactionApplierFacade( Consumer<Boolean> applierCloseCall )
+        {
+            this.applierCloseCall = applierCloseCall;
+        }
+
+        CapturingBatchTransactionApplierFacade wrapAroundActualApplier( BatchTransactionApplierFacade actual )
+        {
+            this.actual = actual;
+            return this;
+        }
+
+        @Override
+        public TransactionApplier startTx( CommandsToApply transaction ) throws IOException
+        {
+            return actual.startTx( transaction );
+        }
+
+        @Override
+        public TransactionApplier startTx( CommandsToApply transaction, LockGroup lockGroup ) throws IOException
+        {
+            return actual.startTx( transaction, lockGroup );
+        }
+
+        @Override
+        public void close() throws Exception
+        {
+            applierCloseCall.accept( true );
+            actual.close();
+        }
+    }
 }

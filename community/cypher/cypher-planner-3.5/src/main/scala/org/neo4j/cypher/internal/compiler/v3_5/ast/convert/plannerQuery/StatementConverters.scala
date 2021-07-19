@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,19 +19,27 @@
  */
 package org.neo4j.cypher.internal.compiler.v3_5.ast.convert.plannerQuery
 
-import org.neo4j.cypher.internal.util.v3_5.{ASTNode, InternalException}
 import org.neo4j.cypher.internal.compiler.v3_5.ast.convert.plannerQuery.ClauseConverters._
-import org.neo4j.cypher.internal.frontend.v3_5.ast._
-import org.neo4j.cypher.internal.frontend.v3_5.ast
-import org.neo4j.cypher.internal.frontend.v3_5.semantics.SemanticTable
-import org.neo4j.cypher.internal.ir.v3_5.{PeriodicCommit, UnionQuery}
-import org.neo4j.cypher.internal.v3_5.expressions.{And, Or}
+import org.neo4j.cypher.internal.ir.v3_5.PeriodicCommit
+import org.neo4j.cypher.internal.ir.v3_5.UnionQuery
+import org.neo4j.cypher.internal.v3_5.ast
+import org.neo4j.cypher.internal.v3_5.ast._
+import org.neo4j.cypher.internal.v3_5.ast.semantics.SemanticTable
+import org.neo4j.cypher.internal.v3_5.expressions.And
+import org.neo4j.cypher.internal.v3_5.expressions.Or
+import org.neo4j.cypher.internal.v3_5.expressions.Pattern
+import org.neo4j.cypher.internal.v3_5.expressions.PatternPart
+import org.neo4j.cypher.internal.v3_5.util.ASTNode
+import org.neo4j.cypher.internal.v3_5.util.InputPosition
+import org.neo4j.cypher.internal.v3_5.util.InternalException
+
+import scala.collection.mutable.ArrayBuffer
 
 object StatementConverters {
-  import org.neo4j.cypher.internal.util.v3_5.Foldable._
+  import org.neo4j.cypher.internal.v3_5.util.Foldable._
 
   def toPlannerQueryBuilder(q: SingleQuery, semanticTable: SemanticTable): PlannerQueryBuilder =
-    q.clauses.foldLeft(PlannerQueryBuilder(semanticTable)) {
+    flattenCreates(q.clauses).foldLeft(PlannerQueryBuilder(semanticTable)) {
       case (acc, clause) => addToLogicalPlanInput(acc, clause)
     }
 
@@ -76,5 +84,35 @@ object StatementConverters {
       case _ =>
         throw new InternalException(s"Received an AST-clause that has no representation the QG: $query")
     }
+  }
+
+  /**
+    * Flatten consecutive CREATE clauses into one.
+    *
+    *   CREATE (a) CREATE (b) => CREATE (a),(b)
+    */
+  def flattenCreates(clauses: Seq[Clause]): Seq[Clause] = {
+    val builder = ArrayBuffer.empty[Clause]
+    var prevCreate: Option[(Seq[PatternPart], InputPosition)] = None
+    for (clause <- clauses) {
+      (clause, prevCreate) match {
+        case (c: Create, None) =>
+          prevCreate = Some((c.pattern.patternParts, c.position))
+
+        case (c: Create, Some((prevParts, pos))) =>
+          prevCreate = Some((prevParts ++ c.pattern.patternParts, pos))
+
+        case (nonCreate, Some((prevParts, pos))) =>
+          builder += Create(Pattern(prevParts)(pos))(pos)
+          builder += nonCreate
+          prevCreate = None
+
+        case (nonCreate, None) =>
+          builder += nonCreate
+      }
+    }
+    for ((prevParts, pos) <- prevCreate)
+      builder += Create(Pattern(prevParts)(pos))(pos)
+    builder
   }
 }

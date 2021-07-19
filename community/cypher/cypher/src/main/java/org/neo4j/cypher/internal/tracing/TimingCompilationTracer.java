@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -23,12 +23,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.neo4j.cypher.internal.frontend.v3_5.phases.CompilationPhaseTracer;
+import org.neo4j.cypher.internal.v3_5.frontend.phases.CompilationPhaseTracer;
 
 public class TimingCompilationTracer implements CompilationTracer
 {
     public interface EventListener
     {
+        void startQueryCompilation( String query );
         void queryCompiled( QueryEvent event );
     }
 
@@ -72,6 +73,7 @@ public class TimingCompilationTracer implements CompilationTracer
     @Override
     public QueryCompilationEvent compileQuery( String query )
     {
+        listener.startQueryCompilation( query );
         return new Query( clock, query, listener );
     }
 

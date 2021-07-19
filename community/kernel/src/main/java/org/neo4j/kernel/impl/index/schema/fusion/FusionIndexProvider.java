@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,42 +19,38 @@
  */
 package org.neo4j.kernel.impl.index.schema.fusion;
 
-import java.io.File;
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.Arrays;
+import java.util.EnumMap;
+import java.util.List;
 
-import org.neo4j.graphdb.factory.GraphDatabaseSettings;
+import org.neo4j.helpers.collection.Iterables;
 import org.neo4j.internal.kernel.api.IndexCapability;
 import org.neo4j.internal.kernel.api.IndexOrder;
-import org.neo4j.internal.kernel.api.IndexQuery;
 import org.neo4j.internal.kernel.api.InternalIndexState;
-import org.neo4j.io.compress.ZipUtils;
+import org.neo4j.internal.kernel.api.TokenNameLookup;
+import org.neo4j.internal.kernel.api.schema.IndexProviderDescriptor;
 import org.neo4j.io.fs.FileSystemAbstraction;
-import org.neo4j.io.fs.FileUtils;
 import org.neo4j.io.pagecache.PageCache;
 import org.neo4j.kernel.api.index.IndexAccessor;
 import org.neo4j.kernel.api.index.IndexDirectoryStructure;
 import org.neo4j.kernel.api.index.IndexPopulator;
 import org.neo4j.kernel.api.index.IndexProvider;
-import org.neo4j.kernel.api.schema.index.SchemaIndexDescriptor;
 import org.neo4j.kernel.impl.api.index.sampling.IndexSamplingConfig;
+import org.neo4j.kernel.impl.index.schema.ByteBufferFactory;
+import org.neo4j.kernel.impl.index.schema.FileSystemIndexDropAction;
+import org.neo4j.kernel.impl.index.schema.IndexDropAction;
 import org.neo4j.kernel.impl.newapi.UnionIndexCapability;
 import org.neo4j.kernel.impl.storemigration.StoreMigrationParticipant;
-import org.neo4j.storageengine.api.schema.IndexReader;
-import org.neo4j.values.storable.Value;
+import org.neo4j.storageengine.api.schema.StoreIndexDescriptor;
 import org.neo4j.values.storable.ValueCategory;
 
 import static org.neo4j.internal.kernel.api.InternalIndexState.FAILED;
 import static org.neo4j.internal.kernel.api.InternalIndexState.POPULATING;
-import static org.neo4j.kernel.impl.index.schema.fusion.FusionIndexBase.INSTANCE_COUNT;
-import static org.neo4j.kernel.impl.index.schema.fusion.FusionIndexBase.LUCENE;
-import static org.neo4j.kernel.impl.index.schema.fusion.FusionIndexBase.NUMBER;
-import static org.neo4j.kernel.impl.index.schema.fusion.FusionIndexBase.SPATIAL;
-import static org.neo4j.kernel.impl.index.schema.fusion.FusionIndexBase.STRING;
-import static org.neo4j.kernel.impl.index.schema.fusion.FusionIndexBase.TEMPORAL;
-import static org.neo4j.kernel.impl.index.schema.fusion.FusionIndexBase.forAll;
-import static org.neo4j.kernel.impl.index.schema.fusion.FusionIndexBase.instancesAs;
+import static org.neo4j.kernel.impl.index.schema.fusion.IndexSlot.LUCENE;
+import static org.neo4j.kernel.impl.index.schema.fusion.IndexSlot.NUMBER;
+import static org.neo4j.kernel.impl.index.schema.fusion.IndexSlot.SPATIAL;
+import static org.neo4j.kernel.impl.index.schema.fusion.IndexSlot.STRING;
+import static org.neo4j.kernel.impl.index.schema.fusion.IndexSlot.TEMPORAL;
 
 /**
  * This {@link IndexProvider index provider} act as one logical index but is backed by four physical
@@ -62,27 +58,10 @@ import static org.neo4j.kernel.impl.index.schema.fusion.FusionIndexBase.instance
  */
 public class FusionIndexProvider extends IndexProvider
 {
-    interface Selector
-    {
-        void validateSatisfied( Object[] instances );
-
-        int selectSlot( Value... values );
-
-        default <T> T select( T[] instances, Value... values )
-        {
-            return instances[selectSlot( values )];
-        }
-
-        /**
-         * @return Appropriate IndexReader for given predicate or null if predicate needs all readers.
-         */
-        IndexReader select( IndexReader[] instances, IndexQuery... predicates );
-    }
-
     private final boolean archiveFailedIndex;
-    private final IndexProvider[] providers = new IndexProvider[INSTANCE_COUNT];
-    private final Selector selector;
-    private final DropAction dropAction;
+    private final InstanceSelector<IndexProvider> providers;
+    private final SlotSelector slotSelector;
+    private final IndexDropAction dropAction;
 
     public FusionIndexProvider(
             // good to be strict with specific providers here since this is dev facing
@@ -91,52 +70,54 @@ public class FusionIndexProvider extends IndexProvider
             IndexProvider spatialProvider,
             IndexProvider temporalProvider,
             IndexProvider luceneProvider,
-            Selector selector,
-            Descriptor descriptor,
-            int priority,
+            SlotSelector slotSelector,
+            IndexProviderDescriptor descriptor,
             IndexDirectoryStructure.Factory directoryStructure,
             FileSystemAbstraction fs,
             boolean archiveFailedIndex )
     {
-        super( descriptor, priority, directoryStructure );
-        fillProvidersArray( stringProvider, numberProvider, spatialProvider, temporalProvider, luceneProvider );
-        selector.validateSatisfied( providers );
+        super( descriptor, directoryStructure );
         this.archiveFailedIndex = archiveFailedIndex;
-        this.selector = selector;
-        this.dropAction = new FileSystemDropAction( fs, directoryStructure() );
+        this.slotSelector = slotSelector;
+        this.providers = new InstanceSelector<>();
+        this.dropAction = new FileSystemIndexDropAction( fs, directoryStructure() );
+        fillProvidersSelector( stringProvider, numberProvider, spatialProvider, temporalProvider, luceneProvider );
+        slotSelector.validateSatisfied( providers );
     }
 
-    private void fillProvidersArray( IndexProvider stringProvider, IndexProvider numberProvider, IndexProvider spatialProvider, IndexProvider temporalProvider,
-            IndexProvider luceneProvider )
+    private void fillProvidersSelector(
+            IndexProvider stringProvider, IndexProvider numberProvider, IndexProvider spatialProvider,
+            IndexProvider temporalProvider, IndexProvider luceneProvider )
     {
-        providers[STRING] = stringProvider;
-        providers[NUMBER] = numberProvider;
-        providers[SPATIAL] = spatialProvider;
-        providers[TEMPORAL] = temporalProvider;
-        providers[LUCENE] = luceneProvider;
+        providers.put( STRING, stringProvider );
+        providers.put( NUMBER, numberProvider );
+        providers.put( SPATIAL, spatialProvider );
+        providers.put( TEMPORAL, temporalProvider );
+        providers.put( LUCENE, luceneProvider );
     }
 
     @Override
-    public IndexPopulator getPopulator( long indexId, SchemaIndexDescriptor descriptor, IndexSamplingConfig samplingConfig )
+    public IndexPopulator getPopulator( StoreIndexDescriptor descriptor, IndexSamplingConfig samplingConfig, ByteBufferFactory bufferFactory,
+            TokenNameLookup tokenNameLookup )
     {
-        return new FusionIndexPopulator( instancesAs( providers, IndexPopulator.class,
-                provider -> provider.getPopulator( indexId, descriptor, samplingConfig ) ), selector, indexId, dropAction, archiveFailedIndex );
+        EnumMap<IndexSlot,IndexPopulator> populators =
+                providers.map( provider -> provider.getPopulator( descriptor, samplingConfig, bufferFactory, tokenNameLookup ) );
+        return new FusionIndexPopulator( slotSelector, new InstanceSelector<>( populators ), descriptor.getId(), dropAction, archiveFailedIndex );
     }
 
     @Override
-    public IndexAccessor getOnlineAccessor( long indexId, SchemaIndexDescriptor descriptor,
-            IndexSamplingConfig samplingConfig ) throws IOException
+    public IndexAccessor getOnlineAccessor( StoreIndexDescriptor descriptor, IndexSamplingConfig samplingConfig,
+            TokenNameLookup tokenNameLookup ) throws IOException
     {
-        return new FusionIndexAccessor(
-                instancesAs( providers, IndexAccessor.class, provider -> provider.getOnlineAccessor( indexId, descriptor, samplingConfig ) ),
-                selector, indexId, descriptor, dropAction );
+        EnumMap<IndexSlot,IndexAccessor> accessors = providers.map( provider -> provider.getOnlineAccessor( descriptor, samplingConfig, tokenNameLookup ) );
+        return new FusionIndexAccessor( slotSelector, new InstanceSelector<>( accessors ), descriptor, dropAction );
     }
 
     @Override
-    public String getPopulationFailure( long indexId, SchemaIndexDescriptor descriptor ) throws IllegalStateException
+    public String getPopulationFailure( StoreIndexDescriptor descriptor ) throws IllegalStateException
     {
         StringBuilder builder = new StringBuilder();
-        forAll( p -> writeFailure( p.getClass().getSimpleName(), builder, p, indexId, descriptor ), providers );
+        providers.forAll( p -> writeFailure( p.getClass().getSimpleName(), builder, p, descriptor ) );
         String failure = builder.toString();
         if ( !failure.isEmpty() )
         {
@@ -145,11 +126,11 @@ public class FusionIndexProvider extends IndexProvider
         throw new IllegalStateException( "None of the indexes were in a failed state" );
     }
 
-    private void writeFailure( String indexName, StringBuilder builder, IndexProvider provider, long indexId, SchemaIndexDescriptor descriptor )
+    private void writeFailure( String indexName, StringBuilder builder, IndexProvider provider, StoreIndexDescriptor descriptor )
     {
         try
         {
-            String failure = provider.getPopulationFailure( indexId, descriptor );
+            String failure = provider.getPopulationFailure( descriptor );
             builder.append( indexName );
             builder.append( ": " );
             builder.append( failure );
@@ -161,15 +142,16 @@ public class FusionIndexProvider extends IndexProvider
     }
 
     @Override
-    public InternalIndexState getInitialState( long indexId, SchemaIndexDescriptor descriptor )
+    public InternalIndexState getInitialState( StoreIndexDescriptor descriptor )
     {
-        InternalIndexState[] states = FusionIndexBase.instancesAs( providers, InternalIndexState.class, p -> p.getInitialState( indexId, descriptor ) );
-        if ( Arrays.stream( states ).anyMatch( state -> state == FAILED ) )
+        Iterable<InternalIndexState> statesIterable = providers.transform( p -> p.getInitialState( descriptor ) );
+        List<InternalIndexState> states = Iterables.asList( statesIterable );
+        if ( states.contains( FAILED ) )
         {
             // One of the state is FAILED, the whole state must be considered FAILED
             return FAILED;
         }
-        if ( Arrays.stream( states ).anyMatch( state -> state == POPULATING ) )
+        if ( states.contains( POPULATING ) )
         {
             // No state is FAILED and one of the state is POPULATING, the whole state must be considered POPULATING
             return POPULATING;
@@ -179,13 +161,9 @@ public class FusionIndexProvider extends IndexProvider
     }
 
     @Override
-    public IndexCapability getCapability( SchemaIndexDescriptor schemaIndexDescriptor )
+    public IndexCapability getCapability( StoreIndexDescriptor descriptor )
     {
-        IndexCapability[] capabilities = new IndexCapability[providers.length];
-        for ( int i = 0; i < providers.length; i++ )
-        {
-            capabilities[i] = providers[i].getCapability( schemaIndexDescriptor );
-        }
+        Iterable<IndexCapability> capabilities = providers.transform( indexProvider -> indexProvider.getCapability( descriptor ) );
         return new UnionIndexCapability( capabilities )
         {
             @Override
@@ -194,7 +172,7 @@ public class FusionIndexProvider extends IndexProvider
                 // No order capability when combining results from different indexes
                 if ( valueCategories.length == 1 && valueCategories[0] == ValueCategory.UNKNOWN )
                 {
-                    return new IndexOrder[0];
+                    return ORDER_NONE;
                 }
                 // Otherwise union of capabilities
                 return super.orderCapability( valueCategories );
@@ -208,64 +186,4 @@ public class FusionIndexProvider extends IndexProvider
         return StoreMigrationParticipant.NOT_PARTICIPATING;
     }
 
-    @FunctionalInterface
-    interface DropAction
-    {
-        /**
-         * Deletes the index directory and everything in it, as last part of dropping an index.
-         * Can be configured to create archive with content of index directories for future analysis.
-         *
-         * @param indexId the index id, for which directory to drop.
-         * @param archiveExistentIndex create archive with content of dropped directories
-         * @throws IOException on I/O error.
-         * @see GraphDatabaseSettings#archive_failed_index
-         */
-        void drop( long indexId, boolean archiveExistentIndex );
-
-        /**
-         * Deletes the index directory and everything in it, as last part of dropping an index.
-         *
-         * @param indexId the index id, for which directory to drop.
-         * @throws IOException on I/O error.
-         */
-        default void drop( long indexId )
-        {
-            drop( indexId, false );
-        }
-    }
-
-    private static class FileSystemDropAction implements DropAction
-    {
-        private final FileSystemAbstraction fs;
-        private final IndexDirectoryStructure directoryStructure;
-
-        FileSystemDropAction( FileSystemAbstraction fs, IndexDirectoryStructure directoryStructure )
-        {
-            this.fs = fs;
-            this.directoryStructure = directoryStructure;
-        }
-
-        @Override
-        public void drop( long indexId, boolean archiveExistentIndex )
-        {
-            try
-            {
-                File rootIndexDirectory = directoryStructure.directoryForIndex( indexId );
-                if ( archiveExistentIndex && !FileUtils.isEmptyDirectory( rootIndexDirectory ) )
-                {
-                    ZipUtils.zip( fs, rootIndexDirectory, archiveFile( rootIndexDirectory ) );
-                }
-                fs.deleteRecursively( rootIndexDirectory );
-            }
-            catch ( IOException e )
-            {
-                throw new UncheckedIOException( e );
-            }
-        }
-
-        private File archiveFile( File folder )
-        {
-            return new File( folder.getParent(), "archive-" + folder.getName() + "-" + System.currentTimeMillis() + ".zip" );
-        }
-    }
 }

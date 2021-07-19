@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,19 +19,24 @@
  */
 package org.neo4j.cypher.internal.planner.v3_5.spi
 
-import org.neo4j.cypher.internal.util.v3_5.{Cardinality, LabelId, RelTypeId, Selectivity}
+import org.neo4j.cypher.internal.v3_5.util.Cardinality
+import org.neo4j.cypher.internal.v3_5.util.LabelId
+import org.neo4j.cypher.internal.v3_5.util.RelTypeId
+import org.neo4j.cypher.internal.v3_5.util.Selectivity
 
 object GraphStatistics {
-  val DEFAULT_RANGE_SELECTIVITY          = Selectivity.of(0.3).get
-  val DEFAULT_PREDICATE_SELECTIVITY      = Selectivity.of(0.75).get
-  val DEFAULT_PROPERTY_SELECTIVITY       = Selectivity.of(0.5).get
-  val DEFAULT_EQUALITY_SELECTIVITY       = Selectivity.of(0.1).get
+  val DEFAULT_RANGE_SELECTIVITY          = Selectivity(0.3)
+  val DEFAULT_PREDICATE_SELECTIVITY      = Selectivity(0.75)
+  val DEFAULT_PROPERTY_SELECTIVITY       = Selectivity(0.5)
+  val DEFAULT_EQUALITY_SELECTIVITY       = Selectivity(0.1)
+  val DEFAULT_TYPE_SELECTIVITY           = Selectivity(0.9)
   val DEFAULT_NUMBER_OF_ID_LOOKUPS       = Cardinality(25)
-  val DEFAULT_NUMBER_OF_INDEX_LOOKUPS    = Cardinality(25)
+  val DEFAULT_LIST_CARDINALITY           = Cardinality(25)
   val DEFAULT_LIMIT_CARDINALITY          = Cardinality(75)
-  val DEFAULT_REL_UNIQUENESS_SELECTIVITY = Selectivity.of(1.0 - 1 / 100 /*rel-cardinality*/).get
+  val DEFAULT_REL_UNIQUENESS_SELECTIVITY = Selectivity(1.0 - 1 / 100 /*rel-cardinality*/)
   val DEFAULT_RANGE_SEEK_FACTOR          = 0.03
-  val DEFAULT_PREFIX_LENGTH              = 6
+  val DEFAULT_STRING_LENGTH              = 6
+  val DEFAULT_DISTINCT_SELECTIVITY       = Selectivity(0.95)
 }
 
 trait GraphStatistics {
@@ -50,11 +55,11 @@ trait GraphStatistics {
   def cardinalityByLabelsAndRelationshipType(fromLabel: Option[LabelId], relTypeId: Option[RelTypeId], toLabel: Option[LabelId]): Cardinality
 
   /*
-      Probability of any node with the given label, to have a given property with a particular value
+      Probability of any node in the index to have a given property with a particular value
 
-      indexSelectivity(:X, prop) = s => |MATCH (a:X)| * s = |MATCH (a:X) WHERE x.prop = '*'|
+      indexSelectivity(:X, prop) = s => |MATCH (a:X)  WHERE has(x.prop)| * s = |MATCH (a:X) WHERE x.prop = '*'|
    */
-  def indexSelectivity(index: IndexDescriptor): Option[Selectivity]
+  def uniqueValueSelectivity(index: IndexDescriptor): Option[Selectivity]
 
   /*
       Probability of any node with the given label, to have a particular property
@@ -71,8 +76,8 @@ class DelegatingGraphStatistics(delegate: GraphStatistics) extends GraphStatisti
   override def cardinalityByLabelsAndRelationshipType(fromLabel: Option[LabelId], relTypeId: Option[RelTypeId], toLabel: Option[LabelId]): Cardinality =
     delegate.cardinalityByLabelsAndRelationshipType(fromLabel, relTypeId, toLabel)
 
-  override def indexSelectivity(index: IndexDescriptor): Option[Selectivity] =
-    delegate.indexSelectivity(index)
+  override def uniqueValueSelectivity(index: IndexDescriptor): Option[Selectivity] =
+    delegate.uniqueValueSelectivity(index)
 
   override def indexPropertyExistsSelectivity(index: IndexDescriptor): Option[Selectivity] =
     delegate.indexPropertyExistsSelectivity(index)

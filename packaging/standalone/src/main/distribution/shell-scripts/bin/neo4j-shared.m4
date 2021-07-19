@@ -1,3 +1,6 @@
+#############################################################
+#      File content is generated based on .m4 template      #
+#############################################################
 
 set -o errexit -o nounset -o pipefail
 [[ "${TRACE:-}" ]] && set -o xtrace
@@ -23,9 +26,9 @@ setup_environment() {
 }
 
 setup_heap() {
-  JAVA_MEMORY_OPTS=()
   if [[ -n "${HEAP_SIZE:-}" ]]; then
-    JAVA_MEMORY_OPTS+=("-Xmx${HEAP_SIZE}")
+    JAVA_MEMORY_OPTS_XMS="-Xms${HEAP_SIZE}"
+    JAVA_MEMORY_OPTS_XMX="-Xmx${HEAP_SIZE}"
   fi
 }
 
@@ -51,23 +54,69 @@ detect_os() {
   fi
 }
 
+setup_memory_opts() {
+  # In some cases the heap size may have already been set before we get here, from e.g. HEAP_SIZE env.variable, if so then skip
+  if [[ -n "${dbms_memory_heap_initial_size:-}" && -z "${JAVA_MEMORY_OPTS_XMS-}" ]]; then
+    local mem="${dbms_memory_heap_initial_size}"
+    if ! [[ ${mem} =~ .*[gGmMkK] ]]; then
+      mem="${mem}m"
+      cat >&2 <<EOF
+WARNING: dbms.memory.heap.initial_size will require a unit suffix in a
+         future version of Neo4j. Please add a unit suffix to your
+         configuration. Example:
+
+         dbms.memory.heap.initial_size=512m
+                                          ^
+EOF
+    fi
+    JAVA_MEMORY_OPTS_XMS="-Xms${mem}"
+  fi
+  # In some cases the heap size may have already been set before we get here, from e.g. HEAP_SIZE env.variable, if so then skip
+  if [[ -n "${dbms_memory_heap_max_size:-}" && -z "${JAVA_MEMORY_OPTS_XMX-}" ]]; then
+    local mem="${dbms_memory_heap_max_size}"
+    if ! [[ ${mem} =~ .*[gGmMkK] ]]; then
+      mem="${mem}m"
+      cat >&2 <<EOF
+WARNING: dbms.memory.heap.max_size will require a unit suffix in a
+         future version of Neo4j. Please add a unit suffix to your
+         configuration. Example:
+
+         dbms.memory.heap.max_size=512m
+                                      ^
+EOF
+    fi
+    JAVA_MEMORY_OPTS_XMX="-Xmx${mem}"
+  fi
+}
+
 check_java() {
   _find_java_cmd
+  setup_memory_opts
 
-  version_command=("${JAVA_CMD}" "-version")
-  [[ -n "${JAVA_MEMORY_OPTS:-}" ]] && version_command+=("${JAVA_MEMORY_OPTS[@]}")
+  version_command=("${JAVA_CMD}" "-version" ${JAVA_MEMORY_OPTS_XMS-} ${JAVA_MEMORY_OPTS_XMX-})
 
   JAVA_VERSION=$("${version_command[@]}" 2>&1 | awk -F '"' '/version/ {print $2}')
-  if [[ "${JAVA_VERSION}" < "1.8" ]]; then
-    echo "ERROR! Neo4j cannot be started using java version ${JAVA_VERSION}. "
-    _show_java_help
-    exit 1
+  if [[ $JAVA_VERSION = "1."* ]]; then
+    if [[ "${JAVA_VERSION}" < "1.8" ]]; then
+      echo "ERROR! Neo4j cannot be started using java version ${JAVA_VERSION}. "
+      _show_java_help
+      exit 1
+    fi
+    if ! ("${version_command[@]}" 2>&1 | egrep -q "(Java HotSpot\\(TM\\)|OpenJDK|IBM) (64-Bit Server|Server|Client|J9) VM"); then
+      unsupported_runtime_warning
+    fi
+  elif [[ $JAVA_VERSION = "11"* ]]; then
+    if ! ("${version_command[@]}" 2>&1 | egrep -q "(Java HotSpot\\(TM\\)|OpenJDK|IBM) (64-Bit Server|Server|Client|J9) VM"); then
+       unsupported_runtime_warning
+    fi
+  else
+      unsupported_runtime_warning
   fi
+}
 
-  if ! ("${version_command[@]}" 2>&1 | egrep -q "(Java HotSpot\\(TM\\)|OpenJDK|IBM) (64-Bit Server|Server|Client|J9) VM"); then
+unsupported_runtime_warning() {
     echo "WARNING! You are using an unsupported Java runtime. "
     _show_java_help
-  fi
 }
 
 # Resolve a path relative to $NEO4J_HOME.  Don't resolve if
@@ -92,7 +141,7 @@ call_main_class() {
 
   export NEO4J_HOME NEO4J_CONF
 
-  exec "${JAVA_CMD}" ${JAVA_OPTS:-} ${JAVA_MEMORY_OPTS[@]:-} \
+  exec "${JAVA_CMD}" ${JAVA_OPTS:-} ${JAVA_MEMORY_OPTS_XMS-} ${JAVA_MEMORY_OPTS_XMX-} \
     -classpath "${CLASSPATH}" \
     ${EXTRA_JVM_ARGUMENTS:-} \
     $class_name "$@"
@@ -161,10 +210,15 @@ _read_config() {
       if [[ "${key}" =~ ^(.*)_([0-9]+)$ ]]; then
         key="${BASH_REMATCH[1]}"
       fi
-      if [[ "${!key:-}" ]]; then
-        export ${key}="${!key} ${value}"
+      # Ignore keys that start with a number because export ${key}= will fail - it is not valid for a bash env var to start with a digit
+      if [[ ! "${key}" =~ ^[0-9]+.*$ ]]; then
+        if [[ "${!key:-}" ]]; then
+          export ${key}="${!key} ${value}"
+        else
+          export ${key}="${value}"
+        fi
       else
-        export ${key}="${value}"
+        echo >&2 "WARNING: Ignoring key ${key}, environment variables cannot start with a number."
       fi
     fi
   }
@@ -179,7 +233,7 @@ EOF
   for file in "neo4j-wrapper.conf" "neo4j.conf"; do
     path="${NEO4J_CONF}/${file}"
     if [ -e "${path}" ]; then
-      while read line; do
+      while read line || [[ -n "$line" ]]; do
         parse_line "${line}"
       done <"${path}"
     fi

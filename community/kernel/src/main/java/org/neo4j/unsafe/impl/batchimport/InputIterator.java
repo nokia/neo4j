@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -34,55 +34,4 @@ public interface InputIterator extends Closeable
     InputChunk newChunk();
 
     boolean next( InputChunk chunk ) throws IOException;
-
-    abstract class Adapter implements InputIterator
-    {
-        @Override
-        public void close()
-        {   // Nothing to close
-        }
-    }
-
-    class Delegate implements InputIterator
-    {
-        protected final InputIterator actual;
-
-        public Delegate( InputIterator actual )
-        {
-            this.actual = actual;
-        }
-
-        @Override
-        public void close() throws IOException
-        {
-            actual.close();
-        }
-
-        @Override
-        public InputChunk newChunk()
-        {
-            return actual.newChunk();
-        }
-
-        @Override
-        public boolean next( InputChunk chunk ) throws IOException
-        {
-            return actual.next( chunk );
-        }
-    }
-
-    class Empty extends Adapter
-    {
-        @Override
-        public InputChunk newChunk()
-        {
-            return InputChunk.EMPTY;
-        }
-
-        @Override
-        public boolean next( InputChunk chunk )
-        {
-            return false;
-        }
-    }
 }

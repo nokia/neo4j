@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -30,6 +30,7 @@ import org.neo4j.graphdb.factory.GraphDatabaseSettings;
 import org.neo4j.kernel.configuration.Config;
 import org.neo4j.server.CommunityNeoServer;
 import org.neo4j.server.rest.dbms.UserService;
+import org.neo4j.server.rest.discovery.DiscoverableURIs;
 import org.neo4j.server.web.WebServer;
 import org.neo4j.test.rule.SuppressOutput;
 
@@ -61,7 +62,7 @@ public class DBMSModuleTest
         when( neoServer.getWebServer() ).thenReturn( webServer );
         when( config.get( GraphDatabaseSettings.auth_enabled ) ).thenReturn( true );
 
-        DBMSModule module = new DBMSModule( webServer, config );
+        DBMSModule module = new DBMSModule( webServer, config, () -> new DiscoverableURIs.Builder().build() );
 
         module.start();
 
@@ -80,7 +81,7 @@ public class DBMSModuleTest
         when( neoServer.getWebServer() ).thenReturn( webServer );
         when( config.get( GraphDatabaseSettings.auth_enabled ) ).thenReturn( false );
 
-        DBMSModule module = new DBMSModule( webServer, config );
+        DBMSModule module = new DBMSModule( webServer, config, () -> new DiscoverableURIs.Builder().build() );
 
         module.start();
 

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,12 +19,12 @@
  */
 package org.neo4j.values.storable;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
-
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import org.neo4j.values.StructureBuilder;
 
@@ -72,11 +72,6 @@ public final class AssertingStructureBuilder<Input, Result> implements Structure
     }
 
     public void assertThrows( Class<? extends Exception> type, String message )
-    {
-        assertThrows( exception( type, message ) );
-    }
-
-    public void assertThrows( Class<? extends Exception> type, Matcher<String> message )
     {
         assertThrows( exception( type, message ) );
     }

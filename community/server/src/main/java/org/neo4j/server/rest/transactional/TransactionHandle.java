@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -39,6 +39,7 @@ import org.neo4j.kernel.api.exceptions.Status;
 import org.neo4j.kernel.impl.query.QueryExecutionEngine;
 import org.neo4j.kernel.impl.query.QueryExecutionKernelException;
 import org.neo4j.kernel.impl.query.TransactionalContext;
+import org.neo4j.kernel.impl.util.ValueUtils;
 import org.neo4j.logging.Log;
 import org.neo4j.logging.LogProvider;
 import org.neo4j.server.rest.transactional.error.InternalBeginTransactionError;
@@ -362,12 +363,13 @@ public class TransactionHandle implements TransactionTerminationHandle
         }
     }
 
-    private Result safelyExecute( Statement statement, boolean hasPeriodicCommit, TransactionalContext tc )
-            throws QueryExecutionKernelException
+    private Result safelyExecute( Statement statement,
+                                boolean hasPeriodicCommit,
+                                TransactionalContext tc ) throws QueryExecutionKernelException, IOException
     {
         try
         {
-            return engine.executeQuery( statement.statement(), statement.parameters(), tc );
+            return engine.executeQuery( statement.statement(), ValueUtils.asMapValue( statement.parameters() ), tc );
         }
         finally
         {

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -32,4 +32,13 @@ public interface StoreScan<FAILURE extends Exception>
             long currentlyIndexedNodeId );
 
     PopulationProgress getProgress();
+
+    /**
+     * Give this {@link StoreScan} a {@link PhaseTracker} to report to.
+     * Must not be called once scan has already started.
+     * @param phaseTracker {@link PhaseTracker} this store scan shall report to.
+     */
+    default void setPhaseTracker( PhaseTracker phaseTracker )
+    {   // no-op
+    }
 }

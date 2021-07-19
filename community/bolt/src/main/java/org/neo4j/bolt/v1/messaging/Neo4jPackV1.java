@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -26,16 +26,18 @@ import java.time.LocalTime;
 import java.time.OffsetTime;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
+import org.neo4j.bolt.messaging.BoltIOException;
+import org.neo4j.bolt.messaging.Neo4jPack;
 import org.neo4j.bolt.messaging.StructType;
 import org.neo4j.bolt.v1.packstream.PackInput;
 import org.neo4j.bolt.v1.packstream.PackOutput;
 import org.neo4j.bolt.v1.packstream.PackStream;
 import org.neo4j.bolt.v1.packstream.PackType;
+import org.neo4j.collection.primitive.PrimitiveLongIntKeyValueArray;
 import org.neo4j.kernel.api.exceptions.Status;
+import org.neo4j.kernel.impl.util.ReadAndDeleteTransactionConflictException;
 import org.neo4j.values.AnyValue;
 import org.neo4j.values.AnyValueWriter;
 import org.neo4j.values.storable.CoordinateReferenceSystem;
@@ -44,12 +46,14 @@ import org.neo4j.values.storable.TextValue;
 import org.neo4j.values.storable.Values;
 import org.neo4j.values.virtual.ListValue;
 import org.neo4j.values.virtual.MapValue;
+import org.neo4j.values.virtual.MapValueBuilder;
 import org.neo4j.values.virtual.NodeValue;
 import org.neo4j.values.virtual.RelationshipValue;
 import org.neo4j.values.virtual.VirtualValues;
 
 import static org.neo4j.bolt.v1.packstream.PackStream.UNKNOWN_SIZE;
 import static org.neo4j.values.storable.Values.byteArray;
+import static org.neo4j.values.virtual.VirtualValues.EMPTY_MAP;
 
 /**
  * Extended PackStream packer and unpacker classes for working
@@ -291,7 +295,20 @@ public class Neo4jPackV1 implements Neo4jPack
                         packStructHeader( UNBOUND_RELATIONSHIP_SIZE, UNBOUND_RELATIONSHIP );
                         pack( edge.id() );
                         edge.type().writeTo( this );
-                        edge.properties().writeTo( this );
+                        //note if relationship has been deleted we might throw here, if deleted in this transaction
+                        //we just return empty properties map.
+                        try
+                        {
+                            edge.properties().writeTo( this );
+                        }
+                        catch ( ReadAndDeleteTransactionConflictException e )
+                        {
+                            if ( !e.wasDeletedInThisTransaction() )
+                            {
+                                throw e;
+                            }
+                            EMPTY_MAP.writeTo( this );
+                        }
                     }
                 }
             }
@@ -300,43 +317,43 @@ public class Neo4jPackV1 implements Neo4jPack
         @Override
         public void writePoint( CoordinateReferenceSystem crs, double[] coordinate ) throws IOException
         {
-            throw new BoltIOException( Status.Request.Invalid, "Point is not yet supported as a return type in Bolt" );
+            throwUnsupportedTypeError( "Point" );
         }
 
         @Override
         public void writeDuration( long months, long days, long seconds, int nanos ) throws IOException
         {
-            throw new BoltIOException( Status.Request.Invalid, "Duration is not yet supported as a return type in Bolt" );
+            throwUnsupportedTypeError( "Duration" );
         }
 
         @Override
         public void writeDate( LocalDate localDate ) throws IOException
         {
-            throw new BoltIOException( Status.Request.Invalid, "Date is not yet supported as a return type in Bolt" );
+            throwUnsupportedTypeError( "Date" );
         }
 
         @Override
         public void writeLocalTime( LocalTime localTime ) throws IOException
         {
-            throw new BoltIOException( Status.Request.Invalid, "LocalTime is not yet supported as a return type in Bolt" );
+            throwUnsupportedTypeError( "LocalTime" );
         }
 
         @Override
         public void writeTime( OffsetTime offsetTime ) throws IOException
         {
-            throw new BoltIOException( Status.Request.Invalid, "Time is not yet supported as a return type in Bolt" );
+            throwUnsupportedTypeError( "Time" );
         }
 
         @Override
         public void writeLocalDateTime( LocalDateTime localDateTime ) throws IOException
         {
-            throw new BoltIOException( Status.Request.Invalid, "LocalDateTime is not yet supported as a return type in Bolt" );
+            throwUnsupportedTypeError( "LocalDateTime" );
         }
 
         @Override
         public void writeDateTime( ZonedDateTime zonedDateTime ) throws IOException
         {
-            throw new BoltIOException( Status.Request.Invalid, "DateTime is not yet supported as a return type in Bolt" );
+            throwUnsupportedTypeError( "DateTime" );
         }
 
         @Override
@@ -429,6 +446,13 @@ public class Neo4jPackV1 implements Neo4jPack
         public void writeByteArray( byte[] value ) throws IOException
         {
             pack( value );
+        }
+
+        void throwUnsupportedTypeError( String type ) throws BoltIOException
+        {
+            throw new BoltIOException( Status.Request.Invalid, type + " is not supported as a return type in Bolt protocol version 1. " +
+                                                               "Please make sure driver supports at least protocol version 2. " +
+                                                               "Driver upgrade is most likely required." );
         }
     }
 
@@ -539,12 +563,12 @@ public class Neo4jPackV1 implements Neo4jPack
             int size = (int) unpackMapHeader();
             if ( size == 0 )
             {
-                return VirtualValues.EMPTY_MAP;
+                return EMPTY_MAP;
             }
-            Map<String,AnyValue> map;
+            MapValueBuilder map;
             if ( size == UNKNOWN_SIZE )
             {
-                map = new HashMap<>();
+                map = new MapValueBuilder();
                 boolean more = true;
                 while ( more )
                 {
@@ -560,7 +584,7 @@ public class Neo4jPackV1 implements Neo4jPack
                     case STRING:
                         key = unpackString();
                         val = unpack();
-                        if ( map.put( key, val ) != null )
+                        if ( map.add( key, val ) != null )
                         {
                             throw new BoltIOException( Status.Request.Invalid, "Duplicate map key `" + key + "`." );
                         }
@@ -574,7 +598,7 @@ public class Neo4jPackV1 implements Neo4jPack
             }
             else
             {
-                map = new HashMap<>( size, 1 );
+                map = new MapValueBuilder( size );
                 for ( int i = 0; i < size; i++ )
                 {
                     PackType keyType = peekNextType();
@@ -591,13 +615,13 @@ public class Neo4jPackV1 implements Neo4jPack
                     }
 
                     AnyValue val = unpack();
-                    if ( map.put( key, val ) != null )
+                    if ( map.add( key, val ) != null )
                     {
                         throw new BoltIOException( Status.Request.Invalid, "Duplicate map key `" + key + "`." );
                     }
                 }
             }
-            return VirtualValues.map( map );
+            return map.build();
         }
     }
 }

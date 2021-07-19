@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,87 +19,160 @@
  */
 package org.neo4j.cypher.internal.compatibility.v3_5.runtime.executionplan
 
-import java.io.{PrintWriter, StringWriter}
+import java.io.PrintWriter
 import java.util
 
 import org.neo4j.cypher.internal.compatibility.v3_5.runtime._
-import org.neo4j.cypher.internal.compatibility.v3_5.runtime.helpers.{MapBasedRow, RuntimeTextValueConverter}
+import org.neo4j.cypher.internal.compatibility.v3_5.runtime.helpers.MapBasedRow
+import org.neo4j.cypher.internal.compatibility.v3_5.runtime.profiler.PlanDescriptionBuilder
+import org.neo4j.cypher.internal.result.string.ResultStringBuilder
 import org.neo4j.cypher.internal.runtime._
-import org.neo4j.cypher.internal.util.v3_5.{Eagerly, TaskCloser}
 import org.neo4j.cypher.internal.runtime.planDescription.InternalPlanDescription
-import org.neo4j.cypher.internal.runtime.planDescription.InternalPlanDescription.Arguments.{Runtime, RuntimeImpl}
-import org.neo4j.cypher.result.QueryResult
 import org.neo4j.cypher.result.QueryResult.QueryResultVisitor
-import org.neo4j.graphdb.{NotFoundException, Notification, ResourceIterator}
+import org.neo4j.cypher.result.RuntimeResult.ConsumptionState
+import org.neo4j.cypher.result.{QueryResult, RuntimeResult}
 import org.neo4j.graphdb.Result.{ResultRow, ResultVisitor}
+import org.neo4j.graphdb.{NotFoundException, Notification, ResourceIterator}
+import org.neo4j.values.AnyValue
+import org.neo4j.cypher.internal.v3_5.util.{ProfilerStatisticsNotReadyException, TaskCloser}
 
-import scala.collection.{Map, mutable}
+import scala.collection.mutable
 
-abstract class StandardInternalExecutionResult(context: QueryContext, runtime: RuntimeName,
-                                               taskCloser: Option[TaskCloser] = None)
-  extends InternalExecutionResult
-    with Completable {
+class StandardInternalExecutionResult(context: QueryContext,
+                                      runtime: RuntimeName,
+                                      runtimeResult: RuntimeResult,
+                                      taskCloser: TaskCloser,
+                                      override val queryType: InternalQueryType,
+                                      override val executionMode: ExecutionMode,
+                                      planDescriptionBuilder: PlanDescriptionBuilder)
+  extends InternalExecutionResult {
 
   self =>
 
-  import scala.collection.JavaConverters._
+  override def initiate(): Unit = {
 
-  protected val isGraphKernelResultValue = context.isGraphKernelResultValue _
-  private val scalaValues = new RuntimeScalaValueConverter(isGraphKernelResultValue)
+    // OBS: check before materialization
+    val consumedBeforeInit = runtimeResult.consumptionState == ConsumptionState.EXHAUSTED
+
+    // By policy we materialize the result directly unless it's a read only query.
+    if (queryType != READ_ONLY) {
+      materializeResult()
+    }
+
+    // ... and if we do not return any rows, we close all resources.
+    if (consumedBeforeInit || queryType == WRITE || fieldNames().isEmpty) {
+      close(Success)
+    }
+  }
+
+  /*
+  ======= RESULT MATERIALIZATION ==========
+   */
+
+  private var materializedResult: util.ArrayList[Array[AnyValue]] = _
+  protected[executionplan] def isMaterialized: Boolean = materializedResult != null
+  private def materializeResult(): Unit = {
+    materializedResult = new util.ArrayList()
+    if (isOpen)
+      runtimeResult.accept(new QueryResultVisitor[Exception] {
+        override def visit(row: QueryResult.Record): Boolean = {
+          materializedResult.add(row.fields().clone())
+          row.release()
+          true
+        }
+      })
+  }
+
+  /*
+  ======= OPEN / CLOSE ==========
+   */
 
   protected def isOpen: Boolean = !isClosed
 
-  protected def isClosed: Boolean = taskCloser.exists(_.isClosed)
+  override def isClosed: Boolean = taskCloser.isClosed
 
-  override def hasNext: Boolean = inner.hasNext
-
-  override def next(): Predef.Map[String, Any] = scalaValues.asDeepScalaMap(inner.next())
-
-  // Override one of them in subclasses
-  override def columnAs[T](column: String): Iterator[T] =
-    if (this.columns.contains(column)) map(m => extractScalaColumn(column, m).asInstanceOf[T])
-    else throw columnNotFound(column, columns)
-
-  override def javaIterator: ResourceIterator[util.Map[String, Any]] = new ClosingJavaIterator[util.Map[String, Any]] {
-    override def next(): util.Map[String, Any] = inner.next()
+  override def close(reason: CloseReason): Unit = {
+    taskCloser.close(reason == Success)
   }
 
-  override def javaColumnAs[T](column: String): ResourceIterator[T] = new ClosingJavaIterator[T] {
-    override def next(): T = extractJavaColumn(column, inner.next()).asInstanceOf[T]
+  /*
+  ======= CONSUME AS ITERATOR ==========
+   */
+
+  override def javaIterator: ResourceIterator[util.Map[String, AnyRef]] = inner
+
+  override def javaColumnAs[T](column: String): ResourceIterator[T] =
+    new ResourceIterator[T] {
+      override def hasNext: Boolean = inner.hasNext
+      override def next(): T = extractJavaColumn(column, inner.next()).asInstanceOf[T]
+      override def close(): Unit = self.close()
+    }
+
+  private def extractJavaColumn(column: String, data: util.Map[String, AnyRef]): AnyRef = {
+    val value = data.get(column)
+    if (value == null && !data.containsKey(column)) {
+      throw new NotFoundException(
+        s"No column named '$column' was found. Found: ${fieldNames().mkString("(\"", "\", \"", "\")")}")
+    }
+    value
   }
 
-  override def dumpToString(): String = {
-    val stringWriter = new StringWriter()
-    val writer = new PrintWriter(stringWriter)
-    dumpToString(writer)
-    writer.close()
-    stringWriter.getBuffer.toString
+  /**
+    * If a runtime only supports visitor-style access (it is not iterable), we cannot serve the
+    * result to the client as an iterator without materializing. This is because our current
+    * visitor pattern does not support back-pressure.
+    */
+  protected final lazy val inner: ResourceIterator[util.Map[String, AnyRef]] = {
+    if (!isMaterialized && runtimeResult.isIterable)
+      runtimeResult.asIterator()
+    else {
+      if (!isMaterialized)
+        materializeResult()
+      new MaterializedIterator()
+    }
   }
 
-  override def dumpToString(writer: PrintWriter): Unit = {
-    val builder = Seq.newBuilder[Map[String, String]]
-    doInAccept(populateDumpToStringResults(builder))
-    formatOutput(writer, columns, builder.result(), queryStatistics())
+  private class MaterializedIterator() extends ResourceIterator[util.Map[String, AnyRef]] {
+
+    private val inner = materializedResult.iterator()
+    private val columns = fieldNames()
+
+    def hasNext: Boolean = inner.hasNext
+
+    def next(): util.Map[String, AnyRef] = {
+      val values = inner.next()
+      val map = new util.HashMap[String, AnyRef]()
+      for (i <- columns.indices) {
+        map.put(columns(i), context.asObject(values(i)))
+      }
+      map
+    }
+
+    def remove(): Unit = throw new UnsupportedOperationException("remove")
+
+    def close(): Unit = self.close()
   }
 
-  override def planDescriptionRequested: Boolean = executionMode == ExplainMode || executionMode == ProfileMode
-  override def notifications = Iterable.empty[Notification]
+  /*
+  ======= CONSUME WITH VISITOR ==========
+   */
 
-  override def close(): Unit = {
-    completed(success = true)
-  }
-
-  override def completed(success: Boolean): Unit = {
-    taskCloser.foreach(_.close(success = success))
+  protected def accept(body: ResultRow => Unit): Unit = {
+    accept(new ResultVisitor[RuntimeException] {
+      override def visit(row: ResultRow): Boolean = {
+        body(row)
+        true
+      }
+    })
   }
 
   override def accept[E <: Exception](visitor: ResultVisitor[E]): Unit = {
     accept(new QueryResultVisitor[E] {
-      val names = fieldNames()
+      private val names = fieldNames()
       override def visit(record: QueryResult.Record): Boolean = {
         val fields = record.fields()
         val mapData = new mutable.AnyRefMap[String, Any](names.length)
-        for (i <- 0 until names.length) {
+        for (i <- names.indices) {
           mapData.put(names(i), context.asObject(fields(i)))
         }
         visitor.visit(new MapBasedRow(mapData))
@@ -107,130 +180,71 @@ abstract class StandardInternalExecutionResult(context: QueryContext, runtime: R
     })
   }
 
+  override def accept[E <: Exception](visitor: QueryResultVisitor[E]): Unit = {
+
+    if (isMaterialized) {
+      val rowCursor = new MaterializedResultCursor
+      while (rowCursor.next()) {
+        visitor.visit(rowCursor.record())
+      }
+      close(Success)
+    } else if (isOpen) {
+      runtimeResult.accept(visitor)
+      close(Success)
+    }
+  }
+
+  class MaterializedResultCursor {
+    private var i = -1
+    def next(): Boolean = {
+      i += 1
+      i < materializedResult.size()
+    }
+
+    def record(): QueryResult.Record = MaterializedRecord(materializedResult.get(i))
+
+    case class MaterializedRecord(override val fields: Array[AnyValue]) extends QueryResult.Record
+  }
+
   /*
-     * NOTE: This should ony be used for testing, it creates an InternalExecutionResult
-     * where you can call both toList and dumpToString
-     */
-  def toEagerResultForTestingOnly(): InternalExecutionResult = {
-    val dumpToStringBuilder = Seq.newBuilder[Map[String, String]]
-    val result = new util.ArrayList[util.Map[String, Any]]()
-    if (isOpen)
-      doInAccept { (row) =>
-        populateResults(result)(row)
-        populateDumpToStringResults(dumpToStringBuilder)(row)
-      }
+  ======= DUMP TO STRING ==========
+   */
 
-    new StandardInternalExecutionResult(context, runtime, taskCloser) {
-
-      override protected def createInner: util.Iterator[util.Map[String, Any]] = result.iterator()
-
-      override def executionPlanDescription(): InternalPlanDescription = {
-        val description = self.executionPlanDescription()
-        if (!description.arguments.exists(_.isInstanceOf[Runtime])) {
-          description.addArgument(Runtime(runtime.toTextOutput))
-        }
-        if (!description.arguments.exists(_.isInstanceOf[RuntimeImpl])) {
-          description.addArgument(RuntimeImpl(runtime.name))
-        }
-        description
-      }
-
-      override def toList: List[Predef.Map[String, Any]] = result.asScala
-        .map(m => Eagerly.immutableMapValues(m.asScala, scalaValues.asDeepScalaValue)).toList
-
-      override def dumpToString(writer: PrintWriter): Unit =
-        formatOutput(writer, columns, dumpToStringBuilder.result(), queryStatistics())
-
-      override def executionMode: ExecutionMode = self.executionMode
-
-      override def queryStatistics(): QueryStatistics = self.queryStatistics()
-
-      override def queryType: InternalQueryType = self.queryType
-
-      override def withNotifications(notification: Notification*): InternalExecutionResult = self
-
-      override def fieldNames(): Array[String] = self.fieldNames()
-
-      override def accept[E <: Exception](visitor: QueryResultVisitor[E]): Unit = self.accept(visitor)
-    }
+  override def dumpToString(): String = {
+    val resultStringBuilder = ResultStringBuilder(fieldNames(), context.transactionalContext)
+    accept(resultStringBuilder)
+    resultStringBuilder.result(queryStatistics())
   }
 
-  protected final lazy val inner: util.Iterator[util.Map[String, Any]] = createInner
+  override def dumpToString(writer: PrintWriter): Unit = {
+    val resultStringBuilder = ResultStringBuilder(fieldNames(), context.transactionalContext)
+    accept(resultStringBuilder)
+    resultStringBuilder.result(writer, queryStatistics())
+  }
 
-  protected def createInner: util.Iterator[util.Map[String, Any]]
+  /*
+  ======= META DATA ==========
+   */
 
-  protected def doInAccept[T](body: ResultRow => T): Unit = {
-    if (isOpen) {
-      accept(new ResultVisitor[RuntimeException] {
-        override def visit(row: ResultRow): Boolean = {
-          body(row)
-          true
-        }
-      })
+  override def queryStatistics(): QueryStatistics = runtimeResult.queryStatistics()
+
+  override def fieldNames(): Array[String] = runtimeResult.fieldNames()
+
+  override lazy val executionPlanDescription: InternalPlanDescription = {
+
+    if (executionMode == ProfileMode) {
+      if (runtimeResult.consumptionState != ConsumptionState.EXHAUSTED) {
+        taskCloser.close(success = false)
+        throw new ProfilerStatisticsNotReadyException()
+      }
+      planDescriptionBuilder.profile(runtimeResult.queryProfile)
     } else {
-      throw new IllegalStateException("Unable to accept visitors after resources have been closed.")
-    }
-  }
-
-  protected def populateDumpToStringResults(builder: mutable.Builder[Map[String, String], Seq[Map[String, String]]])
-                                           (row: ResultRow): builder.type = {
-    val textValues = new RuntimeTextValueConverter(scalaValues)(context)
-    val map = new mutable.HashMap[String, String]()
-    columns.foreach(c => map.put(c, textValues.asTextValue(row.get(c))))
-
-    builder += map
-  }
-
-  protected def populateResults(results: util.List[util.Map[String, Any]])(row: ResultRow): Boolean = {
-    val map = new util.HashMap[String, Any]()
-    columns.foreach(c => map.put(c, row.get(c)))
-    results.add(map)
-  }
-
-  private def extractScalaColumn(column: String, data: Map[String, Any]): Any = {
-    data.getOrElse(column, {
-      throw columnNotFound(column, data.keys)
-    })
-  }
-
-  private def extractJavaColumn(column: String, data: util.Map[String, Any]): Any = {
-    val value = data.get(column)
-    if (value == null) {
-      throw columnNotFound(column, columns)
-    }
-    value
-  }
-
-  private def columnNotFound(column: String, expected: Iterable[String]) =
-    new NotFoundException(s"No column named '$column' was found. Found: ${expected.mkString("(\"", "\", \"", "\")")}")
-
-  private abstract class ClosingJavaIterator[A] extends ResourceIterator[A] {
-
-    def hasNext: Boolean = self.hasNext
-
-    def remove() {
-      throw new UnsupportedOperationException("remove")
+      planDescriptionBuilder.explain()
     }
 
-    def close() {
-      self.close()
-    }
   }
-}
 
-object StandardInternalExecutionResult {
-
-  // Accept and pull into memory when iterating
-  trait IterateByAccepting {
-
-    self: StandardInternalExecutionResult =>
-
-    override def createInner = {
-      val list = new util.ArrayList[util.Map[String, Any]]()
-      if (isOpen) doInAccept(populateResults(list))
-      list.iterator()
-    }
-  }
+  override def notifications: Iterable[Notification] = Set.empty
 }
 
 

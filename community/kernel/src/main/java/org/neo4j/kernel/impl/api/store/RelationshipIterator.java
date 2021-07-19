@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -22,8 +22,7 @@ package org.neo4j.kernel.impl.api.store;
 import org.eclipse.collections.api.iterator.LongIterator;
 
 import org.neo4j.collection.PrimitiveLongCollections;
-import org.neo4j.collection.PrimitiveLongCollections.PrimitiveLongBaseIterator;
-import org.neo4j.kernel.impl.api.RelationshipVisitor;
+import org.neo4j.storageengine.api.RelationshipVisitor;
 
 public interface RelationshipIterator extends RelationshipVisitor.Home, LongIterator
 {
@@ -51,8 +50,4 @@ public interface RelationshipIterator extends RelationshipVisitor.Home, LongIter
     }
 
     RelationshipIterator EMPTY = new Empty();
-
-    abstract class BaseIterator extends PrimitiveLongBaseIterator implements RelationshipIterator
-    {
-    }
 }

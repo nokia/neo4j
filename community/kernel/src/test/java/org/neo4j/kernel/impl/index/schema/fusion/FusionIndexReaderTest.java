@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -26,7 +26,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import java.util.Arrays;
+import java.util.EnumMap;
+import java.util.function.Function;
 
 import org.neo4j.collection.PrimitiveLongCollections;
 import org.neo4j.collection.PrimitiveLongResourceCollections;
@@ -36,8 +37,8 @@ import org.neo4j.internal.kernel.api.IndexQuery.RangePredicate;
 import org.neo4j.internal.kernel.api.IndexQuery.StringContainsPredicate;
 import org.neo4j.internal.kernel.api.IndexQuery.StringPrefixPredicate;
 import org.neo4j.internal.kernel.api.IndexQuery.StringSuffixPredicate;
-import org.neo4j.kernel.api.exceptions.index.IndexNotApplicableKernelException;
-import org.neo4j.kernel.api.schema.index.SchemaIndexDescriptorFactory;
+import org.neo4j.internal.kernel.api.exceptions.schema.IndexNotApplicableKernelException;
+import org.neo4j.kernel.api.schema.index.TestIndexDescriptorFactory;
 import org.neo4j.storageengine.api.schema.IndexReader;
 import org.neo4j.values.storable.CoordinateReferenceSystem;
 import org.neo4j.values.storable.PointValue;
@@ -53,21 +54,22 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
-import static org.neo4j.kernel.impl.index.schema.fusion.FusionIndexBase.INSTANCE_COUNT;
-import static org.neo4j.kernel.impl.index.schema.fusion.FusionIndexBase.LUCENE;
-import static org.neo4j.kernel.impl.index.schema.fusion.FusionIndexBase.NUMBER;
-import static org.neo4j.kernel.impl.index.schema.fusion.FusionIndexBase.SPATIAL;
-import static org.neo4j.kernel.impl.index.schema.fusion.FusionIndexBase.STRING;
-import static org.neo4j.kernel.impl.index.schema.fusion.FusionIndexBase.TEMPORAL;
+import static org.neo4j.kernel.impl.index.schema.fusion.FusionIndexTestHelp.fill;
 import static org.neo4j.kernel.impl.index.schema.fusion.FusionVersion.v00;
 import static org.neo4j.kernel.impl.index.schema.fusion.FusionVersion.v10;
 import static org.neo4j.kernel.impl.index.schema.fusion.FusionVersion.v20;
+import static org.neo4j.kernel.impl.index.schema.fusion.IndexSlot.LUCENE;
+import static org.neo4j.kernel.impl.index.schema.fusion.IndexSlot.NUMBER;
+import static org.neo4j.kernel.impl.index.schema.fusion.IndexSlot.SPATIAL;
+import static org.neo4j.kernel.impl.index.schema.fusion.IndexSlot.STRING;
+import static org.neo4j.kernel.impl.index.schema.fusion.IndexSlot.TEMPORAL;
+import static org.neo4j.values.storable.Values.stringValue;
 
 @RunWith( Parameterized.class )
 public class FusionIndexReaderTest
 {
     private IndexReader[] aliveReaders;
-    private IndexReader[] readers;
+    private EnumMap<IndexSlot,IndexReader> readers;
     private FusionIndexReader fusionIndexReader;
     private static final int PROP_KEY = 1;
     private static final int LABEL_KEY = 11;
@@ -92,9 +94,9 @@ public class FusionIndexReaderTest
 
     private void initiateMocks()
     {
-        int[] activeSlots = fusionVersion.aliveSlots();
-        readers = new IndexReader[INSTANCE_COUNT];
-        Arrays.fill( readers, IndexReader.EMPTY );
+        IndexSlot[] activeSlots = fusionVersion.aliveSlots();
+        readers = new EnumMap<>( IndexSlot.class );
+        fill( readers, IndexReader.EMPTY );
         aliveReaders = new IndexReader[activeSlots.length];
         for ( int i = 0; i < activeSlots.length; i++ )
         {
@@ -103,25 +105,34 @@ public class FusionIndexReaderTest
             switch ( activeSlots[i] )
             {
             case STRING:
-                readers[STRING] = mock;
+                readers.put( STRING, mock );
                 break;
             case NUMBER:
-                readers[NUMBER] = mock;
+                readers.put( NUMBER, mock );
                 break;
             case SPATIAL:
-                readers[SPATIAL] = mock;
+                readers.put( SPATIAL, mock );
                 break;
             case TEMPORAL:
-                readers[TEMPORAL] = mock;
+                readers.put( TEMPORAL, mock );
                 break;
             case LUCENE:
-                readers[LUCENE] = mock;
+                readers.put( LUCENE, mock );
                 break;
             default:
                 throw new RuntimeException();
             }
         }
-        fusionIndexReader = new FusionIndexReader( readers, fusionVersion.selector(), SchemaIndexDescriptorFactory.forLabel( LABEL_KEY, PROP_KEY ) );
+        fusionIndexReader = new FusionIndexReader( fusionVersion.slotSelector(), new LazyInstanceSelector<>( readers, throwingFactory() ),
+                TestIndexDescriptorFactory.forLabel( LABEL_KEY, PROP_KEY ) );
+    }
+
+    private Function<IndexSlot,IndexReader> throwingFactory()
+    {
+        return i ->
+        {
+            throw new IllegalStateException( "All readers should exist already" );
+        };
     }
 
     /* close */
@@ -169,14 +180,14 @@ public class FusionIndexReaderTest
     public void countIndexedNodesMustSelectCorrectReader()
     {
         // given
-        Value[][] values = FusionIndexTestHelp.valuesByGroup();
+        EnumMap<IndexSlot,Value[]> values = FusionIndexTestHelp.valuesByGroup();
         Value[] allValues = FusionIndexTestHelp.allValues();
 
-        for ( int i = 0; i < readers.length; i++ )
+        for ( IndexSlot slot : IndexSlot.values() )
         {
-            for ( Value value : values[i] )
+            for ( Value value : values.get( slot ) )
             {
-                verifyCountIndexedNodesWithCorrectReader( orLucene( readers[i] ), value );
+                verifyCountIndexedNodesWithCorrectReader( orLucene( readers.get( slot ) ), value );
             }
         }
 
@@ -185,20 +196,20 @@ public class FusionIndexReaderTest
         {
             for ( Value secondValue : allValues )
             {
-                verifyCountIndexedNodesWithCorrectReader( readers[LUCENE], firstValue, secondValue );
+                verifyCountIndexedNodesWithCorrectReader( readers.get( LUCENE ), firstValue, secondValue );
             }
         }
     }
 
     private void verifyCountIndexedNodesWithCorrectReader( IndexReader correct, Value... nativeValue )
     {
-        fusionIndexReader.countIndexedNodes( 0, nativeValue );
-        verify( correct, times( 1 ) ).countIndexedNodes( 0, nativeValue );
+        fusionIndexReader.countIndexedNodes( 0, new int[] {PROP_KEY}, nativeValue );
+        verify( correct, times( 1 ) ).countIndexedNodes( 0, new int[] {PROP_KEY}, nativeValue );
         for ( IndexReader reader : aliveReaders )
         {
             if ( reader != correct )
             {
-                verify( reader, never() ).countIndexedNodes( 0, nativeValue );
+                verify( reader, never() ).countIndexedNodes( 0, new int[] {PROP_KEY}, nativeValue );
             }
         }
     }
@@ -209,7 +220,7 @@ public class FusionIndexReaderTest
     public void mustSelectLuceneForCompositePredicate() throws Exception
     {
         // then
-        verifyQueryWithCorrectReader( readers[LUCENE], any( IndexQuery.class ), any( IndexQuery.class ) );
+        verifyQueryWithCorrectReader( readers.get( LUCENE ), any( IndexQuery.class ), any( IndexQuery.class ) );
     }
 
     @Test
@@ -248,7 +259,7 @@ public class FusionIndexReaderTest
             IndexQuery indexQuery = IndexQuery.exact( PROP_KEY, value );
 
             // then
-            verifyQueryWithCorrectReader( readers[SPATIAL], indexQuery );
+            verifyQueryWithCorrectReader( readers.get( SPATIAL ), indexQuery );
         }
     }
 
@@ -262,7 +273,7 @@ public class FusionIndexReaderTest
             IndexQuery indexQuery = IndexQuery.exact( PROP_KEY, temporalValue );
 
             // then
-            verifyQueryWithCorrectReader( readers[TEMPORAL], indexQuery );
+            verifyQueryWithCorrectReader( readers.get( TEMPORAL ), indexQuery );
         }
     }
 
@@ -275,7 +286,7 @@ public class FusionIndexReaderTest
             IndexQuery indexQuery = IndexQuery.exact( PROP_KEY, value );
 
             // then
-            verifyQueryWithCorrectReader( readers[LUCENE], indexQuery );
+            verifyQueryWithCorrectReader( readers.get( LUCENE ), indexQuery );
         }
     }
 
@@ -309,14 +320,14 @@ public class FusionIndexReaderTest
         RangePredicate<?> geometryRange = IndexQuery.range( PROP_KEY, from, true, to, false );
 
         // then
-        verifyQueryWithCorrectReader( readers[SPATIAL], geometryRange );
+        verifyQueryWithCorrectReader( readers.get( SPATIAL ), geometryRange );
     }
 
     @Test
     public void mustSelectStringForStringPrefixPredicate() throws Exception
     {
         // given
-        StringPrefixPredicate stringPrefix = IndexQuery.stringPrefix( PROP_KEY, "abc" );
+        StringPrefixPredicate stringPrefix = IndexQuery.stringPrefix( PROP_KEY, stringValue( "abc" ) );
 
         // then
         verifyQueryWithCorrectReader( expectedForStrings(), stringPrefix );
@@ -326,7 +337,7 @@ public class FusionIndexReaderTest
     public void mustSelectStringForStringSuffixPredicate() throws Exception
     {
         // given
-        StringSuffixPredicate stringPrefix = IndexQuery.stringSuffix( PROP_KEY, "abc" );
+        StringSuffixPredicate stringPrefix = IndexQuery.stringSuffix( PROP_KEY, stringValue( "abc" ) );
 
         // then
         verifyQueryWithCorrectReader( expectedForStrings(), stringPrefix );
@@ -336,7 +347,7 @@ public class FusionIndexReaderTest
     public void mustSelectStringForStringContainsPredicate() throws Exception
     {
         // given
-        StringContainsPredicate stringContains = IndexQuery.stringContains( PROP_KEY, "abc" );
+        StringContainsPredicate stringContains = IndexQuery.stringContains( PROP_KEY, stringValue( "abc" ) );
 
         // then
         verifyQueryWithCorrectReader( expectedForStrings(), stringContains );
@@ -365,6 +376,39 @@ public class FusionIndexReaderTest
         }
     }
 
+    @Test
+    public void shouldInstantiatePartLazilyForSpecificValueGroupQuery() throws IndexNotApplicableKernelException
+    {
+        // given
+        EnumMap<IndexSlot,Value[]> values = FusionIndexTestHelp.valuesByGroup();
+        for ( IndexSlot i : IndexSlot.values() )
+        {
+            if ( readers.get( i ) != IndexReader.EMPTY )
+            {
+                // when
+                Value value = values.get( i )[0];
+                fusionIndexReader.query( IndexQuery.exact( 0, value ) );
+                for ( IndexSlot j : IndexSlot.values() )
+                {
+                    // then
+                    if ( readers.get( j ) != IndexReader.EMPTY )
+                    {
+                        if ( i == j )
+                        {
+                            verify( readers.get( i ) ).query( any( IndexQuery.class ) );
+                        }
+                        else
+                        {
+                            verifyNoMoreInteractions( readers.get( j ) );
+                        }
+                    }
+                }
+            }
+
+            initiateMocks();
+        }
+    }
+
     private void verifyQueryWithCorrectReader( IndexReader expectedReader, IndexQuery... indexQuery )
             throws IndexNotApplicableKernelException
     {
@@ -384,26 +428,26 @@ public class FusionIndexReaderTest
 
     private IndexReader expectedForStrings()
     {
-        return orLucene( readers[STRING] );
+        return orLucene( readers.get( STRING ) );
     }
 
     private IndexReader expectedForNumbers()
     {
-        return orLucene( readers[NUMBER] );
+        return orLucene( readers.get( NUMBER ) );
     }
 
     private boolean hasSpatialSupport()
     {
-        return readers[SPATIAL] != IndexReader.EMPTY;
+        return readers.get( SPATIAL ) != IndexReader.EMPTY;
     }
 
     private boolean hasTemporalSupport()
     {
-        return readers[TEMPORAL] != IndexReader.EMPTY;
+        return readers.get( TEMPORAL ) != IndexReader.EMPTY;
     }
 
     private IndexReader orLucene( IndexReader reader )
     {
-        return reader != IndexReader.EMPTY ? reader : readers[LUCENE];
+        return reader != IndexReader.EMPTY ? reader : readers.get( LUCENE );
     }
 }

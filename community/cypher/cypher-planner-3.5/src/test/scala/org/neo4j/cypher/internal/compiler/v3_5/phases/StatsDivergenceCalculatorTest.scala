@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,7 +20,7 @@
 package org.neo4j.cypher.internal.compiler.v3_5.phases
 
 import org.neo4j.cypher.internal.compiler.v3_5.StatsDivergenceCalculator
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
 import org.neo4j.graphdb.factory.GraphDatabaseSettings
 import org.neo4j.kernel.configuration.Settings
 
@@ -91,6 +91,12 @@ class StatsDivergenceCalculatorTest extends CypherFunSuite {
   test("Small time interval should work") {
     Seq(StatsDivergenceCalculator.inverse, StatsDivergenceCalculator.exponential).foreach { name =>
       assertDecaysMakeSense(name, defaultInitialThreshold, defaultTargetThreshold, 1000, 1002)
+    }
+  }
+
+  test("A small threshold should not increase on decay") {
+    Seq(StatsDivergenceCalculator.inverse, StatsDivergenceCalculator.exponential).foreach { name =>
+      assertNoDecay(name, 0, defaultTargetThreshold, defaultInitialInterval, defaultTargetInterval)
     }
   }
 

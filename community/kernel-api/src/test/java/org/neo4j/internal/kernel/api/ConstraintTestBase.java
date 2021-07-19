@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -68,7 +68,7 @@ public abstract class ConstraintTestBase<G extends KernelAPIWriteTestSupport> ex
         // GIVEN
         addConstraints( "FOO", "prop" );
 
-        try ( Transaction tx = session.beginTransaction() )
+        try ( Transaction tx = beginTransaction() )
         {
             int label = tx.tokenWrite().labelGetOrCreateForName( "FOO" );
             int prop = tx.tokenWrite().propertyKeyGetOrCreateForName( "prop" );
@@ -90,7 +90,7 @@ public abstract class ConstraintTestBase<G extends KernelAPIWriteTestSupport> ex
         // GIVEN
         addConstraints( "FOO", "prop1", "FOO", "prop2" );
 
-        try ( Transaction tx = session.beginTransaction() )
+        try ( Transaction tx = beginTransaction() )
         {
             int label = tx.tokenWrite().labelGetOrCreateForName( "FOO" );
 
@@ -117,7 +117,7 @@ public abstract class ConstraintTestBase<G extends KernelAPIWriteTestSupport> ex
             tx.success();
         }
 
-        try ( Transaction tx = session.beginTransaction() )
+        try ( Transaction tx = beginTransaction() )
         {
             int label = tx.tokenWrite().labelGetOrCreateForName( "FOO" );
             int prop1 = tx.tokenWrite().propertyKeyGetOrCreateForName( "prop1" );
@@ -135,7 +135,7 @@ public abstract class ConstraintTestBase<G extends KernelAPIWriteTestSupport> ex
         // GIVEN
         addConstraints( "FOO", "prop1", "BAR", "prop2", "BAZ", "prop3" );
 
-        try ( Transaction tx = session.beginTransaction() )
+        try ( Transaction tx = beginTransaction() )
         {
             //WHEN
             List<ConstraintDescriptor> constraints = asList( tx.schemaRead().constraintsGetAll() );
@@ -169,7 +169,7 @@ public abstract class ConstraintTestBase<G extends KernelAPIWriteTestSupport> ex
         }
 
         int label;
-        try ( Transaction tx = session.beginTransaction() )
+        try ( Transaction tx = beginTransaction() )
         {
             label = tx.tokenWrite().labelGetOrCreateForName( "FOO" );
 
@@ -189,7 +189,7 @@ public abstract class ConstraintTestBase<G extends KernelAPIWriteTestSupport> ex
         }
 
         //Verify
-        try ( Transaction tx = session.beginTransaction();
+        try ( Transaction tx = beginTransaction();
               NodeCursor nodeCursor = tx.cursors().allocateNodeCursor() )
         {
             //Node without conflict
@@ -227,7 +227,7 @@ public abstract class ConstraintTestBase<G extends KernelAPIWriteTestSupport> ex
         }
 
         int property;
-        try ( Transaction tx = session.beginTransaction() )
+        try ( Transaction tx = beginTransaction() )
         {
             property = tx.tokenWrite().propertyKeyGetOrCreateForName( "prop" );
 
@@ -247,7 +247,7 @@ public abstract class ConstraintTestBase<G extends KernelAPIWriteTestSupport> ex
         }
 
         //Verify
-        try ( Transaction tx = session.beginTransaction();
+        try ( Transaction tx = beginTransaction();
               NodeCursor nodeCursor = tx.cursors().allocateNodeCursor();
               PropertyCursor propertyCursor = tx.cursors().allocatePropertyCursor() )
         {

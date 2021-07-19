@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -266,6 +266,28 @@ public class PhysicalLogCommandReaderV3_0Test
         assertEquals( after, relationshipGroupCommand.getAfter() );
         assertTrue( relationshipGroupCommand.getBefore().isUseFixedReferences() );
         assertTrue( relationshipGroupCommand.getAfter().isUseFixedReferences() );
+    }
+
+    @Test
+    public void readRelationshipGroupWithBiggerThanShortRelationshipType() throws IOException
+    {
+        // Given
+        InMemoryClosableChannel channel = new InMemoryClosableChannel();
+        RelationshipGroupRecord before = new RelationshipGroupRecord( 42, 3 );
+        RelationshipGroupRecord after = new RelationshipGroupRecord( 42, (1 << Short.SIZE) + 10, 4, 5, 6, 7, 8, true );
+
+        new Command.RelationshipGroupCommand( before, after ).serialize( channel );
+
+        // When
+        PhysicalLogCommandReaderV3_0_2 reader = new PhysicalLogCommandReaderV3_0_2();
+        Command command = reader.read( channel );
+        assertTrue( command instanceof Command.RelationshipGroupCommand);
+
+        Command.RelationshipGroupCommand relationshipGroupCommand = (Command.RelationshipGroupCommand) command;
+
+        // Then
+        assertEquals( before, relationshipGroupCommand.getBefore() );
+        assertEquals( after, relationshipGroupCommand.getAfter() );
     }
 
     @Test

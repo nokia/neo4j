@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -23,6 +23,7 @@ package org.neo4j.commandline.arguments.common;
 import java.io.File;
 
 import org.neo4j.commandline.arguments.OptionalNamedArg;
+import org.neo4j.graphdb.factory.GraphDatabaseSettings;
 import org.neo4j.helpers.Args;
 
 public class Database extends OptionalNamedArg
@@ -36,7 +37,7 @@ public class Database extends OptionalNamedArg
 
     public Database( String description )
     {
-        super( ARG_DATABASE, "name", "graph.db", description );
+        super( ARG_DATABASE, "name", GraphDatabaseSettings.DEFAULT_DATABASE_NAME, description );
     }
 
     private static String validate( String dbName )

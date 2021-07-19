@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -69,10 +69,7 @@ public class EncodeGroupsStepTest
         encoder.process( batch( new Group( 6, 35 ) ), catcher );
         encoder.process( batch( new Group( 7, 2 ) ), catcher );
         encoder.endOfUpstream();
-        while ( !encoder.isCompleted() )
-        {
-            Thread.sleep( 10 );
-        }
+        encoder.awaitCompleted();
         encoder.close();
 
         // THEN

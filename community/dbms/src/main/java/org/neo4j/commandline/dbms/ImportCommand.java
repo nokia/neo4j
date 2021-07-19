@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -22,8 +22,6 @@ package org.neo4j.commandline.dbms;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 
 import org.neo4j.commandline.admin.AdminCommand;
@@ -35,12 +33,10 @@ import org.neo4j.commandline.arguments.MandatoryNamedArg;
 import org.neo4j.commandline.arguments.OptionalBooleanArg;
 import org.neo4j.commandline.arguments.OptionalNamedArg;
 import org.neo4j.commandline.arguments.OptionalNamedArgWithMetadata;
-import org.neo4j.commandline.arguments.common.Database;
 import org.neo4j.graphdb.factory.GraphDatabaseSettings;
 import org.neo4j.helpers.Args;
-import org.neo4j.helpers.collection.MapUtil;
 import org.neo4j.kernel.configuration.Config;
-import org.neo4j.kernel.impl.util.Validators;
+import org.neo4j.util.DocumentationURLs;
 
 import static org.neo4j.commandline.arguments.common.Database.ARG_DATABASE;
 import static org.neo4j.csv.reader.Configuration.DEFAULT;
@@ -118,7 +114,7 @@ public class ImportCommand implements AdminCommand
                     "  INTEGER: arbitrary integer values for identifying nodes,\n" +
                     "  ACTUAL: (advanced) actual node ids.\n" +
                     "For more information on id handling, please see the Neo4j Manual: " +
-                    "https://neo4j.com/docs/operations-manual/current/tools/import/" ) )
+                    DocumentationURLs.IMPORT_TOOL ) )
             .withArgument( new OptionalNamedArg( "input-encoding", "character-set", "UTF-8",
                     "Character set that input data is encoded in." ) )
             .withArgument( new OptionalBooleanArg( "ignore-extra-columns", false,
@@ -208,20 +204,18 @@ public class ImportCommand implements AdminCommand
     }
 
     @Override
-    public void execute( String[] args ) throws IncorrectUsage, CommandFailed
+    public void execute( String[] userSupplierArguments ) throws IncorrectUsage, CommandFailed
     {
-        String mode;
-        Optional<Path> additionalConfigFile;
-        String database;
+        final String[] args;
+        final String mode;
+        final Optional<Path> additionalConfigFile;
+        final String database;
 
         try
         {
-            mode = allArguments.parse( args ).get( "mode" );
-            Optional<Path> fileArgument = allArguments.getOptionalPath( "f" );
-            if ( fileArgument.isPresent() )
-            {
-                allArguments.parse( parseFileArgumentList( fileArgument.get().toFile() ) );
-            }
+            args = getImportToolArgs( userSupplierArguments );
+            allArguments.parse( args );
+            mode = allArguments.get( "mode" );
             database = allArguments.get( ARG_DATABASE );
             additionalConfigFile = allArguments.getOptionalPath( "additional-config" );
         }
@@ -238,8 +232,6 @@ public class ImportCommand implements AdminCommand
         {
             Config config =
                     loadNeo4jConfig( homeDir, configDir, database, loadAdditionalConfig( additionalConfigFile ) );
-            Validators.CONTAINS_NO_EXISTING_DATABASE
-                    .validate( config.get( GraphDatabaseSettings.database_path ) );
 
             Importer importer = importerFactory.getImporterForMode( mode, Args.parse( args ), config, outsideWorld );
             importer.doImport();
@@ -254,31 +246,27 @@ public class ImportCommand implements AdminCommand
         }
     }
 
-    private static Map<String,String> loadAdditionalConfig( Optional<Path> additionalConfigFile )
+    private static String[] getImportToolArgs( String[] userSupplierArguments ) throws IOException, IncorrectUsage
     {
-        if ( additionalConfigFile.isPresent() )
-        {
-            try
-            {
-                return MapUtil.load( additionalConfigFile.get().toFile() );
-            }
-            catch ( IOException e )
-            {
-                throw new IllegalArgumentException(
-                        String.format( "Could not read configuration file [%s]", additionalConfigFile ), e );
-            }
-        }
-
-        return new HashMap<>();
+        allArguments.parse( userSupplierArguments );
+        Optional<Path> fileArgument = allArguments.getOptionalPath( "f" );
+        return fileArgument.isPresent() ? parseFileArgumentList( fileArgument.get().toFile() ) : userSupplierArguments;
     }
 
-    private static Config loadNeo4jConfig( Path homeDir, Path configDir, String databaseName,
-            Map<String,String> additionalConfig )
+    private static Config loadAdditionalConfig( Optional<Path> additionalConfigFile )
     {
-        return Config.fromFile( configDir.resolve( Config.DEFAULT_CONFIG_FILE_NAME ) )
+        return additionalConfigFile.map( path -> Config.fromFile( path ).build() ).orElseGet( Config::defaults );
+    }
+
+    private static Config loadNeo4jConfig( Path homeDir, Path configDir, String databaseName, Config additionalConfig )
+    {
+        Config config = Config.fromFile( configDir.resolve( Config.DEFAULT_CONFIG_FILE_NAME ) )
                 .withHome( homeDir )
-                .withSetting( GraphDatabaseSettings.active_database, databaseName )
-                .withSettings( additionalConfig )
-                .withConnectorsDisabled().build();
+                .withConnectorsDisabled()
+                .withNoThrowOnFileLoadFailure()
+                .build();
+        config.augment( additionalConfig );
+        config.augment( GraphDatabaseSettings.active_database, databaseName );
+        return config;
     }
 }

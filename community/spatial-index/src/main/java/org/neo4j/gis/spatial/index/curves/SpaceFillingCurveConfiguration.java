@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -23,7 +23,7 @@ import org.neo4j.gis.spatial.index.Envelope;
 
 /**
  * These settings define how to optimize the 2D (or 3D) to 1D mapping of the space filling curve.
- * They will affect the number of 1D ranges produced as well as the number of false positives expcted from the 1D index.
+ * They will affect the number of 1D ranges produced as well as the number of false positives expected from the 1D index.
  * The ideal performance depends on the behaviour of the underlying 1D index, whether it costs more to have more 1D searches,
  * or have more false positives for post filtering.
  */

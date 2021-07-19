@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,8 +19,8 @@
  */
 package org.neo4j.bolt.v1.transport;
 
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
-import io.netty.channel.socket.SocketChannel;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -70,12 +70,12 @@ public class NettyServerTest
         return new NettyServer.ProtocolInitializer()
         {
             @Override
-            public ChannelInitializer<SocketChannel> channelInitializer()
+            public ChannelInitializer<Channel> channelInitializer()
             {
-                return new ChannelInitializer<SocketChannel>()
+                return new ChannelInitializer<Channel>()
                 {
                     @Override
-                    public void initChannel( SocketChannel ch )
+                    public void initChannel( Channel ch )
                     {
                     }
                 };

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,18 +21,18 @@ package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.cardinality.assu
 
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.Metrics.{QueryGraphCardinalityModel, QueryGraphSolverInput}
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical.cardinality.{ExpressionSelectivityCalculator, SelectivityCombiner}
-import org.neo4j.cypher.internal.frontend.v3_5.semantics.SemanticTable
+import org.neo4j.cypher.internal.v3_5.ast.semantics.SemanticTable
 import org.neo4j.cypher.internal.ir.v3_5.{QueryGraph, _}
 import org.neo4j.cypher.internal.planner.v3_5.spi.GraphStatistics
-import org.neo4j.cypher.internal.util.v3_5.{Cardinality, Selectivity}
+import org.neo4j.cypher.internal.v3_5.util.{Cardinality, Selectivity}
 import org.neo4j.cypher.internal.v3_5.expressions.LabelName
 
 case class AssumeIndependenceQueryGraphCardinalityModel(stats: GraphStatistics, combiner: SelectivityCombiner)
   extends QueryGraphCardinalityModel {
   import AssumeIndependenceQueryGraphCardinalityModel.MAX_OPTIONAL_MATCH
 
-  private val expressionSelectivityEstimator = ExpressionSelectivityCalculator(stats, combiner)
-  private val patternSelectivityEstimator = PatternSelectivityCalculator(stats, combiner)
+  override val expressionSelectivityCalculator = ExpressionSelectivityCalculator(stats, combiner)
+  private val patternSelectivityCalculator = PatternSelectivityCalculator(stats, combiner)
 
   /**
    * When there are optional matches, the cardinality is always the maximum of any matches that exist,
@@ -77,27 +77,23 @@ case class AssumeIndependenceQueryGraphCardinalityModel(stats: GraphStatistics, 
     val numberOfPatternNodes = calculateNumberOfPatternNodes(qg) - numberOfZeroZeroRels
     val numberOfGraphNodes = stats.nodesAllCardinality()
 
-    val c = if (qg.argumentIds.nonEmpty) {
-      if ((qg.argumentIds intersect qg.patternNodes).isEmpty) {
-        /*
-       * If have a node pattern and we have arguments the produced cardinality is at least
-       * the one produce of the node pattern solved
-       */
-        Cardinality.max(Cardinality(1.0), input.inboundCardinality)
-      } else
-        input.inboundCardinality
-
-    } else
+    // We can't always rely on arguments being present to indicate we need to multiply the cardinality
+    // For example, when planning to solve an OPTIONAL MATCH with a join, we remove all the arguments. We
+    // could still be beneath an Apply a this point though.
+    val multiplier = if (input.alwaysMultiply || qg.argumentIds.nonEmpty) {
+      input.inboundCardinality
+    } else {
       Cardinality(1.0)
+    }
 
-    c * (numberOfGraphNodes ^ numberOfPatternNodes) * selectivity
+    multiplier * (numberOfGraphNodes ^ numberOfPatternNodes) * selectivity
   }
 
   private def calculateSelectivity(qg: QueryGraph, labels: Map[String, Set[LabelName]])
                                   (implicit semanticTable: SemanticTable): (Selectivity, Int) = {
-    implicit val selections = qg.selections
+    implicit val selections: Selections = qg.selections
 
-    val expressionSelectivities = selections.flatPredicates.map(expressionSelectivityEstimator(_))
+    val expressionSelectivities = selections.flatPredicates.map(expressionSelectivityCalculator(_))
 
     val patternSelectivities = qg.patternRelationships.toIndexedSeq.map {
       /* This is here to handle the *0..0 case.
@@ -106,7 +102,7 @@ case class AssumeIndependenceQueryGraphCardinalityModel(stats: GraphStatistics, 
          This workaround should work, but might not give the best numbers.
        */
       case r if r.length == VarPatternLength(0, Some(0)) => None
-      case r => Some(patternSelectivityEstimator(r, labels))
+      case r => Some(patternSelectivityCalculator(r, labels))
     }
 
     val numberOfZeroZeroRels = patternSelectivities.count(_.isEmpty)

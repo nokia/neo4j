@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -23,7 +23,6 @@ import org.junit.Test;
 
 import java.util.List;
 
-import org.neo4j.kernel.impl.security.Credential;
 import org.neo4j.kernel.impl.security.User;
 import org.neo4j.string.UTF8;
 
@@ -40,10 +39,10 @@ public class UserSerializationTest
         UserSerialization serialization = new UserSerialization();
 
         List<User> users = asList(
-                new User.Builder( "Mike", Credential.forPassword( "1234321" ) ).withFlag( "not_as_nice" ).build(),
-                new User.Builder( "Steve", Credential.forPassword( "1234321" ) ).build(),
-                new User.Builder( "steve.stevesson@WINDOMAIN", Credential.forPassword( "1234321" ) ).build(),
-                new User.Builder( "Bob", Credential.forPassword( "0987654" ) ).build()
+                new User.Builder( "Mike", LegacyCredential.forPassword( "1234321" ) ).withFlag( "not_as_nice" ).build(),
+                new User.Builder( "Steve", LegacyCredential.forPassword( "1234321" ) ).build(),
+                new User.Builder( "steve.stevesson@WINDOMAIN", LegacyCredential.forPassword( "1234321" ) ).build(),
+                new User.Builder( "Bob", LegacyCredential.forPassword( "0987654" ) ).build()
             );
 
         // When
@@ -74,10 +73,10 @@ public class UserSerializationTest
 
         // Then
         assertThat( deserialized, equalTo(
-                asList( new User.Builder( "Mike", new Credential( salt1, hash1 ) ).build(),
-                        new User.Builder( "Steve", new Credential( salt1, hash1 ) )
+                asList( new User.Builder( "Mike", new LegacyCredential( salt1, hash1 ) ).build(),
+                        new User.Builder( "Steve", new LegacyCredential( salt1, hash1 ) )
                             .withRequiredPasswordChange( true ).withFlag("nice_guy").build(),
-                        new User.Builder( "Bob", new Credential( salt2, hash2 ) )
+                        new User.Builder( "Bob", new LegacyCredential( salt2, hash2 ) )
                                 .withRequiredPasswordChange( true )
                                 .build()
         ) ) );

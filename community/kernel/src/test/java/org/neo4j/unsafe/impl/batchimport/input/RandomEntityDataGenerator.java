@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -136,11 +136,11 @@ public class RandomEntityDataGenerator extends GeneratingInputIterator<RandomVal
 
     private static String[] randomLabels( RandomValues random, Distribution<String> labels )
     {
-        int length = random.nextInt( min( 3, labels.length() ) );
-        if ( length == 0 )
+        if ( labels.length() == 0 )
         {
             return NO_LABELS;
         }
+        int length = random.nextInt( min( 3, labels.length() ) ) + 1;
 
         String[] result = new String[length];
         for ( int i = 0; i < result.length; )

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -35,6 +35,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.neo4j.storageengine.api.schema.LabelScanReader.NO_ID;
 
 public class LabelScanValueIteratorTest
 {
@@ -45,7 +46,7 @@ public class LabelScanValueIteratorTest
         RawCursor<Hit<LabelScanKey,LabelScanValue>,IOException> cursor = mock( RawCursor.class );
         when( cursor.next() ).thenReturn( false );
         Collection<RawCursor<Hit<LabelScanKey,LabelScanValue>,IOException>> toRemoveFrom = new HashSet<>();
-        LabelScanValueIterator iterator = new LabelScanValueIterator( cursor, toRemoveFrom );
+        LabelScanValueIterator iterator = new LabelScanValueIterator( cursor, toRemoveFrom, NO_ID );
         verify( cursor, never() ).close();
 
         // WHEN

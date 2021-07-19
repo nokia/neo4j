@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -18,6 +18,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 package org.neo4j.internal.kernel.api;
+
+import java.util.function.IntFunction;
+
+import org.neo4j.storageengine.api.EntityType;
 
 /**
  * Lookup of names from token ids. Tokens are mostly referred to by ids throughout several abstractions.
@@ -42,4 +46,25 @@ public interface TokenNameLookup
      * @return name of property key token with given id.
      */
     String propertyKeyGetName( int propertyKeyId );
+
+    default String[] entityTokensGetNames( EntityType type, int[] entityTokenIds )
+    {
+        IntFunction<String> mapper;
+        switch ( type )
+        {
+        case NODE:
+            mapper = this::labelGetName;
+            break;
+        case RELATIONSHIP:
+            mapper = this::relationshipTypeGetName;
+            break;
+        default:
+            throw new IllegalArgumentException( "Cannot lookup names for tokens of type: " + type );
+        }
+        String[] tokenNames = new String[entityTokenIds.length];
+        for ( int i = 0; i < entityTokenIds.length; i++ )
+        {
+            tokenNames[i] = mapper.apply( entityTokenIds[i] );
+        }
+        return tokenNames;    }
 }

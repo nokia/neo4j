@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -50,7 +50,7 @@ public class JsonInputTest
         assertNotNull( map );
         assertThat( map, hasEntry( "key1", "value1" ) );
         assertThat( map, hasEntry( "key2", "value11" ) );
-        assertTrue( "map contained extra values", map.size() == 2 );
+        assertEquals( "map contained extra values", 2, map.size() );
     }
 
     @Test
@@ -59,7 +59,7 @@ public class JsonInputTest
         Map<String, Object> map = input.readMap( "{\"nested\": {\"key\": \"valuable\"}}" );
         assertNotNull( map );
         assertThat( map, hasKey( "nested" ) );
-        assertTrue( "map contained extra values", map.size() == 1 );
+        assertEquals( "map contained extra values", 1, map.size() );
         Object nested = map.get( "nested" );
         assertThat( nested, instanceOf( Map.class ) );
         @SuppressWarnings( "unchecked" )

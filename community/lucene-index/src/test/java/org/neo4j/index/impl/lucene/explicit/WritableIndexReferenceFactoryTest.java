@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,7 +19,6 @@
  */
 package org.neo4j.index.impl.lucene.explicit;
 
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexWriter;
 import org.junit.Before;
@@ -27,7 +26,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.RuleChain;
 
-import java.io.File;
 import java.io.IOException;
 
 import org.neo4j.graphdb.Node;
@@ -99,7 +97,7 @@ public class WritableIndexReferenceFactoryTest
         assertNotSame( "Should return new refreshed index reference.", indexReference, refreshedIndexReference );
     }
 
-    private void writeSomething( IndexReference indexReference ) throws IOException
+    private static void writeSomething( IndexReference indexReference ) throws IOException
     {
         IndexWriter writer = indexReference.getWriter();
         writer.addDocument( new Document() );
@@ -115,20 +113,13 @@ public class WritableIndexReferenceFactoryTest
 
     private WritableIndexReferenceFactory createFactory()
     {
-        return new WritableIndexReferenceFactory( filesystemFacade, new File( getStoreDir(), "index" ),
+        return new WritableIndexReferenceFactory( filesystemFacade, testDirectory.databaseLayout().file( "index" ),
                 new IndexTypeCache( indexStore ) );
     }
 
     private void setupIndexInfrastructure()
     {
-        File storeDir = getStoreDir();
-        indexStore = new IndexConfigStore( storeDir, fileSystemRule.get() );
+        indexStore = new IndexConfigStore( testDirectory.databaseLayout(), fileSystemRule.get() );
         indexStore.set( Node.class, INDEX_NAME, MapUtil.stringMap( IndexManager.PROVIDER, "lucene", "type", "fulltext" ) );
     }
-
-    private File getStoreDir()
-    {
-        return testDirectory.directory();
-    }
-
 }

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,8 +20,6 @@
 package org.neo4j.tooling.procedure.visitors;
 
 import java.util.function.Predicate;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.PrimitiveType;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.SimpleTypeVisitor8;
 import javax.lang.model.util.Types;
@@ -40,15 +38,9 @@ class ParameterTypeVisitor extends SimpleTypeVisitor8<Boolean,Void>
     }
 
     @Override
-    public Boolean visitDeclared( DeclaredType parameterType, Void ignored )
+    protected Boolean defaultAction( TypeMirror type, Void ignored )
     {
-        return validate( parameterType );
-    }
-
-    @Override
-    public Boolean visitPrimitive( PrimitiveType primitive, Void ignored )
-    {
-        return validate( primitive );
+        return validate( type );
     }
 
     private Boolean validate( TypeMirror typeMirror )

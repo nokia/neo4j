@@ -7,13 +7,13 @@
   <parent>
     <groupId>org.neo4j</groupId>
     <artifactId>parent</artifactId>
-    <version>3.5.0-SNAPSHOT</version>
+    <version>3.5.30-SNAPSHOT</version>
     <relativePath>../..</relativePath>
   </parent>
 
   <properties>
-    <license-text.header>GPL-3-header.txt</license-text.header>
-    <licensing.prepend.text>notice-gpl-prefix.txt</licensing.prepend.text>
+    <license-text.header>headers/GPL-3-header.txt</license-text.header>
+    <licensing.prepend.text>licensing/notice-gpl-prefix.txt</licensing.prepend.text>
     <moduleName>org.neo4j.bolt</moduleName>
   </properties>
 
@@ -27,14 +27,13 @@
     <license>
       <name>GNU General Public License, Version 3</name>
       <url>http://www.gnu.org/licenses/gpl-3.0-standalone.html</url>
-      <comments>The software ("Software") developed and owned by Network Engine for
-        Objects in Lund AB (referred to in this notice as "Neo Technology") is
+      <comments>The software ("Software") developed and owned by Neo4j Sweden AB (referred to in this notice as "Neo4j") is
         licensed under the GNU GENERAL PUBLIC LICENSE Version 3 to all third
         parties and that license is included below.
 
         However, if you have executed an End User Software License and Services
         Agreement or an OEM Software License and Support Services Agreement, or
-        another commercial license agreement with Neo Technology or one of its
+        another commercial license agreement with Neo4j or one of its
         affiliates (each, a "Commercial Agreement"), the terms of the license in
         such Commercial Agreement will supersede the GNU GENERAL PUBLIC LICENSE
         Version 3 and you may use the Software solely pursuant to the terms of
@@ -46,7 +45,7 @@
     <dependencies>
         <dependency>
             <groupId>org.neo4j</groupId>
-            <artifactId>neo4j</artifactId>
+            <artifactId>neo4j-cypher</artifactId>
             <version>${project.version}</version>
         </dependency>
 
@@ -61,6 +60,11 @@
             <artifactId>neo4j-kernel</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>org.neo4j</groupId>
+            <artifactId>neo4j-udc</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
         <dependency>
             <groupId>org.neo4j</groupId>
@@ -73,10 +77,6 @@
             <artifactId>netty-all</artifactId>
         </dependency>
 
-        <dependency>
-            <groupId>org.codehaus.jackson</groupId>
-            <artifactId>jackson-mapper-asl</artifactId>
-        </dependency>
         <dependency>
             <groupId>commons-codec</groupId>
             <artifactId>commons-codec</artifactId>
@@ -98,12 +98,16 @@
             <artifactId>junit-jupiter-migrationsupport</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-api</artifactId>
+            <groupId>org.junit.vintage</groupId>
+            <artifactId>junit-vintage-engine</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.apache.maven.surefire</groupId>
-            <artifactId>surefire-logger-api</artifactId>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-params</artifactId>
         </dependency>
         <dependency>
             <groupId>org.hamcrest</groupId>
@@ -163,6 +167,12 @@
             <artifactId>neo4j-common</artifactId>
             <version>${project.version}</version>
             <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.neo4j</groupId>
+            <artifactId>neo4j-random-values</artifactId>
+            <version>${project.version}</version>
             <scope>test</scope>
         </dependency>
 

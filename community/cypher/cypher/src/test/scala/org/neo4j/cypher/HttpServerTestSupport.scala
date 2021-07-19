@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,10 +19,12 @@
  */
 package org.neo4j.cypher
 
-import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
-import java.net.{InetAddress, InetSocketAddress}
 import java.io.IOException
+import java.net.{InetAddress, InetSocketAddress}
 import java.util.concurrent.Executors
+
+import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
+
 import scala.collection.mutable
 
 trait HttpServerTestSupport {
@@ -32,17 +34,10 @@ trait HttpServerTestSupport {
 }
 
 class HttpServerTestSupportBuilder {
-  val ASK_OS_TO_PROVIDE_A_PORT = 0
-  private var port = ASK_OS_TO_PROVIDE_A_PORT
   private var allowedMethods: Set[String] = Set()
   private val mapping = new mutable.HashMap[String, (HttpExchange => Unit)]()
   private val filters = new mutable.HashMap[String, (HttpExchange => Boolean)]()
   private val transformations = new mutable.HashMap[String, (HttpExchange => HttpExchange)]()
-
-  def withPort(newPort: Int) {
-    assert(newPort >= 0 && newPort < 65536)
-    port = newPort
-  }
 
   def onPathReplyWithData(path: String, data: Array[Byte]) {
     assert(path != null && !path.isEmpty)
@@ -71,7 +66,8 @@ class HttpServerTestSupportBuilder {
   }
 
   def build(): HttpServerTestSupport = {
-    new HttpServerTestSupportImpl(port, allowedMethods, mapping.toMap, filters.toMap, transformations.toMap)
+    // Passing port=0 asks bind() to find a free port, use boundInfo to lookup the port later
+    new HttpServerTestSupportImpl(0, allowedMethods, mapping.toMap, filters.toMap, transformations.toMap)
   }
 
   private class HttpServerTestSupportImpl(port: Int, allowedMethods: Set[String],
@@ -94,7 +90,7 @@ class HttpServerTestSupportBuilder {
 
     def boundInfo = optServer.get.getAddress
 
-    def start {
+    def start() {
       optServer = Some(provideServer)
       val server = optServer.get
 
@@ -107,7 +103,7 @@ class HttpServerTestSupportBuilder {
 
           val path = exchange.getRequestURI.getPath
           if (mapping.contains(path)) {
-            if (filters.getOrElse(path, {_: HttpExchange => true})(exchange)) {
+            if (filters.getOrElse(path, { _: HttpExchange => true })(exchange)) {
               val reply = transformations.getOrElse(path, identity[HttpExchange](_))(exchange)
               mapping(path)(reply)
             }

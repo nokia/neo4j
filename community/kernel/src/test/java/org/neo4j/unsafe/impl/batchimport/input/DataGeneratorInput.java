@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.function.ToIntFunction;
 
 import org.neo4j.csv.reader.Extractors;
-import org.neo4j.unsafe.impl.batchimport.IdRangeInput.Range;
 import org.neo4j.unsafe.impl.batchimport.InputIterable;
 import org.neo4j.unsafe.impl.batchimport.InputIterator;
 import org.neo4j.unsafe.impl.batchimport.cache.NumberArrayFactory;
@@ -38,14 +37,10 @@ import org.neo4j.unsafe.impl.batchimport.input.csv.Type;
 import org.neo4j.values.storable.Value;
 
 import static java.util.Arrays.asList;
-
-import static org.neo4j.unsafe.impl.batchimport.InputIterable.replayable;
-
 /**
  * {@link Input} which generates data on the fly. This input wants to know number of nodes and relationships
  * and then a function for generating the nodes and another for generating the relationships.
- * Data can be generated in parallel and so those generator functions accepts a {@link Range} for which
- * an array of input objects are generated, everything else will be taken care of. So typical usage would be:
+ * So typical usage would be:
  *
  * <pre>
  * {@code
@@ -104,15 +99,15 @@ public class DataGeneratorInput implements Input
     @Override
     public InputIterable nodes()
     {
-        return replayable( () -> new RandomEntityDataGenerator( nodes, nodes, 10_000, seed, startId, nodeHeader, labels, relationshipTypes,
-                factorBadNodeData, factorBadRelationshipData ) );
+        return () -> new RandomEntityDataGenerator( nodes, nodes, 10_000, seed, startId, nodeHeader, labels, relationshipTypes,
+                factorBadNodeData, factorBadRelationshipData );
     }
 
     @Override
     public InputIterable relationships()
     {
-        return replayable( () -> new RandomEntityDataGenerator( nodes, relationships, 10_000, seed, startId, relationshipHeader,
-                labels, relationshipTypes, factorBadNodeData, factorBadRelationshipData ) );
+        return () -> new RandomEntityDataGenerator( nodes, relationships, 10_000, seed, startId, relationshipHeader,
+                labels, relationshipTypes, factorBadNodeData, factorBadRelationshipData );
     }
 
     @Override

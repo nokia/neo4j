@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -57,10 +57,11 @@ final class MuninnPagedFile extends PageList implements PagedFile, Flushable
     private static final int headerStateRefCountMax = 0x7FFF;
     private static final long headerStateRefCountMask = 0x7FFF_0000_0000_0000L;
     private static final long headerStateLastPageIdMask = 0x8000_FFFF_FFFF_FFFFL;
+    private static final int PF_LOCK_MASK = PF_SHARED_WRITE_LOCK | PF_SHARED_READ_LOCK;
 
     final MuninnPageCache pageCache;
     final int filePageSize;
-    final PageCacheTracer pageCacheTracer;
+    private final PageCacheTracer pageCacheTracer;
     final LatchMap pageFaultLatches;
 
     // This is the table where we translate file-page-ids to cache-page-ids. Only one thread can perform a resize at
@@ -68,8 +69,8 @@ final class MuninnPagedFile extends PageList implements PagedFile, Flushable
     volatile int[][] translationTable;
 
     final PageSwapper swapper;
-    final short swapperId;
-    private final CursorPool cursorPool;
+    final int swapperId;
+    private final CursorFactory cursorFactory;
 
     // Guarded by the monitor lock on MuninnPageCache (map and unmap)
     private boolean deleteOnClose;
@@ -112,16 +113,19 @@ final class MuninnPagedFile extends PageList implements PagedFile, Flushable
      * access to thread local version context
      * @param createIfNotExists should create file if it does not exists
      * @param truncateExisting should truncate file if it exists
+     * @param noChannelStriping when true, overrides channel striping behaviour,
+     * setting it to a single channel per mapped file.
      * @throws IOException If the {@link PageSwapper} could not be created.
      */
     MuninnPagedFile( File file, MuninnPageCache pageCache, int filePageSize, PageSwapperFactory swapperFactory,
             PageCacheTracer pageCacheTracer, PageCursorTracerSupplier pageCursorTracerSupplier,
-            VersionContextSupplier versionContextSupplier, boolean createIfNotExists, boolean truncateExisting ) throws IOException
+            VersionContextSupplier versionContextSupplier, boolean createIfNotExists, boolean truncateExisting,
+            boolean noChannelStriping ) throws IOException
     {
         super( pageCache.pages );
         this.pageCache = pageCache;
         this.filePageSize = filePageSize;
-        this.cursorPool = new CursorPool( this, pageCursorTracerSupplier, pageCacheTracer, versionContextSupplier );
+        this.cursorFactory = new CursorFactory( this, pageCursorTracerSupplier, pageCacheTracer, versionContextSupplier );
         this.pageCacheTracer = pageCacheTracer;
         this.pageFaultLatches = new LatchMap();
 
@@ -142,7 +146,7 @@ final class MuninnPagedFile extends PageList implements PagedFile, Flushable
         // filled with UNMAPPED_TTE values, and then finally assigns the new outer array to the translationTable field
         // and releases the resize lock.
         PageEvictionCallback onEviction = this::evictPage;
-        swapper = swapperFactory.createPageSwapper( file, filePageSize, onEviction, createIfNotExists );
+        swapper = swapperFactory.createPageSwapper( file, filePageSize, onEviction, createIfNotExists, noChannelStriping );
         if ( truncateExisting )
         {
             swapper.truncate();
@@ -170,29 +174,37 @@ final class MuninnPagedFile extends PageList implements PagedFile, Flushable
     @Override
     public PageCursor io( long pageId, int pf_flags )
     {
-        int lockMask = PF_SHARED_WRITE_LOCK | PF_SHARED_READ_LOCK;
-        if ( (pf_flags & lockMask) == 0 )
-        {
-            throw new IllegalArgumentException(
-                    "Must specify either PF_SHARED_WRITE_LOCK or PF_SHARED_READ_LOCK" );
-        }
-        if ( (pf_flags & lockMask) == lockMask )
-        {
-            throw new IllegalArgumentException(
-                    "Cannot specify both PF_SHARED_WRITE_LOCK and PF_SHARED_READ_LOCK" );
-        }
+        int lockFlags = pf_flags & PF_LOCK_MASK;
         MuninnPageCursor cursor;
-        if ( (pf_flags & PF_SHARED_READ_LOCK) == 0 )
+        if ( lockFlags == PF_SHARED_READ_LOCK )
         {
-            cursor = cursorPool.takeWriteCursor( pageId, pf_flags );
+            cursor = cursorFactory.takeReadCursor( pageId, pf_flags );
+        }
+        else if ( lockFlags == PF_SHARED_WRITE_LOCK )
+        {
+            cursor = cursorFactory.takeWriteCursor( pageId, pf_flags );
         }
         else
         {
-            cursor = cursorPool.takeReadCursor( pageId, pf_flags );
+            throw wrongLocksArgument( lockFlags );
         }
 
         cursor.rewind();
         return cursor;
+    }
+
+    private IllegalArgumentException wrongLocksArgument( int lockFlags )
+    {
+        if ( lockFlags == 0 )
+        {
+            return new IllegalArgumentException(
+                    "Must specify either PF_SHARED_WRITE_LOCK or PF_SHARED_READ_LOCK" );
+        }
+        else
+        {
+            return new IllegalArgumentException(
+                    "Cannot specify both PF_SHARED_WRITE_LOCK and PF_SHARED_READ_LOCK" );
+        }
     }
 
     @Override
@@ -244,12 +256,23 @@ final class MuninnPagedFile extends PageList implements PagedFile, Flushable
             // We cannot reuse those swapper ids until there are no more pages using them.
             pageCache.vacuum( getSwappers() );
         }
+        long filePageId = -1; // Start at -1 because we increment at the *start* of the chunk-loop iteration.
+        int[][] tt = this.translationTable;
+        for ( int[] chunk : tt )
+        {
+            for ( int i = 0; i < chunk.length; i++ )
+            {
+                filePageId++;
+                long offset = computeChunkOffset( filePageId );
+                UnsafeUtil.putIntVolatile( chunk, offset, UNMAPPED_TTE );
+            }
+        }
     }
 
     @Override
     public void flushAndForce() throws IOException
     {
-        flushAndForce( IOLimiter.unlimited() );
+        flushAndForce( IOLimiter.UNLIMITED );
     }
 
     @Override
@@ -279,7 +302,7 @@ final class MuninnPagedFile extends PageList implements PagedFile, Flushable
         }
         try ( MajorFlushEvent flushEvent = pageCacheTracer.beginFileFlush( swapper ) )
         {
-            flushAndForceInternal( flushEvent.flushEventOpportunity(), true, IOLimiter.unlimited() );
+            flushAndForceInternal( flushEvent.flushEventOpportunity(), true, IOLimiter.UNLIMITED );
             syncDevice();
         }
         pageCache.clearEvictorException();
@@ -362,6 +385,7 @@ final class MuninnPagedFile extends PageList implements PagedFile, Flushable
             // TODO The clean pages in question must still be loaded, though. Otherwise we'll end up writing
             // TODO garbage to the file.
             int pagesGrabbed = 0;
+            long recommendedMaxIOBatchSize = limiter.recommendedMaxIOBatchSize();
             chunkLoop:
             for ( int i = 0; i < chunk.length; i++ )
             {
@@ -399,7 +423,14 @@ final class MuninnPagedFile extends PageList implements PagedFile, Flushable
                             }
                             bufferAddresses[pagesGrabbed] = getAddress( pageRef );
                             pagesGrabbed++;
-                            continue chunkLoop;
+                            if ( pagesGrabbed >= recommendedMaxIOBatchSize )
+                            {
+                                break; // continue to flush
+                            }
+                            else
+                            {
+                                continue chunkLoop; // go to next page
+                            }
                         }
                         else if ( forClosing )
                         {
@@ -524,15 +555,20 @@ final class MuninnPagedFile extends PageList implements PagedFile, Flushable
         long state = getHeaderState();
         if ( refCountOf( state ) == 0 )
         {
-            FileIsNotMappedException exception = new FileIsNotMappedException( file() );
-            Exception closedBy = closeStackTrace;
-            if ( closedBy != null )
-            {
-                exception.addSuppressed( closedBy );
-            }
-            throw exception;
+            throw fileIsNotMappedException();
         }
         return state & headerStateLastPageIdMask;
+    }
+
+    private FileIsNotMappedException fileIsNotMappedException()
+    {
+        FileIsNotMappedException exception = new FileIsNotMappedException( file() );
+        Exception closedBy = closeStackTrace;
+        if ( closedBy != null )
+        {
+            exception.addSuppressed( closedBy );
+        }
+        return exception;
     }
 
     private long getHeaderState()
@@ -650,7 +686,7 @@ final class MuninnPagedFile extends PageList implements PagedFile, Flushable
      * Remove the mapping of the given filePageId from the translation table, and return the evicted page object.
      * @param filePageId The id of the file page to evict.
      */
-    void evictPage( long filePageId )
+    private void evictPage( long filePageId )
     {
         int chunkId = computeChunkId( filePageId );
         long chunkOffset = computeChunkOffset( filePageId );

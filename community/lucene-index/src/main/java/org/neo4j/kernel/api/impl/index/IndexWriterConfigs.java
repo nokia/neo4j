@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -120,5 +120,13 @@ public final class IndexWriterConfigs
         writerConfig.setMaxBufferedDocs( POPULATION_MAX_BUFFERED_DOCS );
         writerConfig.setRAMBufferSizeMB( POPULATION_RAM_BUFFER_SIZE_MB );
         return writerConfig;
+    }
+
+    public static IndexWriterConfig transactionState( Analyzer analyzer )
+    {
+        IndexWriterConfig config = standard( analyzer );
+        // Index transaction state is never directly persisted, so never commit it on close.
+        config.setCommitOnClose( false );
+        return config;
     }
 }

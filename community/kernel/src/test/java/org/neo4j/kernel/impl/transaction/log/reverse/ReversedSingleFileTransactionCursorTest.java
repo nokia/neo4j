@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -89,7 +89,7 @@ public class ReversedSingleFileTransactionCursorTest
     {
         LogVersionRepository logVersionRepository = new SimpleLogVersionRepository();
         SimpleTransactionIdStore transactionIdStore = new SimpleTransactionIdStore();
-        LogFiles logFiles = LogFilesBuilder.builder( directory.directory(), fs )
+        LogFiles logFiles = LogFilesBuilder.builder( directory.databaseLayout(), fs )
                                            .withLogVersionRepository( logVersionRepository )
                                            .withTransactionIdStore( transactionIdStore )
                                            .build();
@@ -282,7 +282,7 @@ public class ReversedSingleFileTransactionCursorTest
         public void writeStartEntry( int masterId, int authorId, long timeWritten, long latestCommittedTxWhenStarted,
                 byte[] additionalHeaderData ) throws IOException
         {
-            writeLogEntryHeader( TX_START );
+            writeLogEntryHeader( TX_START, channel );
         }
     }
 }

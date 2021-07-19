@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,12 +21,17 @@ package org.neo4j.server.modules;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 import org.neo4j.graphdb.factory.GraphDatabaseSettings;
 import org.neo4j.kernel.configuration.Config;
 import org.neo4j.server.rest.dbms.UserService;
+import org.neo4j.server.rest.discovery.DiscoverableURIs;
 import org.neo4j.server.rest.discovery.DiscoveryService;
 import org.neo4j.server.web.WebServer;
+
+import static java.util.Collections.singletonList;
+import static org.neo4j.server.plugins.Injectable.injectable;
 
 /**
  * Mounts the DBMS REST API.
@@ -37,24 +42,29 @@ public class DBMSModule implements ServerModule
 
     private final WebServer webServer;
     private final Config config;
+    private final Supplier<DiscoverableURIs> discoverableURIs;
 
-    public DBMSModule( WebServer webServer, Config config )
+    public DBMSModule( WebServer webServer, Config config, Supplier<DiscoverableURIs> discoverableURIs )
     {
         this.webServer = webServer;
         this.config = config;
+        this.discoverableURIs = discoverableURIs;
     }
 
     @Override
     public void start()
     {
+        webServer.addJAXRSClasses(
+                singletonList( DiscoveryService.class.getName() ), ROOT_PATH,
+                singletonList( injectable( DiscoverableURIs.class, discoverableURIs.get() ) ) );
         webServer.addJAXRSClasses( getClassNames(), ROOT_PATH, null );
+
     }
 
     private List<String> getClassNames()
     {
         List<String> toReturn = new ArrayList<>( 2 );
 
-        toReturn.add( DiscoveryService.class.getName() );
         if ( config.get( GraphDatabaseSettings.auth_enabled ) )
         {
             toReturn.add( UserService.class.getName() );

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -57,9 +57,10 @@ import java.util.stream.Stream;
 
 import org.neo4j.test.ProcessStreamHandler;
 
-import static org.neo4j.io.proc.ProcessUtil.getClassPath;
-import static org.neo4j.io.proc.ProcessUtil.getClassPathList;
-import static org.neo4j.io.proc.ProcessUtil.getJavaExecutable;
+import static java.util.Objects.requireNonNull;
+import static org.neo4j.test.proc.ProcessUtil.getClassPath;
+import static org.neo4j.test.proc.ProcessUtil.getClassPathList;
+import static org.neo4j.test.proc.ProcessUtil.getJavaExecutable;
 
 public abstract class SubProcess<T, P> implements Serializable
 {
@@ -158,6 +159,10 @@ public abstract class SubProcess<T, P> implements Serializable
             }
             dispatcher = callback.get( process );
         }
+        catch ( Throwable t )
+        {
+            throw new RuntimeException( "Failed to start sub process", t );
+        }
         finally
         {
             try
@@ -169,10 +174,7 @@ public abstract class SubProcess<T, P> implements Serializable
                 e.printStackTrace();
             }
         }
-        if ( dispatcher == null )
-        {
-            throw new IllegalStateException( "failed to start sub process" );
-        }
+        requireNonNull( dispatcher );
         Handler handler = new Handler( t, dispatcher, process, "<" + toString() + ":" + pid + ">" );
         return t.cast( Proxy.newProxyInstance( t.getClassLoader(), new Class[]{t}, live( handler ) ) );
     }
@@ -477,7 +479,7 @@ public abstract class SubProcess<T, P> implements Serializable
 
         Dispatcher get( @SuppressWarnings( "hiding" ) Process process )
         {
-            while ( dispatcher == null )
+            while ( dispatcher == null && process.isAlive() )
             {
                 try
                 {
@@ -487,15 +489,6 @@ public abstract class SubProcess<T, P> implements Serializable
                 {
                     Thread.currentThread().interrupt();
                 }
-                try
-                {
-                    process.exitValue();
-                }
-                catch ( IllegalThreadStateException e )
-                {
-                    continue;
-                }
-                return null;
             }
             return dispatcher;
         }

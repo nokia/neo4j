@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -245,11 +245,6 @@ public class ExplicitIndexProxy<T extends PropertyContainer> implements Index<T>
         void drop( ExplicitIndexWrite operations, String name ) throws ExplicitIndexNotFoundKernelException;
 
         long id( PropertyContainer entity );
-    }
-
-    public interface Lookup
-    {
-        GraphDatabaseService getGraphDatabaseService();
     }
 
     protected final String name;
@@ -527,14 +522,13 @@ public class ExplicitIndexProxy<T extends PropertyContainer> implements Index<T>
         @Override
         public T getSingle()
         {
-            next = fetchNext();
-            if ( next == NO_ID )
+            if ( !hasNext() )
             {
                 return null;
             }
 
-            T item = materialize( next );
-            if ( fetchNext() != NO_ID )
+            T item = next();
+            if ( hasNext() )
             {
                 throw new NoSuchElementException();
             }
@@ -560,7 +554,7 @@ public class ExplicitIndexProxy<T extends PropertyContainer> implements Index<T>
                 throw new NoSuchElementException();
             }
             T item = materialize( next );
-            next = fetchNext();
+            next = NOT_INITIALIZED;
             return item;
         }
 
@@ -592,6 +586,7 @@ public class ExplicitIndexProxy<T extends PropertyContainer> implements Index<T>
             cursor.close();
         }
 
+        @Override
         protected long fetchNext()
         {
             ktx.assertOpen();
@@ -602,7 +597,7 @@ public class ExplicitIndexProxy<T extends PropertyContainer> implements Index<T>
                 {
                     return reference;
                 }
-                else
+                else if ( ktx.securityContext().mode().allowsWrites() )
                 {
                     //remove it from index so it doesn't happen again
                     try
@@ -651,6 +646,7 @@ public class ExplicitIndexProxy<T extends PropertyContainer> implements Index<T>
             cursor.close();
         }
 
+        @Override
         protected long fetchNext()
         {
             ktx.assertOpen();
@@ -661,7 +657,7 @@ public class ExplicitIndexProxy<T extends PropertyContainer> implements Index<T>
                 {
                     return reference;
                 }
-                else
+                else if ( ktx.securityContext().mode().allowsWrites() )
                 {
                     //remove it from index so it doesn't happen again
                     try

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,6 +19,8 @@
  */
 package org.neo4j.logging;
 
+import org.junit.jupiter.api.Test;
+
 import java.io.ByteArrayOutputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -27,21 +29,18 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.Map;
 
-import org.junit.Test;
-
 import org.neo4j.function.Suppliers;
 
 import static java.lang.String.format;
-
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
 
-public class FormattedLogProviderTest
+class FormattedLogProviderTest
 {
     @Test
-    public void shouldReturnSameLoggerForSameClass()
+    void shouldReturnSameLoggerForSameClass()
     {
         // Given
         FormattedLogProvider logProvider = FormattedLogProvider.toOutputStream( new ByteArrayOutputStream() );
@@ -52,7 +51,7 @@ public class FormattedLogProviderTest
     }
 
     @Test
-    public void shouldReturnSameLoggerForSameContext()
+    void shouldReturnSameLoggerForSameContext()
     {
         // Given
         FormattedLogProvider logProvider = FormattedLogProvider.toOutputStream( new ByteArrayOutputStream() );
@@ -63,7 +62,7 @@ public class FormattedLogProviderTest
     }
 
     @Test
-    public void shouldLogWithAbbreviatedClassNameAsContext()
+    void shouldLogWithAbbreviatedClassNameAsContext()
     {
         // Given
         StringWriter writer = new StringWriter();
@@ -78,7 +77,7 @@ public class FormattedLogProviderTest
     }
 
     @Test
-    public void shouldSetLevelForLogWithMatchingContext()
+    void shouldSetLevelForLogWithMatchingContext()
     {
         // Given
         StringWriter writer = new StringWriter();
@@ -98,7 +97,7 @@ public class FormattedLogProviderTest
     }
 
     @Test
-    public void shouldSetLevelForLogWithPartiallyMatchingContext()
+    void shouldSetLevelForLogWithPartiallyMatchingContext()
     {
         // Given
         StringWriter writer = new StringWriter();

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,13 +19,16 @@
  */
 package org.neo4j.cypher.internal.runtime.interpreted.commands.expressions
 
+import org.neo4j.cypher.internal.runtime.interpreted.commands.AstNode
 import org.neo4j.cypher.internal.runtime.interpreted.pipes.aggregation.AvgFunction
-import org.neo4j.cypher.internal.util.v3_5.symbols._
+import org.neo4j.cypher.internal.v3_5.util.symbols._
 
 case class Avg(anInner: Expression) extends AggregationWithInnerExpression(anInner) {
-  def createAggregationFunction = new AvgFunction(anInner)
+  override def createAggregationFunction = new AvgFunction(anInner)
 
-  val expectedInnerType = CTNumber
+  override val expectedInnerType: CypherType = CTNumber
 
-  def rewrite(f: (Expression) => Expression) = f(Avg(anInner.rewrite(f)))
+  override def rewrite(f: Expression => Expression): Expression = f(Avg(anInner.rewrite(f)))
+
+  override def children: Seq[AstNode[_]] = Seq(anInner)
 }

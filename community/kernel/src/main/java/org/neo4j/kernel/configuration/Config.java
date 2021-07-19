@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,15 +20,19 @@
 package org.neo4j.kernel.configuration;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
@@ -43,18 +47,20 @@ import javax.annotation.Nullable;
 
 import org.neo4j.configuration.ConfigOptions;
 import org.neo4j.configuration.ConfigValue;
+import org.neo4j.configuration.ExternalSettings;
 import org.neo4j.configuration.LoadableConfig;
+import org.neo4j.configuration.Secret;
 import org.neo4j.graphdb.config.BaseSetting;
 import org.neo4j.graphdb.config.Configuration;
 import org.neo4j.graphdb.config.InvalidSettingException;
 import org.neo4j.graphdb.config.Setting;
+import org.neo4j.graphdb.config.SettingGroup;
 import org.neo4j.graphdb.config.SettingValidator;
 import org.neo4j.graphdb.factory.GraphDatabaseSettings;
-import org.neo4j.helpers.collection.MapUtil;
+import org.neo4j.internal.diagnostics.DiagnosticsPhase;
+import org.neo4j.internal.diagnostics.DiagnosticsProvider;
 import org.neo4j.kernel.configuration.HttpConnector.Encryption;
 import org.neo4j.kernel.impl.util.CopyOnWriteHashMap;
-import org.neo4j.kernel.info.DiagnosticsPhase;
-import org.neo4j.kernel.info.DiagnosticsProvider;
 import org.neo4j.logging.BufferingLog;
 import org.neo4j.logging.Log;
 import org.neo4j.logging.Logger;
@@ -118,6 +124,7 @@ public class Config implements DiagnosticsProvider, Configuration
         private File configFile;
         private List<LoadableConfig> settingsClasses;
         private boolean connectorsDisabled;
+        private boolean throwOnFileLoadFailure = true;
 
         /**
          * Augment the configuration with the passed setting.
@@ -208,9 +215,6 @@ public class Config implements DiagnosticsProvider, Configuration
             overriddenDefaults.put( https.enabled.name(), TRUE );
             overriddenDefaults.put( bolt.enabled.name(), TRUE );
 
-            // Add server validator
-            validators.add( new ServerConfigurationValidator() );
-
             return this;
         }
 
@@ -281,6 +285,16 @@ public class Config implements DiagnosticsProvider, Configuration
         }
 
         /**
+         * Prevent the {@link #build()} method from throwing an {@link UncheckedIOException} if the given {@code withFile} configuration file could not be
+         * loaded for some reason. Instead, an error will be logged. The defualt behaviour is to throw the exception.
+         */
+        public Builder withNoThrowOnFileLoadFailure()
+        {
+            throwOnFileLoadFailure = false;
+            return this;
+        }
+
+        /**
          * @return The config reflecting the state of the builder.
          * @throws InvalidSettingException is thrown if an invalid setting is encountered and {@link
          * GraphDatabaseSettings#strict_config_validation} is true.
@@ -297,7 +311,7 @@ public class Config implements DiagnosticsProvider, Configuration
                 initialSettings.put( GraphDatabaseSettings.neo4j_home.name(), System.getProperty( "user.dir" ) );
             }
 
-            Config config = new Config( configFile, initialSettings, overriddenDefaults, validators, loadableConfigs );
+            Config config = new Config( configFile, throwOnFileLoadFailure, initialSettings, overriddenDefaults, validators, loadableConfigs );
 
             if ( connectorsDisabled )
             {
@@ -367,12 +381,13 @@ public class Config implements DiagnosticsProvider, Configuration
      * @param value The initial value to give the setting.
      */
     @Nonnull
-    public static Config defaults( @Nonnull final Setting<?> setting, @Nonnull final String value )
+    public static Config defaults( @Nonnull final Setting<?> setting, final String value )
     {
         return builder().withSetting( setting, value ).build();
     }
 
     private Config( File configFile,
+            boolean throwOnFileLoadFailure,
             Map<String,String> initialSettings,
             Map<String,String> overriddenDefaults,
             Collection<ConfigurationValidator> additionalValidators,
@@ -397,7 +412,7 @@ public class Config implements DiagnosticsProvider, Configuration
         boolean fromFile = configFile != null;
         if ( fromFile )
         {
-            loadFromFile( configFile, log ).forEach( initialSettings::putIfAbsent );
+            loadFromFile( configFile, log, throwOnFileLoadFailure, initialSettings );
         }
 
         overriddenDefaults.forEach( initialSettings::putIfAbsent );
@@ -634,9 +649,12 @@ public class Config implements DiagnosticsProvider, Configuration
                 }
                 newValue = update;
             }
+
+            String oldValueForLog = obsfucateIfSecret( setting, oldValue );
+            String newValueForLog = obsfucateIfSecret( setting, newValue );
             log.info( "Setting changed: '%s' changed from '%s' to '%s' via '%s'",
-                    setting, oldValueIsDefault ? "default (" + oldValue + ")" : oldValue,
-                    newValueIsDefault ? "default (" + newValue + ")" : newValue, origin );
+                    setting, oldValueIsDefault ? "default (" + oldValueForLog + ")" : oldValueForLog,
+                    newValueIsDefault ? "default (" + newValueForLog + ")" : newValueForLog, origin );
             updateListeners.getOrDefault( setting, emptyList() ).forEach( l -> l.accept( oldValue, newValue ) );
         }
     }
@@ -742,8 +760,25 @@ public class Config implements DiagnosticsProvider, Configuration
             logger.log( "Neo4j Kernel properties:" );
             for ( Map.Entry<String,String> param : params.entrySet() )
             {
-                logger.log( "%s=%s", param.getKey(), param.getValue() );
+                logger.log( "%s=%s", param.getKey(), obsfucateIfSecret( param ) );
             }
+        }
+    }
+
+    private String obsfucateIfSecret( Map.Entry<String,String> param )
+    {
+        return obsfucateIfSecret( param.getKey(), param.getValue() );
+    }
+
+    private String obsfucateIfSecret( String key, String value )
+    {
+        if ( settingsMap.containsKey( key ) && settingsMap.get( key ).secret() )
+        {
+            return Secret.OBSFUCATED;
+        }
+        else
+        {
+            return value;
         }
     }
 
@@ -803,21 +838,51 @@ public class Config implements DiagnosticsProvider, Configuration
     }
 
     @Nonnull
-    private static Map<String,String> loadFromFile( @Nonnull File file, @Nonnull Log log )
+    private static void loadFromFile( @Nonnull File file, @Nonnull Log log, boolean throwOnFileLoadFailure, Map<String,String> into )
     {
         if ( !file.exists() )
         {
+            if ( throwOnFileLoadFailure )
+            {
+                throw new ConfigLoadIOException( new IOException( "Config file [" + file + "] does not exist." ) );
+            }
             log.warn( "Config file [%s] does not exist.", file );
-            return new HashMap<>();
+            return;
         }
         try
         {
-            return MapUtil.load( file );
+            @SuppressWarnings( "MismatchedQueryAndUpdateOfCollection" )
+            Properties loader = new Properties()
+            {
+                @Override
+                public Object put( Object key, Object val )
+                {
+                    String setting = key.toString();
+                    String value = val.toString();
+                    // We use the 'super' Hashtable as a set of all the settings we have logged warnings about.
+                    // We only want to warn about each duplicate setting once.
+                    if ( into.putIfAbsent( setting, value ) != null &&
+                            super.put( key, val ) == null &&
+                            !key.equals( ExternalSettings.additionalJvm.name() ) )
+                    {
+                        log.warn( "The '%s' setting is specified more than once. Settings only be specified once, to avoid ambiguity. " +
+                                "The setting value that will be used is '%s'.", setting, into.get( setting ) );
+                    }
+                    return null;
+                }
+            };
+            try ( FileInputStream stream = new FileInputStream( file ) )
+            {
+                loader.load( stream );
+            }
         }
         catch ( IOException e )
         {
+            if ( throwOnFileLoadFailure )
+            {
+                throw new ConfigLoadIOException( "Unable to load config file [" + file + "].", e );
+            }
             log.error( "Unable to load config file [%s]: %s", file, e.getMessage() );
-            return new HashMap<>();
         }
     }
 
@@ -943,7 +1008,7 @@ public class Config implements DiagnosticsProvider, Configuration
     {
         return params.entrySet().stream()
                 .sorted( Comparator.comparing( Map.Entry::getKey ) )
-                .map( entry -> entry.getKey() + "=" + entry.getValue() )
+                .map( entry -> entry.getKey() + "=" + obsfucateIfSecret( entry ) )
                 .collect( Collectors.joining( ", ") );
     }
 }

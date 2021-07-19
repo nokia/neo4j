@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -22,14 +22,13 @@ package org.neo4j.test;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
-import org.neo4j.kernel.lifecycle.LifecycleAdapter;
-import org.neo4j.scheduler.JobScheduler;
+import org.neo4j.scheduler.Group;
+import org.neo4j.scheduler.JobHandle;
+import org.neo4j.scheduler.JobSchedulerAdapter;
 
-public class OnDemandJobScheduler extends LifecycleAdapter implements JobScheduler
+public class OnDemandJobScheduler extends JobSchedulerAdapter
 {
     private List<Runnable> jobs = new CopyOnWriteArrayList<>();
 
@@ -46,26 +45,9 @@ public class OnDemandJobScheduler extends LifecycleAdapter implements JobSchedul
     }
 
     @Override
-    public void setTopLevelGroupName( String name )
-    {
-    }
-
-    @Override
     public Executor executor( Group group )
     {
         return command -> jobs.add( command );
-    }
-
-    @Override
-    public ThreadFactory threadFactory( Group group )
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public ExecutorService workStealingExecutor( Group group, int parallelism )
-    {
-        throw new UnsupportedOperationException();
     }
 
     @Override

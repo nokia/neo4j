@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -52,7 +52,7 @@ public class FileVisitorsDecoratorsTest
     public String name;
 
     @Parameterized.Parameter( 1 )
-    public Function<FileVisitor<Path>, FileVisitor<Path>> decoratorConstrutor;
+    public Function<FileVisitor<Path>, FileVisitor<Path>> decoratorConstructor;
 
     @Parameterized.Parameter( 2 )
     public boolean throwsExceptions;
@@ -93,7 +93,7 @@ public class FileVisitorsDecoratorsTest
     @Before
     public void setup()
     {
-        decorator = decoratorConstrutor.apply( wrapped );
+        decorator = decoratorConstructor.apply( wrapped );
     }
 
     @Test

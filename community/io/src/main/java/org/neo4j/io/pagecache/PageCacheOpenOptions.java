@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -33,5 +33,10 @@ public enum PageCacheOpenOptions implements OpenOption
      * If so, the given file page size will be ignored and a {@link PagedFile} will be returned that uses the
      * file page size of the existing mapping.
      */
-    ANY_PAGE_SIZE
+    ANY_PAGE_SIZE,
+
+    /**
+     * Mapped file will only use a single channel, overriding the otherwise configured striping amount, e.g. one channel per core.
+     */
+    NO_CHANNEL_STRIPING
 }

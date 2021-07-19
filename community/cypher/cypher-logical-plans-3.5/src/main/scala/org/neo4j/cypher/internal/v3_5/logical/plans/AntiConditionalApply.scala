@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,7 +19,8 @@
  */
 package org.neo4j.cypher.internal.v3_5.logical.plans
 
-import org.neo4j.cypher.internal.util.v3_5.attribution.IdGen
+import org.neo4j.cypher.internal.v3_5.expressions.Property
+import org.neo4j.cypher.internal.v3_5.util.attribution.IdGen
 
 /**
   * AntiConditionalApply works like ConditionalApply, but with reversed condition.
@@ -42,4 +43,14 @@ case class AntiConditionalApply(left: LogicalPlan, right: LogicalPlan, items: Se
   override val rhs = Some(right)
 
   override val availableSymbols: Set[String] = left.availableSymbols ++ right.availableSymbols ++ items
+
+  /**
+    * Note: This is not the completely right thing to do.
+    * AntiConditionalApply is only planned for MERGE. And in that case the LHS (Optional --> NodeUniqueIndexSeek) will produce
+    * a null row when the node was not found. The RHS (MergeCreateNode) does not provide the property, but is supposed to
+    * override all the null columns from the LHS.
+    *
+    * Not making cached node properties available is the sane thing to do, as long as this is only planned in such a way.
+    */
+  override final def availableCachedNodeProperties: Map[Property, CachedNodeProperty] = Map.empty
 }

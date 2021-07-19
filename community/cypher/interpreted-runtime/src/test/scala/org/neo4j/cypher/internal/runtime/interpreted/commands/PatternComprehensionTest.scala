@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -23,7 +23,7 @@ import org.neo4j.cypher.internal.runtime.interpreted.ExecutionContext
 import org.neo4j.cypher.internal.runtime.interpreted.commands.expressions.Variable
 import org.neo4j.cypher.internal.runtime.interpreted.commands.predicates.True
 import org.neo4j.cypher.internal.runtime.interpreted.QueryStateHelper
-import org.neo4j.cypher.internal.util.v3_5.test_helpers.CypherFunSuite
+import org.neo4j.cypher.internal.v3_5.util.test_helpers.CypherFunSuite
 import org.neo4j.cypher.internal.v3_5.expressions.SemanticDirection
 import org.neo4j.values.storable.Values.NO_VALUE
 
@@ -37,9 +37,7 @@ class PatternComprehensionTest extends CypherFunSuite {
     val patternComprehension = PathExpression(Seq(aTob), True(), getB, allowIntroducingNewIdentifiers = true)
     val state = QueryStateHelper.empty
 
-    val ctx = ExecutionContext.empty.set("a", NO_VALUE)
-
-    val a = patternComprehension(ctx, state)
+    val a = patternComprehension(ExecutionContext.empty.copyWith("a", NO_VALUE), state)
 
     a should equal(NO_VALUE)
   }
@@ -48,9 +46,8 @@ class PatternComprehensionTest extends CypherFunSuite {
     val aTob: RelatedTo = RelatedTo("a", "b", "r", Seq.empty, SemanticDirection.OUTGOING)
     val patternComprehension = PathExpression(Seq(aTob), True(), getB, allowIntroducingNewIdentifiers = true)
     val state = QueryStateHelper.empty
-    val ctx = ExecutionContext.empty.set("b", NO_VALUE)
 
-    val a = patternComprehension(ctx, state)
+    val a = patternComprehension(ExecutionContext.empty.copyWith("b", NO_VALUE), state)
 
     a should equal(NO_VALUE)
   }

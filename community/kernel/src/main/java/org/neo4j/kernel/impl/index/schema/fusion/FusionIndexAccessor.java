@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,10 +20,9 @@
 package org.neo4j.kernel.impl.index.schema.fusion;
 
 import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
+import java.util.Map;
 
 import org.neo4j.graphdb.ResourceIterator;
 import org.neo4j.helpers.collection.BoundedIterable;
@@ -31,102 +30,92 @@ import org.neo4j.helpers.collection.Iterables;
 import org.neo4j.io.pagecache.IOLimiter;
 import org.neo4j.kernel.api.exceptions.index.IndexEntryConflictException;
 import org.neo4j.kernel.api.index.IndexAccessor;
+import org.neo4j.kernel.api.index.IndexConfigProvider;
 import org.neo4j.kernel.api.index.IndexUpdater;
-import org.neo4j.kernel.api.index.PropertyAccessor;
-import org.neo4j.kernel.api.schema.index.SchemaIndexDescriptor;
+import org.neo4j.kernel.impl.annotations.ReporterFactory;
 import org.neo4j.kernel.impl.api.index.IndexUpdateMode;
-import org.neo4j.kernel.impl.index.schema.fusion.FusionIndexProvider.DropAction;
-import org.neo4j.kernel.impl.index.schema.fusion.FusionIndexProvider.Selector;
+import org.neo4j.kernel.impl.index.schema.IndexDropAction;
+import org.neo4j.storageengine.api.NodePropertyAccessor;
 import org.neo4j.storageengine.api.schema.IndexReader;
+import org.neo4j.storageengine.api.schema.StoreIndexDescriptor;
 import org.neo4j.values.storable.Value;
 
-import static java.util.Arrays.stream;
 import static org.neo4j.helpers.collection.Iterators.concatResourceIterators;
 
 class FusionIndexAccessor extends FusionIndexBase<IndexAccessor> implements IndexAccessor
 {
-    private final long indexId;
-    private final SchemaIndexDescriptor descriptor;
-    private final DropAction dropAction;
+    private final StoreIndexDescriptor descriptor;
+    private final IndexDropAction dropAction;
 
-    FusionIndexAccessor( IndexAccessor[] accessors,
-            Selector selector,
-            long indexId,
-            SchemaIndexDescriptor descriptor,
-            DropAction dropAction )
+    FusionIndexAccessor( SlotSelector slotSelector,
+            InstanceSelector<IndexAccessor> instanceSelector,
+            StoreIndexDescriptor descriptor,
+            IndexDropAction dropAction )
     {
-        super( accessors, selector );
-        this.indexId = indexId;
+        super( slotSelector, instanceSelector );
         this.descriptor = descriptor;
         this.dropAction = dropAction;
     }
 
     @Override
-    public void drop() throws IOException
+    public void drop()
     {
-        forAll( IndexAccessor::drop, instances );
-        dropAction.drop( indexId );
+        instanceSelector.forAll( IndexAccessor::drop );
+        dropAction.drop( descriptor.getId() );
     }
 
     @Override
     public IndexUpdater newUpdater( IndexUpdateMode mode )
     {
-        return new FusionIndexUpdater( instancesAs( IndexUpdater.class, accessor -> accessor.newUpdater( mode ) ), selector );
+        LazyInstanceSelector<IndexUpdater> updaterSelector = new LazyInstanceSelector<>( slot -> instanceSelector.select( slot ).newUpdater( mode ) );
+        return new FusionIndexUpdater( slotSelector, updaterSelector );
     }
 
     @Override
-    public void force( IOLimiter ioLimiter ) throws IOException
+    public void force( IOLimiter ioLimiter )
     {
-        forAll( accessor -> accessor.force( ioLimiter ), instances );
+        instanceSelector.forAll( accessor -> accessor.force( ioLimiter ) );
     }
 
     @Override
-    public void refresh() throws IOException
+    public void refresh()
     {
-        forAll( IndexAccessor::refresh, instances );
+        instanceSelector.forAll( IndexAccessor::refresh );
     }
 
     @Override
-    public void close() throws IOException
+    public void close()
     {
-        forAll( IndexAccessor::close, instances );
+        instanceSelector.close( IndexAccessor::close );
     }
 
     @Override
     public IndexReader newReader()
     {
-        return new FusionIndexReader( instancesAs( IndexReader.class, IndexAccessor::newReader ), selector, descriptor );
+        LazyInstanceSelector<IndexReader> readerSelector = new LazyInstanceSelector<>( slot -> instanceSelector.select( slot ).newReader() );
+        return new FusionIndexReader( slotSelector, readerSelector, descriptor );
     }
 
     @Override
     public BoundedIterable<Long> newAllEntriesReader()
     {
-        BoundedIterable<Long>[] entries = instancesAs( BoundedIterable.class, IndexAccessor::newAllEntriesReader );
+        Iterable<BoundedIterable<Long>> entries = instanceSelector.transform( IndexAccessor::newAllEntriesReader );
         return new BoundedIterable<Long>()
         {
             @Override
             public long maxCount()
             {
-                long[] maxCounts = new long[entries.length];
                 long sum = 0;
-                for ( int i = 0; i < entries.length; i++ )
+                for ( BoundedIterable entry : entries )
                 {
-                    maxCounts[i] = entries[i].maxCount();
-                    sum += maxCounts[i];
-                }
-                return existsUnknownMaxCount( maxCounts ) ? UNKNOWN_MAX_COUNT : sum;
-            }
-
-            private boolean existsUnknownMaxCount( long... maxCounts )
-            {
-                for ( long maxCount : maxCounts )
-                {
+                    long maxCount = entry.maxCount();
                     if ( maxCount == UNKNOWN_MAX_COUNT )
                     {
-                        return true;
+                        return UNKNOWN_MAX_COUNT;
                     }
+                    sum += maxCount;
                 }
-                return false;
+                return sum;
             }
 
             @SuppressWarnings( "unchecked" )
@@ -145,32 +134,43 @@ class FusionIndexAccessor extends FusionIndexBase<IndexAccessor> implements Inde
     }
 
     @Override
-    public ResourceIterator<File> snapshotFiles() throws IOException
+    public ResourceIterator<File> snapshotFiles()
     {
-        List<ResourceIterator<File>> snapshots = new ArrayList<>();
-        forAll( accessor -> snapshots.add( accessor.snapshotFiles() ), instances );
-        return concatResourceIterators( snapshots.iterator() );
+        return concatResourceIterators( instanceSelector.transform( IndexAccessor::snapshotFiles ).iterator() );
     }
 
     @Override
-    public void verifyDeferredConstraints( PropertyAccessor propertyAccessor )
-            throws IndexEntryConflictException, IOException
+    public Map<String,Value> indexConfig()
     {
-        for ( IndexAccessor accessor : instances )
+        Map<String,Value> indexConfig = new HashMap<>();
+        instanceSelector.transform( IndexAccessor::indexConfig ).forEach( source -> IndexConfigProvider.putAllNoOverwrite( indexConfig, source ) );
+        return indexConfig;
+    }
+
+    @Override
+    public void verifyDeferredConstraints( NodePropertyAccessor nodePropertyAccessor ) throws IndexEntryConflictException
+    {
+        for ( IndexSlot slot : IndexSlot.values() )
         {
-            accessor.verifyDeferredConstraints( propertyAccessor );
+            instanceSelector.select( slot ).verifyDeferredConstraints( nodePropertyAccessor );
         }
     }
 
     @Override
     public boolean isDirty()
     {
-        return stream( instances ).anyMatch( IndexAccessor::isDirty );
+        return Iterables.stream( instanceSelector.transform( IndexAccessor::isDirty ) ).anyMatch( Boolean::booleanValue );
     }
 
     @Override
     public void validateBeforeCommit( Value[] tuple )
     {
-        selector.select( instances, tuple ).validateBeforeCommit( tuple );
+        instanceSelector.select( slotSelector.selectSlot( tuple, GROUP_OF ) ).validateBeforeCommit( tuple );
+    }
+
+    @Override
+    public boolean consistencyCheck( ReporterFactory reporterFactory )
+    {
+        return FusionIndexBase.consistencyCheck( instanceSelector.instances.values(), reporterFactory );
     }
 }

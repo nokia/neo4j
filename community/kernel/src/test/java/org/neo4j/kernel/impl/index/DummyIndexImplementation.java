@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -25,6 +25,7 @@ import java.util.Map;
 import org.neo4j.collection.PrimitiveLongCollections.PrimitiveLongBaseIterator;
 import org.neo4j.graphdb.ResourceIterator;
 import org.neo4j.helpers.collection.Iterators;
+import org.neo4j.io.layout.DatabaseLayout;
 import org.neo4j.kernel.api.ExplicitIndex;
 import org.neo4j.kernel.api.ExplicitIndexHits;
 import org.neo4j.kernel.impl.api.TransactionApplier;
@@ -189,9 +190,9 @@ public class DummyIndexImplementation extends LifecycleAdapter implements IndexI
     }
 
     @Override
-    public File getIndexImplementationDirectory( File storeDir )
+    public File getIndexImplementationDirectory( DatabaseLayout directoryLayout )
     {
-        return storeDir;
+        return directoryLayout.databaseDirectory();
     }
 
     @Override

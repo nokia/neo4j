@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,28 +21,39 @@ package org.neo4j.server.web;
 
 import org.eclipse.jetty.server.ConnectionFactory;
 import org.eclipse.jetty.server.HttpConfiguration;
-import org.eclipse.jetty.server.HttpConnectionFactory;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 
 import java.util.Arrays;
 
 import org.neo4j.helpers.ListenSocketAddress;
+import org.neo4j.kernel.api.net.NetworkConnectionTracker;
 import org.neo4j.kernel.configuration.Config;
 import org.neo4j.server.configuration.ServerSettings;
 
 public class HttpConnectorFactory
 {
-    private Config configuration;
+    private static final String NAME = "http";
 
-    public HttpConnectorFactory( Config config )
+    private final String name;
+    private final NetworkConnectionTracker connectionTracker;
+    private final Config configuration;
+
+    public HttpConnectorFactory( NetworkConnectionTracker connectionTracker, Config config )
     {
-        this.configuration = config;
+        this( NAME, connectionTracker, config );
+    }
+
+    protected HttpConnectorFactory( String name, NetworkConnectionTracker connectionTracker, Config configuration )
+    {
+        this.name = name;
+        this.connectionTracker = connectionTracker;
+        this.configuration = configuration;
     }
 
     public ConnectionFactory createHttpConnectionFactory()
     {
-        return new HttpConnectionFactory( createHttpConfig() );
+        return new JettyHttpConnectionFactory( connectionTracker, createHttpConfig() );
     }
 
     protected HttpConfiguration createHttpConfig()
@@ -50,6 +61,7 @@ public class HttpConnectorFactory
         HttpConfiguration httpConfig = new HttpConfiguration();
         httpConfig.setRequestHeaderSize( configuration.get( ServerSettings.maximum_request_header_size) );
         httpConfig.setResponseHeaderSize( configuration.get( ServerSettings.maximum_response_header_size) );
+        httpConfig.setSendServerVersion( false );
         return httpConfig;
     }
 
@@ -67,6 +79,8 @@ public class HttpConnectorFactory
 
         ServerConnector connector =
                 new ServerConnector( server, null, null, null, acceptors, selectors, httpFactories );
+
+        connector.setName( name );
 
         connector.setConnectionFactories( Arrays.asList( httpFactories ) );
 

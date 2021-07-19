@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -27,6 +27,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 
 import org.neo4j.dbms.DatabaseManagementSystemSettings;
@@ -201,7 +202,19 @@ public class ConfigLoaderTest
         assertEquals( "/extension1", thirdpartyJaxRsPackages.get( 0 ).getMountPoint() );
         assertEquals( "/extension2", thirdpartyJaxRsPackages.get( 1 ).getMountPoint() );
         assertEquals( "/extension3", thirdpartyJaxRsPackages.get( 2 ).getMountPoint() );
+    }
 
+    @Test( expected = UncheckedIOException.class )
+    public void shouldThrowWhenSpecifiedConfigFileDoesNotExist()
+    {
+        // Given
+        File nonExistentConfigFile = new File( "/tmp/" + System.currentTimeMillis() );
+
+        // When
+        Config config = Config.fromFile( nonExistentConfigFile ).withHome( folder.getRoot() ).build();
+
+        // Then
+        assertNotNull( config );
     }
 
     @Test
@@ -211,7 +224,7 @@ public class ConfigLoaderTest
         File nonExistentConfigFile = new File( "/tmp/" + System.currentTimeMillis() );
 
         // When
-        Config config = Config.fromFile( nonExistentConfigFile ).withHome( folder.getRoot() ).build();
+        Config config = Config.fromFile( nonExistentConfigFile ).withHome( folder.getRoot() ).withNoThrowOnFileLoadFailure().build();
 
         // Then
         assertNotNull( config );

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,111 +19,119 @@
  */
 package org.neo4j.kernel.impl.index.schema.fusion;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.neo4j.kernel.api.exceptions.index.IndexEntryConflictException;
+import org.neo4j.kernel.api.index.IndexConfigProvider;
 import org.neo4j.kernel.api.index.IndexEntryUpdate;
 import org.neo4j.kernel.api.index.IndexPopulator;
 import org.neo4j.kernel.api.index.IndexUpdater;
-import org.neo4j.kernel.api.index.PropertyAccessor;
-import org.neo4j.kernel.impl.index.schema.fusion.FusionIndexProvider.DropAction;
-import org.neo4j.kernel.impl.index.schema.fusion.FusionIndexProvider.Selector;
+import org.neo4j.kernel.impl.index.schema.IndexDropAction;
+import org.neo4j.storageengine.api.NodePropertyAccessor;
 import org.neo4j.storageengine.api.schema.IndexSample;
+import org.neo4j.values.storable.Value;
 
 import static org.neo4j.kernel.impl.index.schema.fusion.FusionIndexSampler.combineSamples;
 
 class FusionIndexPopulator extends FusionIndexBase<IndexPopulator> implements IndexPopulator
 {
     private final long indexId;
-    private final DropAction dropAction;
+    private final IndexDropAction dropAction;
     private final boolean archiveFailedIndex;
 
-    FusionIndexPopulator( IndexPopulator[] populators, Selector selector, long indexId, DropAction dropAction, boolean archiveFailedIndex )
+    FusionIndexPopulator( SlotSelector slotSelector, InstanceSelector<IndexPopulator> instanceSelector, long indexId, IndexDropAction dropAction,
+            boolean archiveFailedIndex )
     {
-        super( populators, selector );
+        super( slotSelector, instanceSelector );
         this.indexId = indexId;
         this.dropAction = dropAction;
         this.archiveFailedIndex = archiveFailedIndex;
     }
 
     @Override
-    public void create() throws IOException
+    public void create()
     {
         dropAction.drop( indexId, archiveFailedIndex );
-        forAll( IndexPopulator::create, instances );
+        instanceSelector.forAll( IndexPopulator::create );
     }
 
     @Override
     public void drop()
     {
-        forAll( IndexPopulator::drop, instances );
+        instanceSelector.forAll( IndexPopulator::drop );
         dropAction.drop( indexId );
     }
 
     @Override
-    public void add( Collection<? extends IndexEntryUpdate<?>> updates ) throws IndexEntryConflictException, IOException
+    public void add( Collection<? extends IndexEntryUpdate<?>> updates ) throws IndexEntryConflictException
     {
-        Collection<IndexEntryUpdate<?>>[] batches = new Collection[instances.length];
+        LazyInstanceSelector<Collection<IndexEntryUpdate<?>>> batchSelector = new LazyInstanceSelector<>( slot -> new ArrayList<>() );
         for ( IndexEntryUpdate<?> update : updates )
         {
-            int slot = selector.selectSlot( update.values() );
-            Collection<IndexEntryUpdate<?>> batch = batches[slot];
-            if ( batch == null )
-            {
-                batch = new ArrayList<>();
-                batches[slot] = batch;
-            }
-            batch.add( update );
+            batchSelector.select( slotSelector.selectSlot( update.values(), GROUP_OF ) ).add( update );
         }
 
-        for ( int i = 0; i < instances.length; i++ )
+        // Manual loop due do multiple exception types
+        for ( IndexSlot slot : IndexSlot.values() )
         {
-            if ( batches[i] != null )
+            Collection<IndexEntryUpdate<?>> batch = batchSelector.getIfInstantiated( slot );
+            if ( batch != null )
             {
-                instances[i].add( batches[i] );
+                this.instanceSelector.select( slot ).add( batch );
             }
         }
     }
 
     @Override
-    public void verifyDeferredConstraints( PropertyAccessor propertyAccessor )
-            throws IndexEntryConflictException, IOException
+    public void verifyDeferredConstraints( NodePropertyAccessor nodePropertyAccessor ) throws IndexEntryConflictException
     {
-        for ( IndexPopulator populator : instances )
+        // Manual loop due do multiple exception types
+        for ( IndexSlot slot : IndexSlot.values() )
         {
-            populator.verifyDeferredConstraints( propertyAccessor );
+            instanceSelector.select( slot ).verifyDeferredConstraints( nodePropertyAccessor );
         }
     }
 
     @Override
-    public IndexUpdater newPopulatingUpdater( PropertyAccessor accessor ) throws IOException
+    public IndexUpdater newPopulatingUpdater( NodePropertyAccessor accessor )
     {
-        return new FusionIndexUpdater( instancesAs( IndexUpdater.class, populator -> populator.newPopulatingUpdater( accessor ) ), selector );
+        LazyInstanceSelector<IndexUpdater> updaterSelector =
+                new LazyInstanceSelector<>( slot -> instanceSelector.select( slot ).newPopulatingUpdater( accessor ) );
+        return new FusionIndexUpdater( slotSelector, updaterSelector );
     }
 
     @Override
-    public void close( boolean populationCompletedSuccessfully ) throws IOException
+    public void close( boolean populationCompletedSuccessfully )
     {
-        forAll( populator -> populator.close( populationCompletedSuccessfully ), instances );
+        instanceSelector.close( populator -> populator.close( populationCompletedSuccessfully ) );
     }
 
     @Override
-    public void markAsFailed( String failure ) throws IOException
+    public void markAsFailed( String failure )
     {
-        forAll( populator -> populator.markAsFailed( failure ), instances );
+        instanceSelector.forAll( populator -> populator.markAsFailed( failure ) );
     }
 
     @Override
     public void includeSample( IndexEntryUpdate<?> update )
     {
-        selector.select( instances, update.values() ).includeSample( update );
+        instanceSelector.select( slotSelector.selectSlot( update.values(), GROUP_OF ) ).includeSample( update );
     }
 
     @Override
     public IndexSample sampleResult()
     {
-        return combineSamples( instancesAs( IndexSample.class, IndexPopulator::sampleResult ) );
+        return combineSamples( instanceSelector.transform( IndexPopulator::sampleResult ) );
+    }
+
+    @Override
+    public Map<String,Value> indexConfig()
+    {
+        Map<String,Value> indexConfig = new HashMap<>();
+        instanceSelector.transform( IndexPopulator::indexConfig ).forEach( source -> IndexConfigProvider.putAllNoOverwrite( indexConfig, source ) );
+        return indexConfig;
     }
 }

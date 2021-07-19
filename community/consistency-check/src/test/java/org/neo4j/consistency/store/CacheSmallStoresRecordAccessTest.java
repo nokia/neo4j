@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -22,22 +22,22 @@ package org.neo4j.consistency.store;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import org.neo4j.kernel.impl.store.record.AbstractBaseRecord;
 import org.neo4j.kernel.impl.store.record.LabelTokenRecord;
 import org.neo4j.kernel.impl.store.record.PropertyKeyTokenRecord;
 import org.neo4j.kernel.impl.store.record.RelationshipTypeTokenRecord;
 
-import static org.junit.Assert.assertThat;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 
-public class CacheSmallStoresRecordAccessTest
+class CacheSmallStoresRecordAccessTest
 {
     @Test
-    public void shouldDelegateLookupForMostStores()
+    void shouldDelegateLookupForMostStores()
     {
         // given
         RecordAccess delegate = mock( RecordAccess.class );
@@ -59,7 +59,7 @@ public class CacheSmallStoresRecordAccessTest
     }
 
     @Test
-    public void shouldServePropertyKeysAndRelationshipLabelsFromSuppliedArrayCaches()
+    void shouldServePropertyKeysAndRelationshipLabelsFromSuppliedArrayCaches()
     {
         // given
         RecordAccess delegate = mock( RecordAccess.class );

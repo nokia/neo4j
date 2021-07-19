@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,7 +20,7 @@
 package org.neo4j.cypher.internal.runtime.interpreted.pipes
 
 import org.neo4j.cypher.internal.runtime.interpreted.ExecutionContext
-import org.neo4j.cypher.internal.util.v3_5.attribution.Id
+import org.neo4j.cypher.internal.v3_5.util.attribution.Id
 
 case class NodeByLabelScanPipe(ident: String, label: LazyLabel)
                               (val id: Id = Id.INVALID_ID) extends Pipe  {
@@ -30,7 +30,7 @@ case class NodeByLabelScanPipe(ident: String, label: LazyLabel)
     label.getOptId(state.query) match {
       case Some(labelId) =>
         val nodes = state.query.getNodesByLabel(labelId.id)
-        val baseContext = state.createOrGetInitialContext(executionContextFactory)
+        val baseContext = state.newExecutionContext(executionContextFactory)
         nodes.map(n => executionContextFactory.copyWith(baseContext, ident, n))
       case None =>
         Iterator.empty

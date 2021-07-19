@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,11 +19,13 @@
  */
 package org.neo4j.cypher.internal.parser
 
+import org.neo4j.cypher.internal.planner.v3_5.spi.TokenContext
 import org.neo4j.cypher.internal.runtime.interpreted.commands.convert.{CommunityExpressionConverter, ExpressionConverters}
 import org.neo4j.cypher.internal.runtime.interpreted.commands.predicates.{Equals, True}
 import org.neo4j.cypher.internal.runtime.interpreted.commands.{predicates, expressions => legacy}
+import org.neo4j.cypher.internal.v3_5.parser.{Expressions, ParserTest}
+import org.neo4j.cypher.internal.v3_5.util.attribution.Id
 import org.neo4j.cypher.internal.v3_5.{expressions => ast}
-import org.neo4j.cypher.internal.frontend.v3_5.parser.{Expressions, ParserTest}
 import org.parboiled.scala._
 
 class CaseExpressionTest extends ParserTest[ast.Expression, legacy.Expression] with Expressions {
@@ -72,6 +74,6 @@ class CaseExpressionTest extends ParserTest[ast.Expression, legacy.Expression] w
       legacy.GenericCase(IndexedSeq(alt1, alt2), Some(legacy.Literal("OTHER")))
   }
 
-  private val converters = new ExpressionConverters(CommunityExpressionConverter)
-  def convert(astNode: ast.Expression): legacy.Expression = converters.toCommandExpression(astNode)
+  private val converters = new ExpressionConverters(CommunityExpressionConverter(TokenContext.EMPTY))
+  def convert(astNode: ast.Expression): legacy.Expression = converters.toCommandExpression(Id.INVALID_ID, astNode)
 }

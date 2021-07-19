@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -29,7 +29,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -50,8 +50,12 @@ import org.neo4j.io.pagecache.tracing.cursor.PageCursorTracerSupplier;
 import org.neo4j.io.pagecache.tracing.cursor.context.VersionContextSupplier;
 import org.neo4j.memory.GlobalMemoryTracker;
 import org.neo4j.memory.MemoryAllocationTracker;
+import org.neo4j.scheduler.Group;
+import org.neo4j.scheduler.JobHandle;
+import org.neo4j.scheduler.JobScheduler;
 import org.neo4j.unsafe.impl.internal.dragons.UnsafeUtil;
 
+import static java.lang.String.format;
 import static org.neo4j.util.FeatureToggles.flag;
 import static org.neo4j.util.FeatureToggles.getInteger;
 
@@ -141,16 +145,14 @@ public class MuninnPageCache implements PageCache
     // A counter used to identify which background threads belong to which page cache.
     private static final AtomicInteger pageCacheIdCounter = new AtomicInteger();
 
-    // This Executor runs all the background threads for all page cache instances. It allows us to reuse threads
-    // between multiple page cache instances, which is of no consequence in normal usage, but is quite useful for the
-    // many, many tests that create and close page caches all the time. We DO NOT want to take an Executor in through
-    // the constructor of the PageCache, because the Executors have too many configuration options, many of which are
-    // highly troublesome for our use case; caller-runs, bounded submission queues, bounded thread count, non-daemon
-    // thread factories, etc.
-    private static final Executor backgroundThreadExecutor = BackgroundThreadExecutor.INSTANCE;
+    // Scheduler that runs all the background jobs for page cache.
+    private final JobScheduler scheduler;
 
-    private static final List<OpenOption> ignoredOpenOptions = Arrays.asList( (OpenOption) StandardOpenOption.APPEND,
+    private static final List<OpenOption> ignoredOpenOptions = Arrays.asList( StandardOpenOption.APPEND,
             StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.SPARSE );
+
+    // Used when trying to figure out number of available pages in a page cache. Could be returned from tryGetNumberOfAvailablePages.
+    private static final int UNKNOWN_AVAILABLE_PAGES = -1;
 
     private final int pageCacheId;
     private final PageSwapperFactory swapperFactory;
@@ -196,6 +198,7 @@ public class MuninnPageCache implements PageCache
 
     // 'true' (the default) if we should print any exceptions we get when unmapping a file.
     private boolean printExceptionsOnClose;
+
     /**
      * Compute the amount of memory needed for a page cache with the given number of 8 KiB pages.
      * @param pageCount The number of pages
@@ -221,7 +224,8 @@ public class MuninnPageCache implements PageCache
             int maxPages,
             PageCacheTracer pageCacheTracer,
             PageCursorTracerSupplier pageCursorTracerSupplier,
-            VersionContextSupplier versionContextSupplier )
+            VersionContextSupplier versionContextSupplier,
+            JobScheduler jobScheduler )
     {
         this( swapperFactory,
                 // Cast to long prevents overflow:
@@ -229,7 +233,8 @@ public class MuninnPageCache implements PageCache
                 PAGE_SIZE,
                 pageCacheTracer,
                 pageCursorTracerSupplier,
-                versionContextSupplier );
+                versionContextSupplier,
+                jobScheduler );
     }
 
     /**
@@ -247,9 +252,10 @@ public class MuninnPageCache implements PageCache
             MemoryAllocator memoryAllocator,
             PageCacheTracer pageCacheTracer,
             PageCursorTracerSupplier pageCursorTracerSupplier,
-            VersionContextSupplier versionContextSupplier )
+            VersionContextSupplier versionContextSupplier,
+            JobScheduler jobScheduler )
     {
-        this( swapperFactory, memoryAllocator, PAGE_SIZE, pageCacheTracer, pageCursorTracerSupplier, versionContextSupplier );
+        this( swapperFactory, memoryAllocator, PAGE_SIZE, pageCacheTracer, pageCursorTracerSupplier, versionContextSupplier, jobScheduler );
     }
 
     /**
@@ -264,7 +270,8 @@ public class MuninnPageCache implements PageCache
             int cachePageSize,
             PageCacheTracer pageCacheTracer,
             PageCursorTracerSupplier pageCursorTracerSupplier,
-            VersionContextSupplier versionContextSupplier )
+            VersionContextSupplier versionContextSupplier,
+            JobScheduler jobScheduler )
     {
         verifyHacks();
         verifyCachePageSizeIsPowerOfTwo( cachePageSize );
@@ -285,6 +292,7 @@ public class MuninnPageCache implements PageCache
         long alignment = swapperFactory.getRequiredBufferAlignment();
         this.victimPage = VictimPageReference.getVictimPage( cachePageSize, memoryTracker );
         this.pages = new PageList( maxPages, cachePageSize, memoryAllocator, new SwapperSet(), victimPage, alignment );
+        this.scheduler = jobScheduler;
 
         setFreelistHead( new AtomicInteger() );
     }
@@ -312,7 +320,7 @@ public class MuninnPageCache implements PageCache
         int minimumPageCount = 2;
         if ( maxPages < minimumPageCount )
         {
-            throw new IllegalArgumentException( String.format(
+            throw new IllegalArgumentException( format(
                     "Page cache must have at least %s pages (%s bytes of memory), but was given %s pages.",
                     minimumPageCount, minimumPageCount * memoryPerPage, maxPages ) );
         }
@@ -336,6 +344,7 @@ public class MuninnPageCache implements PageCache
         boolean truncateExisting = false;
         boolean deleteOnClose = false;
         boolean anyPageSize = false;
+        boolean noChannelStriping = false;
         for ( OpenOption option : openOptions )
         {
             if ( option.equals( StandardOpenOption.CREATE ) )
@@ -353,6 +362,10 @@ public class MuninnPageCache implements PageCache
             else if ( option.equals( PageCacheOpenOptions.ANY_PAGE_SIZE ) )
             {
                 anyPageSize = true;
+            }
+            else if ( option.equals( PageCacheOpenOptions.NO_CHANNEL_STRIPING ) )
+            {
+                noChannelStriping = true;
             }
             else if ( !ignoredOpenOptions.contains( option ) )
             {
@@ -405,7 +418,8 @@ public class MuninnPageCache implements PageCache
                 pageCursorTracerSupplier,
                 versionContextSupplier,
                 createIfNotExists,
-                truncateExisting );
+                truncateExisting,
+                noChannelStriping );
         pagedFile.incrementRefCount();
         pagedFile.markDeleteOnClose( deleteOnClose );
         current = new FileMapping( file, pagedFile );
@@ -482,7 +496,7 @@ public class MuninnPageCache implements PageCache
 
         try
         {
-            backgroundThreadExecutor.execute( new EvictionTask( this ) );
+            scheduler.schedule( Group.PAGE_CACHE, new EvictionTask( this ) );
         }
         catch ( Exception e )
         {
@@ -568,7 +582,7 @@ public class MuninnPageCache implements PageCache
     @Override
     public void flushAndForce() throws IOException
     {
-        flushAndForce( IOLimiter.unlimited() );
+        flushAndForce( IOLimiter.UNLIMITED );
     }
 
     @Override
@@ -578,39 +592,84 @@ public class MuninnPageCache implements PageCache
         {
             throw new IllegalArgumentException( "IOLimiter cannot be null" );
         }
-        assertNotClosed();
         List<PagedFile> files = listExistingMappings();
-        flushAllPages( files, limiter );
+
+        try ( MajorFlushEvent ignored = pageCacheTracer.beginCacheFlush() )
+        {
+            if ( limiter.isLimited() )
+            {
+                flushAllPages( files, limiter );
+            }
+            else
+            {
+                flushAllPagesParallel( files, limiter );
+            }
+            syncDevice();
+        }
         clearEvictorException();
     }
 
     private void flushAllPages( List<PagedFile> files, IOLimiter limiter ) throws IOException
     {
-        try ( MajorFlushEvent cacheFlush = pageCacheTracer.beginCacheFlush() )
+        for ( PagedFile file : files )
         {
-            for ( PagedFile file : files )
+            flushFile( (MuninnPagedFile) file, limiter );
+        }
+    }
+
+    private void flushAllPagesParallel( List<PagedFile> files, IOLimiter limiter ) throws IOException
+    {
+        List<JobHandle> flushes = new ArrayList<>( files.size() );
+
+        // Submit all flushes to the background thread
+        for ( PagedFile file : files )
+        {
+            flushes.add( scheduler.schedule( Group.PAGE_CACHE, () ->
             {
-                MuninnPagedFile muninnPagedFile = (MuninnPagedFile) file;
-                try ( MajorFlushEvent fileFlush = pageCacheTracer.beginFileFlush( muninnPagedFile.swapper ) )
+                try
                 {
-                    FlushEventOpportunity flushOpportunity = fileFlush.flushEventOpportunity();
-                    muninnPagedFile.flushAndForceInternal( flushOpportunity, false, limiter );
+                    flushFile( (MuninnPagedFile) file, limiter );
                 }
-                catch ( ClosedChannelException e )
+                catch ( IOException e )
                 {
-                    if ( muninnPagedFile.getRefCount() > 0 )
-                    {
-                        // The file is not supposed to be closed, since we have a positive ref-count, yet we got a
-                        // ClosedChannelException anyway? It's an odd situation, so let's tell the outside world about
-                        // this failure.
-                        throw e;
-                    }
-                    // Otherwise: The file was closed while we were trying to flush it. Since unmapping implies a flush
-                    // anyway, we can safely assume that this is not a problem. The file was flushed, and it doesn't
-                    // really matter how that happened. We'll ignore this exception.
+                    throw new UncheckedIOException( e );
                 }
+            } ) );
+        }
+
+        // Wait for all to complete
+        for ( JobHandle flush : flushes )
+        {
+            try
+            {
+                flush.waitTermination();
             }
-            syncDevice();
+            catch ( InterruptedException | ExecutionException e )
+            {
+                throw new IOException( e );
+            }
+        }
+    }
+
+    private void flushFile( MuninnPagedFile muninnPagedFile,  IOLimiter limiter ) throws IOException
+    {
+        try ( MajorFlushEvent fileFlush = pageCacheTracer.beginFileFlush( muninnPagedFile.swapper ) )
+        {
+            FlushEventOpportunity flushOpportunity = fileFlush.flushEventOpportunity();
+            muninnPagedFile.flushAndForceInternal( flushOpportunity, false, limiter );
+        }
+        catch ( ClosedChannelException e )
+        {
+            if ( muninnPagedFile.getRefCount() > 0 )
+            {
+                // The file is not supposed to be closed, since we have a positive ref-count, yet we got a
+                // ClosedChannelException anyway? It's an odd situation, so let's tell the outside world about
+                // this failure.
+                throw e;
+            }
+            // Otherwise: The file was closed while we were trying to flush it. Since unmapping implies a flush
+            // anyway, we can safely assume that this is not a problem. The file was flushed, and it doesn't
+            // really matter how that happened. We'll ignore this exception.
         }
     }
 
@@ -653,7 +712,7 @@ public class MuninnPageCache implements PageCache
         swapperFactory.close();
     }
 
-    private void interrupt( Thread thread )
+    private static void interrupt( Thread thread )
     {
         if ( thread != null )
         {
@@ -898,30 +957,40 @@ public class MuninnPageCache implements PageCache
                 return 0;
             }
 
-            Object freelistHead = getFreelistHead();
-
-            if ( freelistHead == null )
+            int availablePages = tryGetNumberOfAvailablePages( keepFree );
+            if ( availablePages != UNKNOWN_AVAILABLE_PAGES )
             {
-                return keepFree;
-            }
-            else if ( freelistHead.getClass() == FreePage.class )
-            {
-                int availablePages = ((FreePage) freelistHead).count;
-                if ( availablePages < keepFree )
-                {
-                    return keepFree - availablePages;
-                }
-            }
-            else if ( freelistHead.getClass() == AtomicInteger.class )
-            {
-                AtomicInteger counter = (AtomicInteger) freelistHead;
-                long count = pages.getPageCount() - counter.get();
-                if ( count < keepFree )
-                {
-                    return count < 0 ? keepFree : (int) (keepFree - count);
-                }
+                return availablePages;
             }
         }
+    }
+
+    private int tryGetNumberOfAvailablePages( int keepFree )
+    {
+        Object freelistHead = getFreelistHead();
+
+        if ( freelistHead == null )
+        {
+            return keepFree;
+        }
+        else if ( freelistHead.getClass() == FreePage.class )
+        {
+            int availablePages = ((FreePage) freelistHead).count;
+            if ( availablePages < keepFree )
+            {
+                return keepFree - availablePages;
+            }
+        }
+        else if ( freelistHead.getClass() == AtomicInteger.class )
+        {
+            AtomicInteger counter = (AtomicInteger) freelistHead;
+            long count = pages.getPageCount() - counter.get();
+            if ( count < keepFree )
+            {
+                return count < 0 ? keepFree : (int) (keepFree - count);
+            }
+        }
+        return UNKNOWN_AVAILABLE_PAGES;
     }
 
     int evictPages( int pageCountToEvict, int clockArm, EvictionRunEvent evictionRunEvent )
@@ -999,16 +1068,9 @@ public class MuninnPageCache implements PageCache
     @Override
     public String toString()
     {
-        StringBuilder sb = new StringBuilder();
-        sb.append( "MuninnPageCache[ \n" );
-        for ( int i = 0; i < pages.getPageCount(); i++ )
-        {
-            sb.append( ' ' );
-            pages.toString( pages.deref( i ), sb );
-            sb.append( '\n' );
-        }
-        sb.append( ']' ).append( '\n' );
-        return sb.toString();
+        int availablePages = tryGetNumberOfAvailablePages( keepFree );
+        return format( "%s[pageCacheId:%d, pageSize:%d, pages:%d, availablePages:%s]", getClass().getSimpleName(),
+                pageCacheId, cachePageSize, pages.getPageCount(), availablePages != UNKNOWN_AVAILABLE_PAGES ? String.valueOf( availablePages ) : "N/A" );
     }
 
     void vacuum( SwapperSet swappers )

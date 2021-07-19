@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -91,16 +91,18 @@ public class BasicAuthentication implements Authentication
     {
         try
         {
+            // We need to copy the new password here since it will be cleared by login()
+            byte[] newPassword = AuthToken.safeCastCredentials( NEW_CREDENTIALS, authToken ).clone();
+
             LoginContext loginContext = authManager.login( authToken );
 
             switch ( loginContext.subject().getAuthenticationResult() )
             {
             case SUCCESS:
             case PASSWORD_CHANGE_REQUIRED:
-                String newPassword = AuthToken.safeCast( NEW_CREDENTIALS, authToken );
                 String username = AuthToken.safeCast( PRINCIPAL, authToken );
                 userManagerSupplier.getUserManager( loginContext.subject(), false )
-                        .setUserPassword( username, newPassword, false );
+                        .setUserPassword( username, newPassword, false ); // NOTE: This will overwrite newPassword with zeroes
                 loginContext.subject().setPasswordChangeNoLongerRequired();
                 break;
             default:

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,9 +19,9 @@
  */
 package org.neo4j.server.security.ssl;
 
-import org.eclipse.jetty.http.HttpScheme;
 import org.eclipse.jetty.http.HttpVersion;
 import org.eclipse.jetty.server.HttpConfiguration;
+import org.eclipse.jetty.server.HttpConfiguration.Customizer;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.server.SslConnectionFactory;
@@ -31,25 +31,29 @@ import java.util.List;
 import java.util.UUID;
 
 import org.neo4j.helpers.ListenSocketAddress;
+import org.neo4j.kernel.api.net.NetworkConnectionTracker;
 import org.neo4j.kernel.configuration.Config;
 import org.neo4j.server.web.HttpConnectorFactory;
 import org.neo4j.server.web.JettyThreadCalculator;
 import org.neo4j.ssl.SslPolicy;
 
-
 public class SslSocketConnectorFactory extends HttpConnectorFactory
 {
-    public SslSocketConnectorFactory( Config configuration )
+    private static final String NAME = "https";
+
+    private final Customizer requestCustomizer;
+
+    public SslSocketConnectorFactory( NetworkConnectionTracker connectionTracker, Config config )
     {
-        super( configuration );
+        super( NAME, connectionTracker, config );
+        requestCustomizer = new HttpsRequestCustomizer( config );
     }
 
     @Override
     protected HttpConfiguration createHttpConfig()
     {
         HttpConfiguration httpConfig = super.createHttpConfig();
-        httpConfig.addCustomizer(
-                ( connector, channelConfig, request ) -> request.setScheme( HttpScheme.HTTPS.asString() ) );
+        httpConfig.addCustomizer( requestCustomizer );
         return httpConfig;
     }
 
@@ -57,12 +61,12 @@ public class SslSocketConnectorFactory extends HttpConnectorFactory
             JettyThreadCalculator jettyThreadCalculator )
     {
         SslConnectionFactory sslConnectionFactory = createSslConnectionFactory( sslPolicy );
-        return super.createConnector( server, address, jettyThreadCalculator, sslConnectionFactory, createHttpConnectionFactory() );
+        return createConnector( server, address, jettyThreadCalculator, sslConnectionFactory, createHttpConnectionFactory() );
     }
 
     private SslConnectionFactory createSslConnectionFactory( SslPolicy sslPolicy )
     {
-        SslContextFactory sslContextFactory = new SslContextFactory();
+        SslContextFactory.Server sslContextFactory = new SslContextFactory.Server();
 
         String password = UUID.randomUUID().toString();
         sslContextFactory.setKeyStore( sslPolicy.getKeyStore( password.toCharArray(), password.toCharArray() ) );

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -28,12 +28,15 @@ import org.neo4j.values.storable.CoordinateReferenceSystem;
 import org.neo4j.values.storable.NumberValue;
 import org.neo4j.values.storable.PointValue;
 import org.neo4j.values.storable.TextValue;
+import org.neo4j.values.storable.UTF8StringValue;
 import org.neo4j.values.storable.Value;
 import org.neo4j.values.storable.ValueGroup;
 import org.neo4j.values.storable.ValueTuple;
 import org.neo4j.values.storable.Values;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.neo4j.values.storable.Values.NO_VALUE;
+import static org.neo4j.values.storable.Values.utf8Value;
 
 public abstract class IndexQuery
 {
@@ -149,7 +152,7 @@ public abstract class IndexQuery
      * @param prefix the string prefix to search for.
      * @return an {@link IndexQuery} instance to be used for querying an index.
      */
-    public static StringPrefixPredicate stringPrefix( int propertyKeyId, String prefix )
+    public static StringPrefixPredicate stringPrefix( int propertyKeyId, TextValue prefix )
     {
         return new StringPrefixPredicate( propertyKeyId, prefix );
     }
@@ -161,7 +164,7 @@ public abstract class IndexQuery
      * @param contains the string to search for.
      * @return an {@link IndexQuery} instance to be used for querying an index.
      */
-    public static StringContainsPredicate stringContains( int propertyKeyId, String contains )
+    public static StringContainsPredicate stringContains( int propertyKeyId, TextValue contains )
     {
         return new StringContainsPredicate( propertyKeyId, contains );
     }
@@ -173,7 +176,7 @@ public abstract class IndexQuery
      * @param suffix the string suffix to search for.
      * @return an {@link IndexQuery} instance to be used for querying an index.
      */
-    public static StringSuffixPredicate stringSuffix( int propertyKeyId, String suffix )
+    public static StringSuffixPredicate stringSuffix( int propertyKeyId, TextValue suffix )
     {
         return new StringSuffixPredicate( propertyKeyId, suffix );
     }
@@ -358,10 +361,7 @@ public abstract class IndexQuery
                 if ( to != null )
                 {
                     int compare = Values.COMPARATOR.compare( value, to );
-                    if ( compare > 0 || !toInclusive && compare == 0 )
-                    {
-                        return false;
-                    }
+                    return compare <= 0 && (toInclusive || compare != 0);
                 }
                 return true;
             }
@@ -393,6 +393,14 @@ public abstract class IndexQuery
         {
             return toInclusive;
         }
+
+        /**
+         * @return true if the order defined for this type can also be relied on for bounds comparisons.
+         */
+        public boolean isRegularOrder()
+        {
+            return true;
+        }
     }
 
     public static final class GeometryRangePredicate extends RangePredicate<PointValue>
@@ -417,7 +425,8 @@ public abstract class IndexQuery
                 PointValue point = (PointValue) value;
                 if ( point.getCoordinateReferenceSystem().equals( crs ) )
                 {
-                    return point.withinRange( from, fromInclusive, to, toInclusive );
+                    Boolean within = point.withinRange( from, fromInclusive, to, toInclusive );
+                    return within == null ? false : within;
                 }
             }
             return false;
@@ -436,6 +445,16 @@ public abstract class IndexQuery
         public PointValue to()
         {
             return to;
+        }
+
+        /**
+         * The order defined for spatial types cannot be used for bounds comparisons.
+         * @return false
+         */
+        @Override
+        public boolean isRegularOrder()
+        {
+            return false;
         }
     }
 
@@ -489,16 +508,29 @@ public abstract class IndexQuery
         {
             return ValueGroup.TEXT;
         }
+
+        protected TextValue asUTF8StringValue( TextValue in )
+        {
+            if ( in instanceof UTF8StringValue )
+            {
+                return in;
+            }
+            else
+            {
+                return utf8Value( in.stringValue().getBytes( UTF_8 ) );
+            }
+        }
     }
 
     public static final class StringPrefixPredicate extends StringPredicate
     {
-        private final String prefix;
+        private final TextValue prefix;
 
-        StringPrefixPredicate( int propertyKeyId, String prefix )
+        StringPrefixPredicate( int propertyKeyId, TextValue prefix )
         {
             super( propertyKeyId );
-            this.prefix = prefix;
+            //we know utf8 values are coming from the index so optimize for that
+            this.prefix = asUTF8StringValue( prefix );
         }
 
         @Override
@@ -510,10 +542,10 @@ public abstract class IndexQuery
         @Override
         public boolean acceptsValue( Value value )
         {
-            return Values.isTextValue( value ) && ((TextValue) value).stringValue().startsWith( prefix );
+            return Values.isTextValue( value ) && ((TextValue) value).startsWith( prefix );
         }
 
-        public String prefix()
+        public TextValue prefix()
         {
             return prefix;
         }
@@ -521,12 +553,13 @@ public abstract class IndexQuery
 
     public static final class StringContainsPredicate extends StringPredicate
     {
-        private final String contains;
+        private final TextValue contains;
 
-        StringContainsPredicate( int propertyKeyId, String contains )
+        StringContainsPredicate( int propertyKeyId, TextValue contains )
         {
             super( propertyKeyId );
-            this.contains = contains;
+            //we know utf8 values are coming from the index so optimize for that
+            this.contains = asUTF8StringValue( contains );
         }
 
         @Override
@@ -538,10 +571,10 @@ public abstract class IndexQuery
         @Override
         public boolean acceptsValue( Value value )
         {
-            return Values.isTextValue( value ) && ((String) value.asObject()).contains( contains );
+            return Values.isTextValue( value ) && ((TextValue) value).contains( contains );
         }
 
-        public String contains()
+        public TextValue contains()
         {
             return contains;
         }
@@ -549,12 +582,13 @@ public abstract class IndexQuery
 
     public static final class StringSuffixPredicate extends StringPredicate
     {
-        private final String suffix;
+        private final TextValue suffix;
 
-        StringSuffixPredicate( int propertyKeyId, String suffix )
+        StringSuffixPredicate( int propertyKeyId, TextValue suffix )
         {
             super( propertyKeyId );
-            this.suffix = suffix;
+            //we know utf8 values are coming from the index so optimize for that
+            this.suffix = asUTF8StringValue( suffix );
         }
 
         @Override
@@ -566,10 +600,10 @@ public abstract class IndexQuery
         @Override
         public boolean acceptsValue( Value value )
         {
-            return Values.isTextValue( value ) && ((String) value.asObject()).endsWith( suffix );
+            return Values.isTextValue( value ) && ((TextValue) value).endsWith( suffix );
         }
 
-        public String suffix()
+        public TextValue suffix()
         {
             return suffix;
         }

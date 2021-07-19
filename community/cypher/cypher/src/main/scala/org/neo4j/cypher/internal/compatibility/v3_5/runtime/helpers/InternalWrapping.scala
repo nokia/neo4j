@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,16 +19,24 @@
  */
 package org.neo4j.cypher.internal.compatibility.v3_5.runtime.helpers
 
-import org.neo4j.cypher.internal.frontend.v3_5.notification.{DeprecatedPlannerNotification, InternalNotification, PlannerUnsupportedNotification, RuntimeUnsupportedNotification, _}
-import org.neo4j.cypher.internal.util.v3_5.InputPosition
+import org.neo4j.cypher.internal.compiler.v3_5._
 import org.neo4j.graphdb
 import org.neo4j.graphdb.impl.notification.{NotificationCode, NotificationDetail}
+import org.neo4j.cypher.internal.v3_5.util._
 
 import scala.collection.JavaConverters._
 
 object InternalWrapping {
 
   def asKernelNotification(offset: Option[InputPosition])(notification: InternalNotification) = notification match {
+    case StartUnavailableFallback =>
+      NotificationCode.START_UNAVAILABLE_FALLBACK.notification(graphdb.InputPosition.empty)
+    case CreateUniqueUnavailableFallback(pos) =>
+      NotificationCode.CREATE_UNIQUE_UNAVAILABLE_FALLBACK.notification(pos.withOffset(offset).asInputPosition)
+    case CreateUniqueDeprecated(pos) =>
+      NotificationCode.CREATE_UNIQUE_DEPRECATED.notification(pos.withOffset(offset).asInputPosition)
+    case RulePlannerUnavailableFallbackNotification =>
+      NotificationCode.RULE_PLANNER_UNAVAILABLE_FALLBACK.notification(graphdb.InputPosition.empty)
     case DeprecatedStartNotification(pos, message) =>
       NotificationCode.START_DEPRECATED.notification(pos.withOffset(offset).asInputPosition, NotificationDetail.Factory.message("START", message))
     case CartesianProductNotification(pos, variables) =>
@@ -71,12 +79,20 @@ object InternalWrapping {
       NotificationCode.DEPRECATED_BINDING_VAR_LENGTH_RELATIONSHIP.notification(pos.withOffset(offset).asInputPosition, NotificationDetail.Factory.bindingVarLengthRelationship(variable))
     case DeprecatedRelTypeSeparatorNotification(pos) =>
       NotificationCode.DEPRECATED_RELATIONSHIP_TYPE_SEPARATOR.notification(pos.withOffset(offset).asInputPosition)
-    case DeprecatedPlannerNotification =>
-      NotificationCode.DEPRECATED_PLANNER.notification(graphdb.InputPosition.empty)
+    case DeprecatedParameterSyntax(pos) =>
+      NotificationCode.DEPRECATED_PARAMETER_SYNTAX.notification(pos.withOffset(offset).asInputPosition)
+    case DeprecatedRulePlannerNotification =>
+      NotificationCode.DEPRECATED_RULE_PLANNER.notification(graphdb.InputPosition.empty)
+    case DeprecatedCompiledRuntimeNotification =>
+      NotificationCode.DEPRECATED_COMPILED_RUNTIME.notification(graphdb.InputPosition.empty)
     case ProcedureWarningNotification(pos, name, warning) =>
       NotificationCode.PROCEDURE_WARNING.notification(pos.withOffset(offset).asInputPosition, NotificationDetail.Factory.procedureWarning(name, warning))
     case ExperimentalFeatureNotification(msg) =>
       NotificationCode.EXPERIMENTAL_FEATURE.notification(graphdb.InputPosition.empty, NotificationDetail.Factory.message("MORSEL", msg))
+    case SuboptimalIndexForConstainsQueryNotification(label, properties) =>
+      NotificationCode.SUBOPTIMAL_INDEX_FOR_CONTAINS_QUERY.notification(graphdb.InputPosition.empty, NotificationDetail.Factory.suboptimalIndex(label, properties: _*))
+    case SuboptimalIndexForEndsWithQueryNotification(label, properties) =>
+      NotificationCode.SUBOPTIMAL_INDEX_FOR_ENDS_WITH_QUERY.notification(graphdb.InputPosition.empty, NotificationDetail.Factory.suboptimalIndex(label, properties: _*))
   }
 
   private implicit class ConvertibleCompilerInputPosition(pos: InputPosition) {

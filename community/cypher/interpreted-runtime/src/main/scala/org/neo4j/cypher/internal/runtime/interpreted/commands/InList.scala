@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -50,9 +50,11 @@ abstract class InList(collectionExpression: Expression, id: String, predicate: P
       val seq = makeTraversable(list)
       val innerContext = m.createClone()
 
-      seqMethod(seq)(item =>
+      seqMethod(seq) { item =>
         // Since we can override an existing id here we use a method that guarantees that we do not overwrite an existing variable
-        predicate.isMatch(innerContext.set(id, item), state))
+        innerContext.set(id, item)
+        predicate.isMatch(innerContext, state)
+      }
     }
   }
 
@@ -157,17 +159,21 @@ case class SingleInList(collection: Expression, symbolName: String, inner: Predi
 
   private def single(collectionValue: ListValue)(predicate: (AnyValue => Option[Boolean])): Option[Boolean] = {
     var matched = false
+    var atLeastOneNull = false
     val iterator = collectionValue.iterator()
     while(iterator.hasNext) {
       predicate(iterator.next()) match {
         case Some(true) if matched => return Some(false)
         case Some(true)            => matched = true
-        case None                  => return None
+        case None                  => atLeastOneNull = true
         case _                     =>
       }
     }
 
-    Some(matched)
+    if (atLeastOneNull)
+      None
+    else
+      Some(matched)
   }
 
   def seqMethod(value: ListValue): CollectionPredicate = single(value)

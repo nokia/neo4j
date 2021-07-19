@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -26,10 +26,12 @@ import org.neo4j.consistency.checking.CheckDecorator;
 import org.neo4j.consistency.checking.RecordCheck;
 import org.neo4j.consistency.checking.cache.CacheAccess;
 import org.neo4j.consistency.report.ConsistencyReport;
-import org.neo4j.kernel.impl.store.RecordCursor;
+import org.neo4j.io.pagecache.PageCursor;
+import org.neo4j.kernel.impl.store.InvalidRecordException;
 import org.neo4j.kernel.impl.store.RecordStore;
 import org.neo4j.kernel.impl.store.StoreType;
 import org.neo4j.kernel.impl.store.record.NodeRecord;
+import org.neo4j.kernel.impl.store.record.RecordLoad;
 import org.neo4j.test.rule.NeoStoresRule;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -80,20 +82,13 @@ public class StoreProcessorTest
                 stores.builder().build().getNodeStore() )
         {
             @Override
-            public RecordCursor<NodeRecord> newRecordCursor( NodeRecord record )
+            public void getRecordByCursor( long id, NodeRecord target, RecordLoad mode, PageCursor cursor ) throws InvalidRecordException
             {
-                return new RecordCursor.Delegator<NodeRecord>( super.newRecordCursor( record ) )
+                if ( id == 3 )
                 {
-                    @Override
-                    public boolean next( long id )
-                    {
-                        if ( id == 3 )
-                        {
-                            processor.stop();
-                        }
-                        return super.next( id );
-                    }
-                };
+                    processor.stop();
+                }
+                super.getRecordByCursor( id, target, mode, cursor );
             }
         };
         nodeStore.updateRecord( node( 0, false, 0, 0 ) );

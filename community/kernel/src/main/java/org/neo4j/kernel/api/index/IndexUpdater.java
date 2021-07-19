@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,8 +19,6 @@
  */
 package org.neo4j.kernel.api.index;
 
-import java.io.IOException;
-
 import org.neo4j.kernel.api.exceptions.index.IndexEntryConflictException;
 
 /**
@@ -33,8 +31,8 @@ import org.neo4j.kernel.api.exceptions.index.IndexEntryConflictException;
  */
 public interface IndexUpdater extends AutoCloseable
 {
-    void process( IndexEntryUpdate<?> update ) throws IOException, IndexEntryConflictException;
+    void process( IndexEntryUpdate<?> update ) throws IndexEntryConflictException;
 
     @Override
-    void close() throws IOException, IndexEntryConflictException;
+    void close() throws IndexEntryConflictException;
 }

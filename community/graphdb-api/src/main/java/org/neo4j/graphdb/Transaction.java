@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -28,7 +28,7 @@ package org.neo4j.graphdb;
  * {@link NotInTransactionException}.
  * <p>
  * Transactions are bound to the thread in which they were created.
- * Here's the idiomatic use of programmatic transactions in Neo4j starting from java 7:
+ * Here's the idiomatic use of programmatic transactions in Neo4j:
  *
  * <pre>
  * <code>
@@ -64,25 +64,6 @@ package org.neo4j.graphdb;
  * Read operations inside of a transaction will also read uncommitted data from
  * the same transaction.
  * <p>
- *
- * Here's the idiomatic use of programmatic transactions in Neo4j on java 6 or earlier:
- *
- * <pre>
- * <code>
- * Transaction tx = graphDb.beginTx();
- * try
- * {
- *     // operations on the graph
- *     // ...
- *
- *     tx.success();
- * }
- * finally
- * {
- *     tx.close();
- * }
- * </code>
- * </pre>
  * <p>
  * All {@link ResourceIterable ResourceIterables} that where returned from operations executed inside a transaction
  * will be automatically closed when the transaction is committed or rolled back.

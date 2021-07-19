@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -76,13 +76,15 @@ public class SslPolicyLoader
     private final PkiUtils pkiUtils = new PkiUtils();
     private final Config config;
     private final SslProvider sslProvider;
+    private final LogProvider logProvider;
 
     private SslPolicy legacyPolicy;
 
-    private SslPolicyLoader( Config config )
+    private SslPolicyLoader( Config config, LogProvider logProvider )
     {
         this.config = config;
         this.sslProvider = config.get( SslSystemSettings.netty_ssl_provider );
+        this.logProvider = logProvider;
     }
 
     /**
@@ -93,7 +95,7 @@ public class SslPolicyLoader
      */
     public static SslPolicyLoader create( Config config, LogProvider logProvider )
     {
-        SslPolicyLoader policyFactory = new SslPolicyLoader( config );
+        SslPolicyLoader policyFactory = new SslPolicyLoader( config, logProvider );
         policyFactory.load( config, logProvider.getLog( SslPolicyLoader.class ) );
         return policyFactory;
     }
@@ -141,15 +143,15 @@ public class SslPolicyLoader
     private SslPolicy loadOrCreateLegacyPolicy()
     {
         File privateKeyFile = config.get( LegacySslPolicyConfig.tls_key_file ).getAbsoluteFile();
-        File certficateFile = config.get( LegacySslPolicyConfig.tls_certificate_file ).getAbsoluteFile();
+        File certificateFile = config.get( LegacySslPolicyConfig.tls_certificate_file ).getAbsoluteFile();
 
-        if ( !privateKeyFile.exists() && !certficateFile.exists() )
+        if ( !privateKeyFile.exists() && !certificateFile.exists() )
         {
             String hostname = config.get( default_advertised_address );
 
             try
             {
-                pkiUtils.createSelfSignedCertificate( certficateFile, privateKeyFile, hostname );
+                pkiUtils.createSelfSignedCertificate( certificateFile, privateKeyFile, hostname );
             }
             catch ( Exception e )
             {
@@ -158,10 +160,10 @@ public class SslPolicyLoader
         }
 
         PrivateKey privateKey = loadPrivateKey( privateKeyFile, null );
-        X509Certificate[] keyCertChain = loadCertificateChain( certficateFile );
+        X509Certificate[] keyCertChain = loadCertificateChain( certificateFile );
 
         return new SslPolicy( privateKey, keyCertChain, TLS_VERSION_DEFAULTS, CIPHER_SUITES_DEFAULTS,
-                ClientAuth.NONE, InsecureTrustManagerFactory.INSTANCE, sslProvider );
+                ClientAuth.NONE, InsecureTrustManagerFactory.INSTANCE, sslProvider, false, logProvider );
     }
 
     private void load( Config config, Log log )
@@ -198,20 +200,7 @@ public class SslPolicyLoader
 
             if ( allowKeyGeneration && !privateKeyFile.exists() && !keyCertChainFile.exists() )
             {
-                log.info( format( "Generating key and self-signed certificate for SSL policy '%s'", policyName ) );
-                String hostname = config.get( default_advertised_address );
-
-                try
-                {
-                    pkiUtils.createSelfSignedCertificate( keyCertChainFile, privateKeyFile, hostname );
-
-                    trustedCertificatesDir.mkdir();
-                    revokedCertificatesDir.mkdir();
-                }
-                catch ( GeneralSecurityException | IOException | OperatorCreationException e )
-                {
-                    throw new RuntimeException( "Failed to generate private key and certificate", e );
-                }
+                generatePrivateKeyAndCertificate( log, policyName, keyCertChainFile, privateKeyFile, trustedCertificatesDir, revokedCertificatesDir );
             }
 
             privateKey = loadPrivateKey( privateKeyFile, privateKeyPassword );
@@ -219,6 +208,7 @@ public class SslPolicyLoader
 
             ClientAuth clientAuth = config.get( policyConfig.client_auth );
             boolean trustAll = config.get( policyConfig.trust_all );
+            boolean verifyHostname = config.get( policyConfig.verify_hostname );
             TrustManagerFactory trustManagerFactory;
 
             Collection<X509CRL> crls = getCRLs( revokedCertificatesDir );
@@ -235,9 +225,29 @@ public class SslPolicyLoader
             List<String> tlsVersions = config.get( policyConfig.tls_versions );
             List<String> ciphers = config.get( policyConfig.ciphers );
 
-            SslPolicy sslPolicy = new SslPolicy( privateKey, keyCertChain, tlsVersions, ciphers, clientAuth, trustManagerFactory, sslProvider );
+            SslPolicy sslPolicy =
+                    new SslPolicy( privateKey, keyCertChain, tlsVersions, ciphers, clientAuth, trustManagerFactory, sslProvider, verifyHostname, logProvider );
             log.info( format( "Loaded SSL policy '%s' = %s", policyName, sslPolicy ) );
             policies.put( policyName, sslPolicy );
+        }
+    }
+
+    private void generatePrivateKeyAndCertificate( Log log, String policyName, File keyCertChainFile, File privateKeyFile, File trustedCertificatesDir,
+            File revokedCertificatesDir )
+    {
+        log.info( format( "Generating key and self-signed certificate for SSL policy '%s'", policyName ) );
+        String hostname = config.get( default_advertised_address );
+
+        try
+        {
+            pkiUtils.createSelfSignedCertificate( keyCertChainFile, privateKeyFile, hostname );
+
+            trustedCertificatesDir.mkdir();
+            revokedCertificatesDir.mkdir();
+        }
+        catch ( GeneralSecurityException | IOException | OperatorCreationException e )
+        {
+            throw new RuntimeException( "Failed to generate private key and certificate", e );
         }
     }
 
@@ -260,7 +270,7 @@ public class SslPolicyLoader
 
         try
         {
-            certificateFactory = CertificateFactory.getInstance( "X.509" );
+            certificateFactory = CertificateFactory.getInstance( PkiUtils.CERTIFICATE_TYPE );
         }
         catch ( CertificateException e )
         {
@@ -338,7 +348,7 @@ public class SslPolicyLoader
         int i = 0;
         for ( File trustedCertFile : trustedCertFiles )
         {
-            CertificateFactory certificateFactory = CertificateFactory.getInstance( "X.509" );
+            CertificateFactory certificateFactory = CertificateFactory.getInstance( PkiUtils.CERTIFICATE_TYPE );
             try ( InputStream input = Files.newInputStream( trustedCertFile.toPath() ) )
             {
                 while ( input.available() > 0 )

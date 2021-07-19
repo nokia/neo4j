@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,10 +21,13 @@ package org.neo4j.values.storable;
 
 import java.util.Arrays;
 
+import org.neo4j.hashing.HashFunction;
 import org.neo4j.values.AnyValue;
 import org.neo4j.values.ValueMapper;
 
 import static java.lang.String.format;
+import static org.neo4j.values.storable.NoValue.NO_VALUE;
+import static org.neo4j.values.utils.ValueMath.HASH_CONSTANT;
 
 public class StringArray extends TextArray
 {
@@ -69,7 +72,23 @@ public class StringArray extends TextArray
     @Override
     public int computeHash()
     {
-        return Arrays.hashCode( value );
+        int result = 1;
+        for ( String element : value )
+        {
+            result = HASH_CONSTANT * result + (element == null ? NO_VALUE.hashCode() : Values.stringValue( element ).hashCode());
+        }
+        return result;
+    }
+
+    @Override
+    public long updateHash( HashFunction hashFunction, long hash )
+    {
+        hash = hashFunction.update( hash, value.length );
+        for ( String s : value )
+        {
+            hash = StringWrappingStringValue.updateHash( hashFunction, hash, s );
+        }
+        return hash;
     }
 
     @Override
@@ -100,7 +119,7 @@ public class StringArray extends TextArray
     @Override
     public AnyValue value( int offset )
     {
-        return Values.stringValue( stringValue( offset ) );
+        return Values.stringOrNoValue( stringValue( offset ) );
     }
 
     @Override
@@ -112,6 +131,12 @@ public class StringArray extends TextArray
     @Override
     public String toString()
     {
-        return format( "StringArray%s", Arrays.toString( value ) );
+        return format( "%s%s", getTypeName(), Arrays.toString( value ) );
+    }
+
+    @Override
+    public String getTypeName()
+    {
+        return "StringArray";
     }
 }

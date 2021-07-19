@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,6 +20,7 @@
 package org.neo4j.internal.kernel.api;
 
 import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,12 +28,15 @@ import java.util.List;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Transaction;
+import org.neo4j.internal.kernel.api.exceptions.InvalidTransactionTypeKernelException;
+import org.neo4j.internal.kernel.api.exceptions.explicitindex.AutoIndexingKernelException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.neo4j.graphdb.Label.label;
+import static org.neo4j.io.pagecache.tracing.cursor.PageCursorTracer.NULL;
 
 public abstract class NodeCursorTestBase<G extends KernelAPIReadTestSupport> extends KernelAPIReadTestBase<G>
 {
@@ -40,7 +44,7 @@ public abstract class NodeCursorTestBase<G extends KernelAPIReadTestSupport> ext
     private static long foo, bar, baz, barbaz, bare, gone;
 
     @Override
-    void createTestGraph( GraphDatabaseService graphDb )
+    public void createTestGraph( GraphDatabaseService graphDb )
     {
         Node deleted;
         try ( Transaction tx = graphDb.beginTx() )
@@ -108,6 +112,21 @@ public abstract class NodeCursorTestBase<G extends KernelAPIReadTestSupport> ext
                 assertEquals( "should access the correct node", id, nodes.nodeReference() );
                 assertFalse( "should only access a single node", nodes.next() );
             }
+        }
+    }
+
+    // This is functionality which is only required for the hacky db.schema not to leak real data
+    @Test
+    public void shouldNotAccessNegativeReferences()
+    {
+        // given
+        try ( NodeCursor node = cursors.allocateNodeCursor() )
+        {
+            // when
+            read.singleNode( -2L, node  );
+
+            // then
+            assertFalse( "should not access negative reference node", node.next() );
         }
     }
 
@@ -207,5 +226,23 @@ public abstract class NodeCursorTestBase<G extends KernelAPIReadTestSupport> ext
             assertFalse( nodes.hasLabel( bazLabel ) );
             assertFalse( "should only access a single node", nodes.next() );
         }
+    }
+
+    @Test
+    public void notFindNoIdNode() throws InvalidTransactionTypeKernelException, AutoIndexingKernelException
+    {
+        // given a non-commited node created in transaction
+        long nodeId = tx.dataWrite().nodeCreate();
+
+        try ( NodeCursor nodes = cursors.allocateNodeCursor( ) )
+        {
+            // when
+            read.singleNode( -1, nodes );
+            // then
+            Assertions.assertFalse( nodes.next(), "should not access any node" );
+        }
+
+        // remove temporarily created node.
+        tx.dataWrite().nodeDelete( nodeId );
     }
 }

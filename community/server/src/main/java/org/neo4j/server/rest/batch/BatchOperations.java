@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,12 +19,12 @@
  */
 package org.neo4j.server.rest.batch;
 
-import org.codehaus.jackson.JsonFactory;
-import org.codehaus.jackson.JsonGenerator;
-import org.codehaus.jackson.JsonNode;
-import org.codehaus.jackson.JsonParser;
-import org.codehaus.jackson.JsonToken;
-import org.codehaus.jackson.map.ObjectMapper;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -46,7 +46,7 @@ import org.neo4j.server.web.WebServer;
 
 public abstract class BatchOperations
 {
-    private static final Pattern PLACHOLDER_PATTERN = Pattern.compile( "\\{(\\d{1,10})}" );
+    private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile( "\\{(\\d{1,10})}" );
 
     protected static final String ID_KEY = "id";
     protected static final String METHOD_KEY = "method";
@@ -112,7 +112,7 @@ public abstract class BatchOperations
         {
             return str;
         }
-        Matcher matcher = PLACHOLDER_PATTERN.matcher( str );
+        Matcher matcher = PLACEHOLDER_PATTERN.matcher( str );
         StringBuffer sb = new StringBuffer();
         String replacement = null;
         while ( matcher.find() )
@@ -149,7 +149,7 @@ public abstract class BatchOperations
     protected void parseAndPerform( UriInfo uriInfo, HttpHeaders httpHeaders, HttpServletRequest req,
                                     InputStream body, Map<Integer, String> locations ) throws IOException, ServletException
     {
-        JsonParser jp = jsonFactory.createJsonParser(body);
+        JsonParser jp = jsonFactory.createJsonParser( body);
         JsonToken token;
         RequestData requestData = RequestData.from( req );
 

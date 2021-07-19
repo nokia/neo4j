@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,11 +19,12 @@
  */
 package org.neo4j.cypher.internal.runtime.planDescription
 
+import org.neo4j.cypher.internal.ir.v3_5.ProvidedOrder
 import org.neo4j.cypher.internal.runtime.planDescription.InternalPlanDescription.Arguments._
-import org.neo4j.cypher.internal.util.v3_5.UnNamedNameGenerator._
-import org.neo4j.cypher.internal.frontend.v3_5.prettifier.ExpressionStringifier
+import org.neo4j.cypher.internal.v3_5.ast.prettifier.ExpressionStringifier
 import org.neo4j.cypher.internal.v3_5.expressions
 import org.neo4j.cypher.internal.v3_5.expressions.SemanticDirection
+import org.neo4j.cypher.internal.v3_5.util.UnNamedNameGenerator._
 
 object PlanDescriptionArgumentSerializer {
   private val SEPARATOR = ", "
@@ -63,6 +64,7 @@ object PlanDescriptionArgumentSerializer {
       case Rows(value) => Long.box(value)
       case Time(value) => Long.box(value)
       case EstimatedRows(value) => Double.box(value)
+      case Order(providedOrder) => serializeProvidedOrder(providedOrder)
       case Version(version) => version
       case Planner(planner) => planner
       case PlannerImpl(plannerName) => plannerName
@@ -102,8 +104,27 @@ object PlanDescriptionArgumentSerializer {
     }
   }
 
-   def removeGeneratedNames(s: String): String = {
+  def serializeProvidedOrder(providedOrder: ProvidedOrder): String = {
+    providedOrder.columns.map(col => {
+      val direction = if (col.isAscending) "ASC" else "DESC"
+      s"${removeGeneratedNames(col.id)} $direction"
+    }).mkString(", ")
+  }
+
+  def removeGeneratedNames(s: String): String = {
     val named = UNNAMED_PATTERN.replaceAllIn(s, m => s"anon[${m group 2}]")
-    DEDUP_PATTERN.replaceAllIn(named, _.group(1))
+    deduplicateVariableNames(named)
+  }
+
+  def deduplicateVariableNames(in: String): String = {
+    val sb = new StringBuilder
+    var i = 0
+    for (m <- DEDUP_PATTERN.findAllMatchIn(in)) {
+      sb ++= in.substring(i, m.start)
+      sb ++= m.group(1)
+      i = m.end
+    }
+    sb ++= in.substring(i)
+    sb.toString()
   }
 }

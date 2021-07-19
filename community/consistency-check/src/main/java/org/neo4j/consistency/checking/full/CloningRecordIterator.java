@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -38,7 +38,15 @@ public class CloningRecordIterator<R extends AbstractBaseRecord> extends Prefetc
     @SuppressWarnings( "unchecked" )
     protected R fetchNextOrNull()
     {
-        return actualIterator.hasNext() ? (R) actualIterator.next().clone() : null;
+        if ( actualIterator.hasNext() )
+        {
+            R next = actualIterator.next();
+            return (R) next.clone();
+        }
+        else
+        {
+            return null;
+        }
     }
 
     @Override

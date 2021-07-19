@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,18 +19,18 @@
  */
 package org.neo4j.kernel.api.impl.index.storage.layout;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.io.File;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-public class IndexFolderLayoutTest
+class IndexFolderLayoutTest
 {
     private final File indexRoot = new File( "indexRoot" );
 
     @Test
-    public void testIndexFolder()
+    void testIndexFolder()
     {
         IndexFolderLayout indexLayout = createTestIndex();
         File indexFolder = indexLayout.getIndexFolder();
@@ -39,7 +39,7 @@ public class IndexFolderLayoutTest
     }
 
     @Test
-    public void testIndexPartitionFolder()
+    void testIndexPartitionFolder()
     {
         IndexFolderLayout indexLayout = createTestIndex();
 

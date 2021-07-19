@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,26 +20,28 @@
 package org.neo4j.cypher.internal.compiler.v3_5.planner.logical.steps
 
 import org.neo4j.cypher.internal.compiler.v3_5.planner.logical._
-import org.neo4j.cypher.internal.v3_5.logical.plans.LogicalPlan
-import org.neo4j.cypher.internal.frontend.v3_5.helpers.SeqCombiner.combine
-import org.neo4j.cypher.internal.ir.v3_5.{QueryGraph, Selections}
-import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.{Cardinalities, Solveds}
+import org.neo4j.cypher.internal.ir.v3_5.{InterestingOrder, QueryGraph, Selections}
+import org.neo4j.cypher.internal.planner.v3_5.spi.PlanningAttributes.Solveds
+import org.neo4j.cypher.internal.v3_5.logical.plans._
 import org.neo4j.cypher.internal.v3_5.expressions.PartialPredicate.PartialPredicateWrapper
 import org.neo4j.cypher.internal.v3_5.expressions.{Expression, Ors}
+import org.neo4j.cypher.internal.v3_5.frontend.helpers.SeqCombiner.combine
 
 case class OrLeafPlanner(inner: Seq[LeafPlanFromExpressions]) extends LeafPlanner {
 
-  override def apply(qg: QueryGraph, context: LogicalPlanningContext, solveds: Solveds, cardinalities: Cardinalities): Seq[LogicalPlan] = {
+  override def apply(qg: QueryGraph, interestingOrder: InterestingOrder, context: LogicalPlanningContext): Seq[LogicalPlan] = {
     qg.selections.flatPredicates.flatMap {
       case orPredicate@Ors(exprs) =>
 
         // This is a Seq of possible solutions per expression
         val plansPerExpression: Seq[Seq[LeafPlansForVariable]] = exprs.toSeq.map {
-          (e: Expression) =>
-            val plansForVariables: Seq[LeafPlansForVariable] = inner.flatMap(_.producePlanFor(Set(e), qg, context))
+          e: Expression =>
+            val plansForVariables: Seq[LeafPlansForVariable] = inner.flatMap(_.producePlanFor(Set(e), qg, interestingOrder, context))
             val qgForExpression = qg.copy(selections = Selections.from(e))
-            plansForVariables.map(p =>
-              p.copy(plans = p.plans.map(context.config.applySelections(_, qgForExpression, context, solveds, cardinalities))))
+            val canDoIndexSeek = plansForVariables.exists(leafPlans => leafPlans.plans.exists(nodeIndexSeek))
+            val withoutIndexScans = if (canDoIndexSeek) plansForVariables.filter(x => !x.plans.exists(nodeIndexScan)) else plansForVariables
+            withoutIndexScans.map(p =>
+              p.copy(plans = p.plans.map(context.config.applySelections(_, qgForExpression, interestingOrder, context))))
         }
 
         val wasUnableToFindPlanForAtLeastOnePredicate = plansPerExpression.exists(_.isEmpty)
@@ -56,12 +58,14 @@ case class OrLeafPlanner(inner: Seq[LeafPlanFromExpressions]) extends LeafPlanne
               None
             case plans =>
               // We need to collect the predicates to be able to update solved correctly. After finishing to build the
-              // OR plan, we will report solving the OR predicate, but also other predicates solved.
+              // OR plan, we will report solving the OR predicate, but also other predicates which are covered by ALL
+              // underlying plans are solved.
               val predicates = collection.mutable.HashSet[Expression]()
+              predicates ++= coveringPredicates(plans.head, context.planningAttributes.solveds)
+
               val singlePlan = plans.reduce[LogicalPlan] {
                 case (p1, p2) =>
-                  predicates ++= coveringPredicates(p1, solveds)
-                  predicates ++= coveringPredicates(p2, solveds)
+                  predicates --= (predicates diff coveringPredicates(p2, context.planningAttributes.solveds).toSet)
                   producer.planUnion(p1, p2, context)
               }
               val orPlan = context.logicalPlanProducer.planDistinctStar(singlePlan, context)
@@ -86,4 +90,16 @@ case class OrLeafPlanner(inner: Seq[LeafPlanFromExpressions]) extends LeafPlanne
       case predicate => predicate
     }
   }
+
+  private def nodeIndexSeek(logicalPlan: LogicalPlan): Boolean =
+    logicalPlan match {
+      case _: NodeIndexSeek |
+           _: NodeUniqueIndexSeek |
+           _: NodeIndexEndsWithScan |
+           _: NodeIndexContainsScan => true
+      case _ => false
+    }
+
+  private def nodeIndexScan(logicalPlan: LogicalPlan): Boolean =
+    logicalPlan.isInstanceOf[NodeIndexScan]
 }

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,16 +19,16 @@
  */
 package org.neo4j.consistency.repair;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import org.neo4j.kernel.impl.store.record.NodeRecord;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-public class RecordSetTest
+class RecordSetTest
 {
     @Test
-    public void toStringShouldPlaceEachRecordOnItsOwnLine()
+    void toStringShouldPlaceEachRecordOnItsOwnLine()
     {
         // given
         NodeRecord record1 = new NodeRecord( 1, false, 1, 1 );

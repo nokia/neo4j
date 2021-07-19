@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -27,14 +27,13 @@ import org.neo4j.kernel.api.impl.index.storage.DirectoryFactory;
 import org.neo4j.kernel.api.index.IndexDirectoryStructure;
 import org.neo4j.kernel.api.index.IndexProvider;
 import org.neo4j.kernel.configuration.Config;
-import org.neo4j.kernel.impl.factory.GraphDatabaseFacadeFactory;
 import org.neo4j.kernel.impl.factory.OperationalMode;
 import org.neo4j.kernel.impl.index.schema.NumberIndexProvider;
 import org.neo4j.kernel.impl.index.schema.SpatialIndexProvider;
 import org.neo4j.kernel.impl.index.schema.StringIndexProvider;
 import org.neo4j.kernel.impl.index.schema.TemporalIndexProvider;
 
-import static org.neo4j.kernel.api.impl.index.LuceneKernelExtensions.directoryFactory;
+import static org.neo4j.kernel.api.impl.index.storage.DirectoryFactory.directoryFactory;
 
 class IndexProviderFactoryUtil
 {
@@ -70,8 +69,8 @@ class IndexProviderFactoryUtil
     static LuceneIndexProvider luceneProvider( FileSystemAbstraction fs, IndexDirectoryStructure.Factory directoryStructure, IndexProvider.Monitor monitor,
             Config config, OperationalMode operationalMode )
     {
-        boolean ephemeral = config.get( GraphDatabaseFacadeFactory.Configuration.ephemeral );
-        DirectoryFactory directoryFactory = directoryFactory( ephemeral, fs );
+        boolean ephemeral = config.get( GraphDatabaseSettings.ephemeral );
+        DirectoryFactory directoryFactory = directoryFactory( ephemeral );
         return new LuceneIndexProvider( fs, directoryFactory, directoryStructure, monitor, config, operationalMode );
     }
 }

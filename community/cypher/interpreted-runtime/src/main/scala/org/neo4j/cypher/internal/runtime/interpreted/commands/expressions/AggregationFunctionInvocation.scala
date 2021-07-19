@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -20,6 +20,7 @@
 package org.neo4j.cypher.internal.runtime.interpreted.commands.expressions
 
 import org.neo4j.cypher.internal.runtime.UserDefinedAggregator
+import org.neo4j.cypher.internal.runtime.interpreted.commands.AstNode
 import org.neo4j.cypher.internal.runtime.interpreted.pipes.QueryState
 import org.neo4j.cypher.internal.runtime.interpreted.pipes.aggregation.AggregationFunction
 import org.neo4j.cypher.internal.runtime.interpreted.{ExecutionContext, ValueConversion}
@@ -51,6 +52,8 @@ abstract class AggregationFunctionInvocation(signature: UserFunctionSignature, a
       inner
     }
   }
+
+  override def children: Seq[AstNode[_]] = arguments
 
   override def symbolTableDependencies: Set[String] = arguments.flatMap(_.symbolTableDependencies).toSet
 

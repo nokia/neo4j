@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -19,13 +19,16 @@
  */
 package org.neo4j.cypher.internal.runtime.interpreted.commands.expressions
 
+import org.neo4j.cypher.internal.runtime.interpreted.commands.AstNode
 import org.neo4j.cypher.internal.runtime.interpreted.pipes.aggregation.CollectFunction
-import org.neo4j.cypher.internal.util.v3_5.symbols._
+import org.neo4j.cypher.internal.v3_5.util.symbols._
 
 case class Collect(anInner: Expression) extends AggregationWithInnerExpression(anInner) {
-  def createAggregationFunction = new CollectFunction(anInner)
+  override def createAggregationFunction = new CollectFunction(anInner)
 
-  val expectedInnerType = CTAny
+  override val expectedInnerType: CypherType = CTAny
 
-  def rewrite(f: (Expression) => Expression) = f(Collect(anInner.rewrite(f)))
+  override def rewrite(f: Expression => Expression): Expression = f(Collect(anInner.rewrite(f)))
+
+  override def children: Seq[AstNode[_]] = Seq(anInner)
 }

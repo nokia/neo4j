@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -29,4 +29,26 @@ trait TokenContext {
   def getRelTypeName(id: Int): String
   def getOptRelTypeId(relType: String): Option[Int]
   def getRelTypeId(relType: String): Int
+}
+
+object TokenContext {
+  val EMPTY = new TokenContext {
+    override def getLabelName(id: Int): String = throw new IllegalArgumentException("No such label.", null)
+
+    override def getOptLabelId(labelName: String): Option[Int] = None
+
+    override def getLabelId(labelName: String): Int = throw new IllegalArgumentException("No such label.", null)
+
+    override def getPropertyKeyName(id: Int): String = throw new IllegalArgumentException("No such property.", null)
+
+    override def getOptPropertyKeyId(propertyKeyName: String): Option[Int] = None
+
+    override def getPropertyKeyId(propertyKeyName: String): Int = throw new IllegalArgumentException("No such property.", null)
+
+    override def getRelTypeName(id: Int): String = throw new IllegalArgumentException("No such relationship.", null)
+
+    override def getOptRelTypeId(relType: String): Option[Int] = None
+
+    override def getRelTypeId(relType: String): Int = throw new IllegalArgumentException("No such relationship.", null)
+  }
 }

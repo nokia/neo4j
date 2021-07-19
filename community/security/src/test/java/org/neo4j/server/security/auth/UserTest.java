@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,7 +21,6 @@ package org.neo4j.server.security.auth;
 
 import org.junit.Test;
 
-import org.neo4j.kernel.impl.security.Credential;
 import org.neo4j.kernel.impl.security.User;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -33,8 +32,8 @@ public class UserTest
     @Test
     public void shouldBuildImmutableUser()
     {
-        Credential abc = Credential.forPassword( "123abc" );
-        Credential fruit = Credential.forPassword( "fruit" );
+        LegacyCredential abc = LegacyCredential.forPassword( "123abc" );
+        LegacyCredential fruit = LegacyCredential.forPassword( "fruit" );
         User u1 = new User.Builder( "Steve", abc ).build();
         User u2 = new User.Builder( "Steve", fruit )
                 .withRequiredPasswordChange( true )

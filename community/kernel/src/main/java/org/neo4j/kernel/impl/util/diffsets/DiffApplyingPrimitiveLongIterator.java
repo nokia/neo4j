@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -78,8 +78,8 @@ class DiffApplyingPrimitiveLongIterator extends PrimitiveLongBaseIterator implem
             @Nullable Resource resource )
     {
         this.source = source;
-        this.addedElements = addedElements;
-        this.addedElementsIterator = addedElements.longIterator();
+        this.addedElements = addedElements.freeze();
+        this.addedElementsIterator = this.addedElements.longIterator();
         this.removedElements = removedElements;
         this.resource = resource;
         this.phase = Phase.FILTERED_SOURCE;

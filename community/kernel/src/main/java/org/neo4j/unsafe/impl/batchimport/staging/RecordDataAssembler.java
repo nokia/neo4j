@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -24,7 +24,8 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import org.neo4j.function.Predicates;
-import org.neo4j.kernel.impl.store.RecordCursor;
+import org.neo4j.io.pagecache.PageCursor;
+import org.neo4j.kernel.impl.store.RecordStore;
 import org.neo4j.kernel.impl.store.record.AbstractBaseRecord;
 import org.neo4j.kernel.impl.store.record.RecordLoad;
 
@@ -63,10 +64,11 @@ public class RecordDataAssembler<RECORD extends AbstractBaseRecord>
         return (RECORD[]) array;
     }
 
-    public boolean append( RecordCursor<RECORD> cursor, RECORD[] array, long id, int index )
+    public boolean append( RecordStore<RECORD> store, PageCursor cursor, RECORD[] array, long id, int index )
     {
         RECORD record = array[index];
-        return cursor.next( id, record, RecordLoad.CHECK ) && filter.test( record );
+        store.getRecordByCursor( id, record, RecordLoad.CHECK, cursor );
+        return record.inUse() && filter.test( record );
     }
 
     public RECORD[] cutOffAt( RECORD[] array, int length )

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,24 +21,25 @@ package org.neo4j.kernel.impl.api.index;
 
 import org.neo4j.kernel.api.index.IndexPopulator;
 import org.neo4j.logging.LogProvider;
+import org.neo4j.storageengine.api.schema.CapableIndexDescriptor;
 
 import static org.neo4j.kernel.impl.api.index.IndexPopulationFailure.failure;
 
 public class FailedPopulatingIndexProxyFactory implements FailedIndexProxyFactory
 {
-    private final IndexMeta indexMeta;
+    private final CapableIndexDescriptor capableIndexDescriptor;
     private final IndexPopulator populator;
     private final String indexUserDescription;
     private final IndexCountsRemover indexCountsRemover;
     private final LogProvider logProvider;
 
-    FailedPopulatingIndexProxyFactory( IndexMeta indexMeta,
+    FailedPopulatingIndexProxyFactory( CapableIndexDescriptor capableIndexDescriptor,
             IndexPopulator populator,
             String indexUserDescription,
             IndexCountsRemover indexCountsRemover,
             LogProvider logProvider )
     {
-        this.indexMeta = indexMeta;
+        this.capableIndexDescriptor = capableIndexDescriptor;
         this.populator = populator;
         this.indexUserDescription = indexUserDescription;
         this.indexCountsRemover = indexCountsRemover;
@@ -48,7 +49,7 @@ public class FailedPopulatingIndexProxyFactory implements FailedIndexProxyFactor
     @Override
     public IndexProxy create( Throwable failure )
     {
-        return new FailedIndexProxy( indexMeta, indexUserDescription, populator, failure( failure ),
+        return new FailedIndexProxy( capableIndexDescriptor, indexUserDescription, populator, failure( failure ),
                 indexCountsRemover, logProvider );
     }
 }

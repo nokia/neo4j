@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2002-2018 "Neo Technology,"
- * Network Engine for Objects in Lund AB [http://neotechnology.com]
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j.
  *
@@ -21,10 +21,10 @@ package org.neo4j.kernel.api.impl.index;
 
 import java.util.List;
 
-import org.neo4j.kernel.api.index.PropertyAccessor;
+import org.neo4j.storageengine.api.NodePropertyAccessor;
 import org.neo4j.values.storable.Value;
 
-public class TestPropertyAccessor implements PropertyAccessor
+public class TestPropertyAccessor implements NodePropertyAccessor
 {
     private final List<Value> propertyValues;
 
@@ -34,7 +34,7 @@ public class TestPropertyAccessor implements PropertyAccessor
     }
 
     @Override
-    public Value getPropertyValue( long nodeId, int propertyKeyId )
+    public Value getNodePropertyValue( long nodeId, int propertyKeyId )
     {
         return propertyValues.get( (int)nodeId );
     }
